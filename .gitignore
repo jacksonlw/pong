@@ -9,3 +9,5 @@
 # pong-cloud, its own repository, sits here; nothing in it belongs to this one.
 /private/
 /CLAUDE.local.md
+/.claude/
+/CLAUDE.local.md
