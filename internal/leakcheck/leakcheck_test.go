@@ -29,8 +29,9 @@ var rules = []struct {
 // allowed is what matches a rule but names nothing private: made-up home folders in tests.
 var allowed = regexp.MustCompile(`/Users/(me|you|dev|test|user|alice|bob|someone|example|name)\b`)
 
-// skip is what the check does not read: build output, dependencies and binary files.
-var skip = map[string]bool{".git": true, "private": true, "build": true, ".build": true, "node_modules": true, ".swiftpm": true}
+// skip is what the check does not read: the private repository, local agent settings,
+// build output and dependencies. Binary files are skipped as they are read.
+var skip = map[string]bool{".git": true, "private": true, ".claude": true, "CLAUDE.local.md": true, "build": true, ".build": true, "node_modules": true, ".swiftpm": true}
 
 func TestPublicNamesNothingPrivate(t *testing.T) {
 	root, err := filepath.Abs("../..")
@@ -46,6 +47,9 @@ func TestPublicNamesNothingPrivate(t *testing.T) {
 			if skip[d.Name()] && p != root {
 				return filepath.SkipDir
 			}
+			return nil
+		}
+		if skip[d.Name()] {
 			return nil
 		}
 		rel, _ := filepath.Rel(root, p)
