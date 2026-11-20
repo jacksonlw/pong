@@ -1,0 +1,1 @@
+{"method":"item/started","params":{"threadId":"","turnId":"","startedAtMs":0,"item":{"type":"fileChange","id":"item_patch","status":"inProgress","changes":[{"path":"notes.txt","kind":{"type":"add"},"diff":"+hello\n"}]}}}

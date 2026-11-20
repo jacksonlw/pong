@@ -1,0 +1,11 @@
+.DS_Store
+/bin/
+/build/
+/app/.build/
+/pong
+/pong-engine
+/.dev/
+
+# pong-cloud, its own repository, sits here; nothing in it belongs to this one.
+/private/
+/CLAUDE.local.md

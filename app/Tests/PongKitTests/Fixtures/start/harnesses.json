@@ -1,0 +1,45 @@
+[
+    {
+        "id": "claude-code",
+        "name": "Claude Code",
+        "installed": true,
+        "connected": false,
+        "can_start": true,
+        "version": "2.1.322",
+        "note": "Pong is not installed in it; version 2.1.322"
+    },
+    {
+        "id": "codex",
+        "name": "Codex",
+        "installed": true,
+        "connected": false,
+        "can_start": true,
+        "version": "0.170.0",
+        "warning": "No Codex version has been tested with Pong.",
+        "note": "Pong is not installed in it; version 0.170.0; warning: no Codex version has been tested with Pong"
+    },
+    {
+        "id": "gemini",
+        "name": "Gemini CLI",
+        "installed": false,
+        "connected": false,
+        "can_start": false,
+        "note": "not installed"
+    },
+    {
+        "id": "amp",
+        "name": "Amp",
+        "installed": false,
+        "connected": false,
+        "can_start": false,
+        "note": "not installed"
+    },
+    {
+        "id": "factory",
+        "name": "Factory Droid",
+        "installed": false,
+        "connected": false,
+        "can_start": false,
+        "note": "not installed"
+    }
+]

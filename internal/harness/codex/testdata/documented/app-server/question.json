@@ -1,0 +1,1 @@
+{"id":0,"method":"item/tool/requestUserInput","params":{"threadId":"","turnId":"","itemId":"item_q","isBlocking":true,"questions":[{"id":"color","header":"Color","question":"Which color should the button be?","isOther":true,"isSecret":false,"options":[{"label":"Blue","description":"matches the logo"},{"label":"Green","description":"matches the checkout"}]}]}}

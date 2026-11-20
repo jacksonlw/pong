@@ -1,0 +1,6 @@
+{
+  "name": "pong",
+  "description": "Sends Claude Code's questions, plans and finished work to Pong, and brings the human's answers back.",
+  "version": "0.1.0",
+  "author": { "name": "Pong" }
+}

@@ -1,0 +1,1 @@
+{"id":"chatcmpl-1","object":"chat.completion","created":1763540000,"model":"llama3.2","choices":[{"index":0,"message":{"role":"assistant","content":"{\"intent\": \"answer\", \"choices\": [\"Users only\"], \"text\": \"add a test for it\"}"},"finish_reason":"stop"}]}

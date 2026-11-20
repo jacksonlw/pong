@@ -1,0 +1,19 @@
+[
+    {
+        "id": "155cbeac25fc5312",
+        "root": "/private/tmp/claude-501/-Users-me-pong/820f22ca-c4af-470d-80d9-fdc6020a3b61/scratchpad/rec/work/shop",
+        "name": "shop",
+        "colour": "#E5484D",
+        "logo": "/projects/155cbeac25fc5312/logo?v=1795065169224734000",
+        "created_at": "2026-11-19T05:12:49.112301Z",
+        "updated_at": "2026-11-19T05:12:49.224737Z"
+    },
+    {
+        "id": "c914d2824332a549",
+        "root": "/private/tmp/claude-501/-Users-me-pong/820f22ca-c4af-470d-80d9-fdc6020a3b61/scratchpad/rec/work/billing-api",
+        "name": "billing-api",
+        "colour": "#F76B15",
+        "created_at": "2026-11-19T05:12:49.120271Z",
+        "updated_at": "2026-11-19T05:12:49.120271Z"
+    }
+]

@@ -1,0 +1,91 @@
+{
+  "session": {
+    "harness": "",
+    "id": "s-thoughts",
+    "folder": "/Users/me/shop",
+    "project": "8d42936c47a16144",
+    "title": "Fix the duplicate Pongs",
+    "summary": "Fixing the duplicate Pongs; the tests are next.",
+    "started_by": "human",
+    "state": "working",
+    "turn_started_at": "2026-11-20T06:56:28.098647Z",
+    "created_at": "2026-11-20T06:56:28.098647Z",
+    "updated_at": "2026-11-20T06:56:28.166389Z"
+  },
+  "pings": [
+    {
+      "id": "1bcca27aee81f7dd",
+      "session": "s-thoughts",
+      "project": "8d42936c47a16144",
+      "folder": "/Users/me/shop",
+      "question": "Where should the retry fix go?",
+      "answers": [
+        {
+          "label": "Inbox"
+        },
+        {
+          "label": "The relay"
+        }
+      ],
+      "blocks_agent": true,
+      "first": true,
+      "state": "answered",
+      "created_at": "2026-11-20T06:56:28.123055Z",
+      "updated_at": "2026-11-20T06:56:28.144881Z",
+      "pong": {
+        "answer": "Inbox",
+        "sent_at": "2026-11-20T06:56:28.144881Z",
+        "delivery": "delivered",
+        "delivered_at": "2026-11-20T06:56:28.166732Z"
+      }
+    },
+    {
+      "id": "045b80da404839a8",
+      "session": "s-thoughts",
+      "project": "8d42936c47a16144",
+      "folder": "/Users/me/shop",
+      "question": "The duplicate Pongs come from Inbox dropping the Session id on retry.",
+      "answers": [],
+      "summary": "Fixing the duplicate Pongs; the tests are next.",
+      "is_note": true,
+      "thought": true,
+      "state": "dismissed",
+      "created_at": "2026-11-20T06:56:28.166732Z",
+      "updated_at": "2026-11-20T06:56:28.166732Z"
+    },
+    {
+      "id": "5663fffe9fb6ce24",
+      "session": "s-thoughts",
+      "project": "8d42936c47a16144",
+      "folder": "/Users/me/shop",
+      "question": "Inbox now keeps the Session id, so a retried Pong lands once.",
+      "answers": [],
+      "summary": "Fixing the duplicate Pongs; the tests are next.",
+      "is_note": true,
+      "thought": true,
+      "state": "dismissed",
+      "created_at": "2026-11-20T06:56:28.188307Z",
+      "updated_at": "2026-11-20T06:56:28.188307Z"
+    },
+    {
+      "id": "53541cb8abb7ccb4",
+      "session": "s-thoughts",
+      "project": "8d42936c47a16144",
+      "folder": "/Users/me/shop",
+      "question": "Duplicate Pongs fixed; the Inbox tests pass, the relay was not tried. What next?",
+      "answers": [
+        {
+          "label": "Commit the fix"
+        },
+        {
+          "label": "Nothing more",
+          "leads_to": "the Session stays idle"
+        }
+      ],
+      "finished": true,
+      "state": "waiting",
+      "created_at": "2026-11-20T06:56:28.209958Z",
+      "updated_at": "2026-11-20T06:56:28.209958Z"
+    }
+  ]
+}

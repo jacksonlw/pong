@@ -1,0 +1,28 @@
+id: 1
+event: project.changed
+data: {"seq":1,"kind":"project.changed","at":"2026-11-19T04:42:18.012183Z","data":{"id":"1dbadb9c48a1f6ba","root":"/tmp/shop","name":"shop","colour":"#E5484D","created_at":"2026-11-19T04:42:18.012183Z","updated_at":"2026-11-19T04:42:18.012183Z"}}
+
+id: 2
+event: session.changed
+data: {"seq":2,"kind":"session.changed","at":"2026-11-19T04:42:18.012123Z","data":{"harness":"","id":"s-steps","folder":"/tmp/shop","project":"1dbadb9c48a1f6ba","started_by":"human","state":"working","created_at":"2026-11-19T04:42:18.012123Z","updated_at":"2026-11-19T04:42:18.012123Z"}}
+
+id: 3
+event: ping.created
+data: {"seq":3,"kind":"ping.created","at":"2026-11-19T04:42:18.012021Z","data":{"id":"19c53d4756a9d112","session":"s-steps","project":"1dbadb9c48a1f6ba","folder":"/tmp/shop","question":"Which database should the new service use?","answers":[{"label":"Postgres"},{"label":"SQLite"}],"more_coming":true,"state":"waiting","created_at":"2026-11-19T04:42:18.012021Z","updated_at":"2026-11-19T04:42:18.012021Z"}}
+
+id: 4
+event: ping.ponged
+data: {"seq":4,"kind":"ping.ponged","at":"2026-11-19T04:42:18.332968Z","data":{"id":"19c53d4756a9d112","session":"s-steps","project":"1dbadb9c48a1f6ba","folder":"/tmp/shop","question":"Which database should the new service use?","answers":[{"label":"Postgres"},{"label":"SQLite"}],"more_coming":true,"state":"answered","created_at":"2026-11-19T04:42:18.012021Z","updated_at":"2026-11-19T04:42:18.332968Z","pong":{"answer":"Postgres","sent_at":"2026-11-19T04:42:18.332968Z"}}}
+
+id: 5
+event: session.changed
+data: {"seq":5,"kind":"session.changed","at":"2026-11-19T04:42:18.651369Z","data":{"harness":"","id":"s-asking","folder":"/tmp/shop","project":"1dbadb9c48a1f6ba","started_by":"human","state":"working","created_at":"2026-11-19T04:42:18.651369Z","updated_at":"2026-11-19T04:42:18.651369Z"}}
+
+id: 6
+event: ping.created
+data: {"seq":6,"kind":"ping.created","at":"2026-11-19T04:42:18.651273Z","data":{"id":"cd32cd002531581c","session":"s-asking","project":"1dbadb9c48a1f6ba","folder":"/tmp/shop","question":"Keep the old endpoint during the migration?","answers":[{"label":"Yes"},{"label":"No"}],"more_coming":true,"state":"waiting","created_at":"2026-11-19T04:42:18.651273Z","updated_at":"2026-11-19T04:42:18.651273Z"}}
+
+id: 7
+event: ping.created
+data: {"seq":7,"kind":"ping.created","at":"2026-11-19T04:42:18.959775Z","data":{"id":"55920e5537ef0e0a","session":"s-steps","project":"1dbadb9c48a1f6ba","folder":"/tmp/shop","question":"Run the migrations on deploy?","answers":[{"label":"Yes"},{"label":"No"}],"state":"waiting","created_at":"2026-11-19T04:42:18.959775Z","updated_at":"2026-11-19T04:42:18.959775Z"}}
+

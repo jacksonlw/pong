@@ -1,0 +1,112 @@
+id: 1
+event: project.changed
+data: {"seq":1,"kind":"project.changed","at":"2026-11-19T04:26:32.152662Z","data":{"id":"5c3467bbccf2c5ab","root":"/Users/dev/shop","name":"shop","colour":"#E5484D","created_at":"2026-11-19T04:26:32.152662Z","updated_at":"2026-11-19T04:26:32.152662Z"}}
+
+id: 2
+event: session.changed
+data: {"seq":2,"kind":"session.changed","at":"2026-11-19T04:26:32.152627Z","data":{"harness":"","id":"s-migrate","folder":"/Users/dev/shop","project":"5c3467bbccf2c5ab","started_by":"human","state":"working","created_at":"2026-11-19T04:26:32.152627Z","updated_at":"2026-11-19T04:26:32.152627Z"}}
+
+id: 3
+event: ping.created
+data: {"seq":3,"kind":"ping.created","at":"2026-11-19T04:26:32.152538Z","data":{"id":"47e91c6050698cd7","session":"s-migrate","project":"5c3467bbccf2c5ab","folder":"/Users/dev/shop","question":"Two tables hold customer emails, and the migration rewrites 41,000 rows. Which should it touch?","answers":[{"label":"Users and orders"},{"label":"Users only"}],"state":"waiting","created_at":"2026-11-19T04:26:32.152538Z","updated_at":"2026-11-19T04:26:32.152538Z"}}
+
+id: 4
+event: session.changed
+data: {"seq":4,"kind":"session.changed","at":"2026-11-19T04:26:32.153513Z","data":{"harness":"","id":"s-flaky","folder":"/Users/dev/shop","project":"5c3467bbccf2c5ab","started_by":"human","state":"working","created_at":"2026-11-19T04:26:32.153513Z","updated_at":"2026-11-19T04:26:32.153513Z"}}
+
+id: 5
+event: ping.created
+data: {"seq":5,"kind":"ping.created","at":"2026-11-19T04:26:32.152541Z","data":{"id":"aeb5fa656fa7799d","session":"s-flaky","project":"5c3467bbccf2c5ab","folder":"/Users/dev/shop","question":"The checkout test failed 3 of 20 runs on CI after the retry change. How should I handle it?","answers":[{"label":"Fix the race"},{"label":"Quarantine the test"},{"label":"Revert the retry change"}],"state":"waiting","created_at":"2026-11-19T04:26:32.152541Z","updated_at":"2026-11-19T04:26:32.152541Z"}}
+
+id: 6
+event: project.changed
+data: {"seq":6,"kind":"project.changed","at":"2026-11-19T04:26:32.462052Z","data":{"id":"a7356b800ad9d5d0","root":"/Users/dev/api","name":"api","colour":"#F76B15","created_at":"2026-11-19T04:26:32.462052Z","updated_at":"2026-11-19T04:26:32.462052Z"}}
+
+id: 7
+event: session.changed
+data: {"seq":7,"kind":"session.changed","at":"2026-11-19T04:26:32.461944Z","data":{"harness":"","id":"s-release","folder":"/Users/dev/api","project":"a7356b800ad9d5d0","started_by":"human","state":"working","created_at":"2026-11-19T04:26:32.461944Z","updated_at":"2026-11-19T04:26:32.461944Z"}}
+
+id: 8
+event: ping.created
+data: {"seq":8,"kind":"ping.created","at":"2026-11-19T04:26:32.461705Z","data":{"id":"74119a9a2e6ef15f","session":"s-release","project":"a7356b800ad9d5d0","folder":"/Users/dev/api","question":"Version 2.4 is ready; 12 changes since 2.3, one breaks the old webhook format. Where should it go first?","answers":[{"label":"Staging"},{"label":"Production"},{"label":"Hold until Monday"},{"label":"Webhooks separately"}],"state":"waiting","created_at":"2026-11-19T04:26:32.461705Z","updated_at":"2026-11-19T04:26:32.461705Z"}}
+
+id: 9
+event: session.changed
+data: {"seq":9,"kind":"session.changed","at":"2026-11-19T04:26:32.765698Z","data":{"harness":"","id":"s-release2","folder":"/Users/dev/api","project":"a7356b800ad9d5d0","started_by":"human","state":"working","created_at":"2026-11-19T04:26:32.765698Z","updated_at":"2026-11-19T04:26:32.765698Z"}}
+
+id: 10
+event: ping.created
+data: {"seq":10,"kind":"ping.created","at":"2026-11-19T04:26:32.765601Z","data":{"id":"b5586497e122b33b","session":"s-release2","project":"a7356b800ad9d5d0","folder":"/Users/dev/api","question":"Should the changelog go out with this release?","answers":[{"label":"Yes"},{"label":"No"}],"state":"waiting","created_at":"2026-11-19T04:26:32.765601Z","updated_at":"2026-11-19T04:26:32.765601Z"}}
+
+id: 11
+event: session.changed
+data: {"seq":11,"kind":"session.changed","at":"2026-11-19T04:26:33.071287Z","data":{"harness":"","id":"s-checks","folder":"/Users/dev/shop","project":"5c3467bbccf2c5ab","started_by":"human","state":"working","created_at":"2026-11-19T04:26:33.071287Z","updated_at":"2026-11-19T04:26:33.071287Z"}}
+
+id: 12
+event: ping.created
+data: {"seq":12,"kind":"ping.created","at":"2026-11-19T04:26:33.071187Z","data":{"id":"f1449dd3b7cc64c4","session":"s-checks","project":"5c3467bbccf2c5ab","folder":"/Users/dev/shop","question":"The branch touches payments and search. Which checks should run before it merges?","answers":[{"label":"Unit tests"},{"label":"End-to-end tests"},{"label":"Lint"},{"label":"Load test"}],"allow_several":true,"state":"waiting","created_at":"2026-11-19T04:26:33.071187Z","updated_at":"2026-11-19T04:26:33.071187Z"}}
+
+id: 13
+event: session.changed
+data: {"seq":13,"kind":"session.changed","at":"2026-11-19T04:26:33.38576Z","data":{"harness":"","id":"s-plan","folder":"/Users/dev/api","project":"a7356b800ad9d5d0","started_by":"human","state":"working","created_at":"2026-11-19T04:26:33.38576Z","updated_at":"2026-11-19T04:26:33.38576Z"}}
+
+id: 14
+event: ping.created
+data: {"seq":14,"kind":"ping.created","at":"2026-11-19T04:26:33.385603Z","data":{"id":"e39383d7cc8b971c","session":"s-plan","project":"a7356b800ad9d5d0","folder":"/Users/dev/api","question":"The plan splits the billing service into 3 modules over 4 steps, with no schema change. Go ahead with it?","answers":[{"label":"Approve plan"}],"approves":"plan","state":"waiting","created_at":"2026-11-19T04:26:33.385603Z","updated_at":"2026-11-19T04:26:33.385603Z"}}
+
+id: 15
+event: session.changed
+data: {"seq":15,"kind":"session.changed","at":"2026-11-19T04:26:33.695333Z","data":{"harness":"","id":"s-perm","folder":"/Users/dev/shop","project":"5c3467bbccf2c5ab","started_by":"human","state":"working","created_at":"2026-11-19T04:26:33.695333Z","updated_at":"2026-11-19T04:26:33.695333Z"}}
+
+id: 16
+event: ping.created
+data: {"seq":16,"kind":"ping.created","at":"2026-11-19T04:26:33.695169Z","data":{"id":"ed4d9ba15188d2b8","session":"s-perm","project":"5c3467bbccf2c5ab","folder":"/Users/dev/shop","question":"Claude Code wants to run rm -rf build/ in /Users/dev/shop.","answers":[{"label":"Allow"},{"label":"Always allow"},{"label":"Deny"}],"approves":"action","blocks_agent":true,"state":"waiting","created_at":"2026-11-19T04:26:33.695169Z","updated_at":"2026-11-19T04:26:33.695169Z"}}
+
+id: 17
+event: session.changed
+data: {"seq":17,"kind":"session.changed","at":"2026-11-19T04:26:33.99993Z","data":{"harness":"","id":"s-done","folder":"/Users/dev/api","project":"a7356b800ad9d5d0","started_by":"human","state":"working","created_at":"2026-11-19T04:26:33.99993Z","updated_at":"2026-11-19T04:26:33.99993Z"}}
+
+id: 18
+event: ping.created
+data: {"seq":18,"kind":"ping.created","at":"2026-11-19T04:26:33.999831Z","data":{"id":"2bce0f79780b2a1b","session":"s-done","project":"a7356b800ad9d5d0","folder":"/Users/dev/api","question":"The nightly export finished: 41,000 rows written, nothing failed.","answers":[],"is_note":true,"state":"waiting","created_at":"2026-11-19T04:26:33.999831Z","updated_at":"2026-11-19T04:26:33.999831Z"}}
+
+id: 19
+event: session.changed
+data: {"seq":19,"kind":"session.changed","at":"2026-11-19T04:26:34.007348Z","data":{"harness":"","id":"s-typed","folder":"/Users/dev/shop","project":"5c3467bbccf2c5ab","started_by":"human","state":"working","created_at":"2026-11-19T04:26:34.007348Z","updated_at":"2026-11-19T04:26:34.007348Z"}}
+
+id: 20
+event: ping.created
+data: {"seq":20,"kind":"ping.created","at":"2026-11-19T04:26:34.007254Z","data":{"id":"4e9f06291a05206a","session":"s-typed","project":"5c3467bbccf2c5ab","folder":"/Users/dev/shop","question":"Sales tax comes out 2 cents high on 14 of 900 test orders. How should rounding work?","answers":[{"label":"Round each line"},{"label":"Round the total"}],"state":"waiting","created_at":"2026-11-19T04:26:34.007254Z","updated_at":"2026-11-19T04:26:34.007254Z"}}
+
+id: 21
+event: session.changed
+data: {"seq":21,"kind":"session.changed","at":"2026-11-19T04:26:34.315297Z","data":{"harness":"","id":"s-ticked","folder":"/Users/dev/shop","project":"5c3467bbccf2c5ab","started_by":"human","state":"working","created_at":"2026-11-19T04:26:34.315297Z","updated_at":"2026-11-19T04:26:34.315297Z"}}
+
+id: 22
+event: ping.created
+data: {"seq":22,"kind":"ping.created","at":"2026-11-19T04:26:34.3152Z","data":{"id":"40ab26dd8618f5d4","session":"s-ticked","project":"5c3467bbccf2c5ab","folder":"/Users/dev/shop","question":"Three dependencies have security fixes out. Which should I upgrade now?","answers":[{"label":"express"},{"label":"lodash"},{"label":"axios"}],"allow_several":true,"state":"waiting","created_at":"2026-11-19T04:26:34.3152Z","updated_at":"2026-11-19T04:26:34.3152Z"}}
+
+id: 23
+event: session.changed
+data: {"seq":23,"kind":"session.changed","at":"2026-11-19T04:26:34.623183Z","data":{"harness":"","id":"s-back","folder":"/Users/dev/api","project":"a7356b800ad9d5d0","started_by":"human","state":"working","created_at":"2026-11-19T04:26:34.623183Z","updated_at":"2026-11-19T04:26:34.623183Z"}}
+
+id: 24
+event: ping.created
+data: {"seq":24,"kind":"ping.created","at":"2026-11-19T04:26:34.623078Z","data":{"id":"65c5a911698a25f8","session":"s-back","project":"a7356b800ad9d5d0","folder":"/Users/dev/api","question":"Two config files set the port to different values. Which one wins?","answers":[{"label":"The env file"},{"label":"The yaml file"}],"state":"waiting","created_at":"2026-11-19T04:26:34.623078Z","updated_at":"2026-11-19T04:26:34.623078Z"}}
+
+id: 25
+event: ping.ponged
+data: {"seq":25,"kind":"ping.ponged","at":"2026-11-19T04:26:35.00087Z","data":{"id":"b5586497e122b33b","session":"s-release2","project":"a7356b800ad9d5d0","folder":"/Users/dev/api","question":"Should the changelog go out with this release?","answers":[{"label":"Yes"},{"label":"No"}],"state":"answered","created_at":"2026-11-19T04:26:32.765601Z","updated_at":"2026-11-19T04:26:35.00087Z","pong":{"answer":"No","sent_at":"2026-11-19T04:26:35.00087Z"}}}
+
+id: 26
+event: ping.ponged
+data: {"seq":26,"kind":"ping.ponged","at":"2026-11-19T04:26:35.034444Z","data":{"id":"4e9f06291a05206a","session":"s-typed","project":"5c3467bbccf2c5ab","folder":"/Users/dev/shop","question":"Sales tax comes out 2 cents high on 14 of 900 test orders. How should rounding work?","answers":[{"label":"Round each line"},{"label":"Round the total"}],"state":"answered","created_at":"2026-11-19T04:26:34.007254Z","updated_at":"2026-11-19T04:26:35.034444Z","pong":{"answer":"Round each line","text":"Match what the invoices already do.","sent_at":"2026-11-19T04:26:35.034444Z"}}}
+
+id: 27
+event: ping.ponged
+data: {"seq":27,"kind":"ping.ponged","at":"2026-11-19T04:26:35.069011Z","data":{"id":"40ab26dd8618f5d4","session":"s-ticked","project":"5c3467bbccf2c5ab","folder":"/Users/dev/shop","question":"Three dependencies have security fixes out. Which should I upgrade now?","answers":[{"label":"express"},{"label":"lodash"},{"label":"axios"}],"allow_several":true,"state":"answered","created_at":"2026-11-19T04:26:34.3152Z","updated_at":"2026-11-19T04:26:35.069011Z","pong":{"answers":["express","axios"],"text":"Leave lodash until the audit.","sent_at":"2026-11-19T04:26:35.069011Z"}}}
+
+id: 28
+event: ping.state
+data: {"seq":28,"kind":"ping.state","at":"2026-11-19T04:26:35.102465Z","data":{"id":"65c5a911698a25f8","session":"s-back","project":"a7356b800ad9d5d0","folder":"/Users/dev/api","question":"Two config files set the port to different values. Which one wins?","answers":[{"label":"The env file"},{"label":"The yaml file"}],"state":"handed_back","created_at":"2026-11-19T04:26:34.623078Z","updated_at":"2026-11-19T04:26:35.102465Z"}}
+

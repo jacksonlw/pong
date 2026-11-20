@@ -1,0 +1,1 @@
+{"session_id":"thr_doc1","transcript_path":null,"cwd":"/tmp/proj","model":"gpt-5.5-codex","turn_id":"turn_1","hook_event_name":"PermissionRequest","permission_mode":"default","tool_name":"mcp__host__echo","tool_input":{"text":"hi","description":null}}

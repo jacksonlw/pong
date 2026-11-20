@@ -1,0 +1,5 @@
+{"id": 1, "method": "initialize", "params": {"clientInfo": {"name": "pong", "version": "0"}, "capabilities": {"experimentalApi": true}}}
+{"method": "initialized"}
+{"id": 2, "method": "account/read", "params": {}}
+{"id": 3, "method": "thread/start", "params": {"cwd": "/tmp/proj"}}
+{"id": 4, "method": "turn/start", "params": {"threadId": "01a1f244-61e8-7340-a8ff-f1e7068effe3", "input": [{"type": "text", "text": "hi"}]}}

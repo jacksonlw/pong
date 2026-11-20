@@ -1,0 +1,1 @@
+{"id":0,"method":"item/commandExecution/requestApproval","params":{"threadId":"","turnId":"","itemId":"item_cmd","startedAtMs":0,"approvalId":null,"command":"date > stamp.txt","cwd":"/tmp/proj","reason":"Write the date to stamp.txt"}}

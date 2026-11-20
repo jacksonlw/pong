@@ -1,0 +1,14 @@
+{
+  "name": "pong",
+  "description": "Pong: your agents' questions and finished work, answered from the Mac app.",
+  "owner": {
+    "name": "Pong"
+  },
+  "plugins": [
+    {
+      "name": "pong",
+      "description": "Sends Claude Code's questions, plans and finished work to Pong, and brings the human's answers back.",
+      "source": "./plugin"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+#!/bin/bash
+# Refuses a commit to public pong that stages anything under private/ or names anything private.
+# Install it once: git config core.hooksPath scripts/hooks
+set -euo pipefail
+if git diff --cached --name-only | grep -q '^private/'; then
+    echo "pre-commit: private/ belongs to pong-cloud; commit it with git -C private" >&2
+    exit 1
+fi
+go test ./internal/leakcheck/ >/dev/null || { go test ./internal/leakcheck/; exit 1; }

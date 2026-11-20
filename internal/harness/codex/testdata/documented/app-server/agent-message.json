@@ -1,0 +1,1 @@
+{"method":"item/completed","params":{"threadId":"","turnId":"","completedAtMs":0,"item":{"type":"agentMessage","id":"item_msg","text":"","phase":"final_answer"}}}

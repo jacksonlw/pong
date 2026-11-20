@@ -1,0 +1,12 @@
+id: 1
+event: project.changed
+data: {"seq":1,"kind":"project.changed","at":"2026-11-19T04:31:21.143186Z","data":{"id":"3c14f45c7fa9022d","root":"/Users/dev/shop","name":"src","colour":"#E5484D","created_at":"2026-11-19T04:31:21.143186Z","updated_at":"2026-11-19T04:31:21.143186Z"}}
+
+id: 2
+event: session.changed
+data: {"seq":2,"kind":"session.changed","at":"2026-11-19T04:31:21.143123Z","data":{"harness":"","id":"s-checkout","folder":"/Users/dev/shop","project":"3c14f45c7fa9022d","started_by":"human","state":"working","created_at":"2026-11-19T04:31:21.143123Z","updated_at":"2026-11-19T04:31:21.143123Z"}}
+
+id: 3
+event: ping.created
+data: {"seq":3,"kind":"ping.created","at":"2026-11-19T04:31:21.143021Z","data":{"id":"136c252f93e38891","session":"s-checkout","project":"3c14f45c7fa9022d","folder":"/Users/dev/shop","question":"The retry change adds an idempotency key and backoff. Ship it to staging?","answers":[{"label":"Ship to staging"},{"label":"Hold for review"}],"state":"waiting","created_at":"2026-11-19T04:31:21.143021Z","updated_at":"2026-11-19T04:31:21.143021Z","resources":[{"id":"7cb3ae3e3f920c34","title":"Checkout screen","kind":"image","file":"/Users/dev/shop/checkout.png","content_type":"image/png"},{"id":"1488261b6da1bcdf","title":"Migration plan","kind":"document","file":"/Users/dev/shop/plan.md","content_type":"text/plain; charset=utf-8"},{"id":"a78757fc19a86198","title":"Retry change diff","kind":"change","file":"/Users/dev/shop/retry.diff","content_type":"text/plain; charset=utf-8"},{"id":"4a366e39cc74b4a2","title":"Total function source","kind":"file","file":"/Users/dev/shop/total.go","content_type":"text/plain; charset=utf-8"},{"id":"1a45024bac4d17f9","title":"Gateway timeout error","kind":"error","content_type":"text/plain; charset=utf-8"},{"id":"87b6310688a9cf5b","title":"Failing test output","kind":"output","content_type":"text/plain; charset=utf-8"},{"id":"a2dee34c3f321a5a","title":"Why backoff matters","kind":"text","content_type":"text/plain; charset=utf-8"}]}}
+

@@ -1,0 +1,13 @@
+# Migration plan
+
+Rewrite customer emails in **two tables**, in batches of 1,000 rows.
+
+## Steps
+
+1. Back up `users` and `orders`.
+2. Run the rewrite on `users`, then on `orders`.
+3. Compare row counts before and after.
+
+## Not verified
+
+- Behaviour while checkout is writing to `orders`.

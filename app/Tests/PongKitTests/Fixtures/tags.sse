@@ -1,0 +1,44 @@
+id: 1
+event: project.changed
+data: {"seq":1,"kind":"project.changed","at":"2026-11-19T09:57:27.529534Z","data":{"id":"8ee7ee4ab8bde254","root":"/Users/me/shop","name":"shop","colour":"#E5484D","created_at":"2026-11-19T09:57:27.529534Z","updated_at":"2026-11-19T09:57:27.529534Z"}}
+
+id: 2
+event: session.changed
+data: {"seq":2,"kind":"session.changed","at":"2026-11-19T09:57:27.529492Z","data":{"harness":"","id":"s-none","folder":"/Users/me/shop","project":"8ee7ee4ab8bde254","started_by":"human","state":"working","turn_started_at":"2026-11-19T09:57:27.529492Z","created_at":"2026-11-19T09:57:27.529492Z","updated_at":"2026-11-19T09:57:27.529492Z"}}
+
+id: 3
+event: ping.created
+data: {"seq":3,"kind":"ping.created","at":"2026-11-19T09:57:27.530082Z","data":{"id":"67c28ac2639693d5","session":"s-none","project":"8ee7ee4ab8bde254","folder":"/Users/me/shop","question":"Run the migration on the shared database?","answers":[{"label":"Yes"},{"label":"No"},{"label":"Nothing more","leads_to":"the Session stays idle"}],"first":true,"state":"waiting","created_at":"2026-11-19T09:57:27.530082Z","updated_at":"2026-11-19T09:57:27.530082Z"}}
+
+id: 4
+event: session.changed
+data: {"seq":4,"kind":"session.changed","at":"2026-11-19T09:57:28.036828Z","data":{"harness":"","id":"s-neutral","folder":"/Users/me/shop","project":"8ee7ee4ab8bde254","started_by":"human","state":"working","turn_started_at":"2026-11-19T09:57:28.036828Z","created_at":"2026-11-19T09:57:28.036828Z","updated_at":"2026-11-19T09:57:28.036828Z"}}
+
+id: 5
+event: ping.created
+data: {"seq":5,"kind":"ping.created","at":"2026-11-19T09:57:28.037429Z","data":{"id":"93207f01e96f091f","session":"s-neutral","project":"8ee7ee4ab8bde254","folder":"/Users/me/shop","question":"Is the login work ready to go into main?","answers":[{"label":"Merge"},{"label":"Wait"},{"label":"Nothing more","leads_to":"the Session stays idle"}],"first":true,"state":"waiting","created_at":"2026-11-19T09:57:28.037429Z","updated_at":"2026-11-19T09:57:28.037429Z","tags":[{"text":"feat/login","icon":"arrow.triangle.branch"}]}}
+
+id: 6
+event: session.changed
+data: {"seq":6,"kind":"session.changed","at":"2026-11-19T09:57:28.544466Z","data":{"harness":"","id":"s-coloured","folder":"/Users/me/shop","project":"8ee7ee4ab8bde254","started_by":"human","state":"working","turn_started_at":"2026-11-19T09:57:28.544466Z","created_at":"2026-11-19T09:57:28.544466Z","updated_at":"2026-11-19T09:57:28.544466Z"}}
+
+id: 7
+event: ping.created
+data: {"seq":7,"kind":"ping.created","at":"2026-11-19T09:57:28.54506Z","data":{"id":"fa90b0d8e5ca09ab","session":"s-coloured","project":"8ee7ee4ab8bde254","folder":"/Users/me/shop","question":"Run the migration on prod?","answers":[{"label":"Yes"},{"label":"No"},{"label":"Nothing more","leads_to":"the Session stays idle"}],"first":true,"state":"waiting","created_at":"2026-11-19T09:57:28.54506Z","updated_at":"2026-11-19T09:57:28.54506Z","tags":[{"text":"prod","icon":"server.rack","colour":"rose"}]}}
+
+id: 8
+event: session.changed
+data: {"seq":8,"kind":"session.changed","at":"2026-11-19T09:57:29.061251Z","data":{"harness":"","id":"s-unknown","folder":"/Users/me/shop","project":"8ee7ee4ab8bde254","started_by":"human","state":"working","turn_started_at":"2026-11-19T09:57:29.061251Z","created_at":"2026-11-19T09:57:29.061251Z","updated_at":"2026-11-19T09:57:29.061251Z"}}
+
+id: 9
+event: ping.created
+data: {"seq":9,"kind":"ping.created","at":"2026-11-19T09:57:29.061861Z","data":{"id":"19c643670e54b722","session":"s-unknown","project":"8ee7ee4ab8bde254","folder":"/Users/me/shop","question":"Is the ticket finished?","answers":[{"label":"Close"},{"label":"Leave open"},{"label":"Nothing more","leads_to":"the Session stays idle"}],"first":true,"state":"waiting","created_at":"2026-11-19T09:57:29.061861Z","updated_at":"2026-11-19T09:57:29.061861Z","tags":[{"text":"LIN-123","icon":"no.such.icon"}]}}
+
+id: 10
+event: session.changed
+data: {"seq":10,"kind":"session.changed","at":"2026-11-19T09:57:29.563928Z","data":{"harness":"","id":"s-many","folder":"/Users/me/shop","project":"8ee7ee4ab8bde254","started_by":"human","state":"working","turn_started_at":"2026-11-19T09:57:29.563928Z","created_at":"2026-11-19T09:57:29.563928Z","updated_at":"2026-11-19T09:57:29.563928Z"}}
+
+id: 11
+event: ping.created
+data: {"seq":11,"kind":"ping.created","at":"2026-11-19T09:57:29.564184Z","data":{"id":"5566774d8f5c6f5f","session":"s-many","project":"8ee7ee4ab8bde254","folder":"/Users/me/shop","question":"Ship the new checkout to prod?","answers":[{"label":"Deploy"},{"label":"Wait"},{"label":"Nothing more","leads_to":"the Session stays idle"}],"first":true,"state":"waiting","created_at":"2026-11-19T09:57:29.564184Z","updated_at":"2026-11-19T09:57:29.564184Z","tags":[{"text":"prod","icon":"server.rack","colour":"rose"},{"text":"eu-west-1","icon":"cloud","colour":"sky"},{"text":"feat/checkout","icon":"arrow.triangle.branch"},{"text":"LIN-482","icon":"ticket","colour":"lilac"},{"text":"billing-api","icon":"shippingbox"},{"text":"migrations","icon":"cylinder","colour":"mint"},{"text":"on-call","icon":"person","colour":"butter"},{"text":"staging","icon":"server.rack","colour":"peach"}]}}
+

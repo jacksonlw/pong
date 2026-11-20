@@ -1,0 +1,83 @@
+<!doctype html>
+<!-- Draws one Mermaid diagram from a document, in the brand's tokens, for either app's web view. -->
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  @font-face { font-family: Inter; src: url("Inter-opsz-wght.ttf"); font-weight: 100 900; }
+  html, body { margin: 0; background: transparent; }
+  #diagram { display: flex; justify-content: center; }
+  #diagram svg { max-width: 100%; height: auto; }
+  /* No borders: a node is told from the page by its colour alone. */
+  #diagram .node rect, #diagram .node polygon, #diagram .node circle, #diagram .node ellipse,
+  #diagram .node path.label-container, #diagram .node .label-container, #diagram .cluster rect { stroke: none !important; }
+</style>
+<script src="mermaid.min.js"></script>
+</head>
+<body>
+<div id="diagram"></div>
+<script>
+  const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(`--pong-${name}`).trim();
+  const tell = (message) => window.webkit.messageHandlers.pong.postMessage(message);
+  const diagram = document.getElementById('diagram');
+  let source = '';
+  let drawn = 0;
+
+  // Nodes are a row's step of colour with no outline, lines are secondary, text is text.
+  async function draw() {
+    await document.fonts.load(`${token('type-secondary-size')} Inter`);
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: 'base',
+      fontFamily: token('font'),
+      themeVariables: {
+        fontFamily: token('font'),
+        fontSize: token('type-secondary-size'),
+        background: token('surface'),
+        primaryColor: token('row'),
+        primaryBorderColor: token('row'),
+        primaryTextColor: token('text'),
+        secondaryColor: token('row-hover'),
+        secondaryBorderColor: token('row-hover'),
+        secondaryTextColor: token('text'),
+        tertiaryColor: token('surface'),
+        tertiaryBorderColor: token('surface'),
+        tertiaryTextColor: token('text'),
+        textColor: token('text'),
+        lineColor: token('secondary'),
+        edgeLabelBackground: token('surface'),
+        clusterBkg: token('row-hover'),
+        clusterBorder: token('row-hover'),
+        noteBkgColor: token('row-hover'),
+        noteBorderColor: token('row-hover'),
+        noteTextColor: token('text'),
+        actorBkg: token('row'),
+        actorBorder: token('row'),
+        actorTextColor: token('text'),
+        actorLineColor: token('secondary'),
+        signalColor: token('secondary'),
+        signalTextColor: token('text'),
+        labelBoxBkgColor: token('row'),
+        labelBoxBorderColor: token('row'),
+        labelTextColor: token('text'),
+        loopTextColor: token('text'),
+      },
+    });
+    try {
+      const { svg } = await mermaid.render(`diagram-${++drawn}`, source);
+      diagram.innerHTML = svg;
+      tell({ height: Math.ceil(diagram.getBoundingClientRect().height) });
+    } catch (e) {
+      tell({ error: String(e && e.message || e) });
+    }
+  }
+
+  window.show = (text) => { source = text; return draw(); };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => source && draw());
+  new ResizeObserver(() => source && tell({ height: Math.ceil(diagram.getBoundingClientRect().height) })).observe(diagram);
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+package checkout
+
+// Total sums the line items in cents.
+func Total(items []Item) int {
+	sum := 0
+	for _, it := range items {
+		sum += it.Cents * it.Qty
+	}
+	return sum
+}

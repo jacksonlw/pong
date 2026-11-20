@@ -1,0 +1,11 @@
+--- a/checkout/retry.go
++++ b/checkout/retry.go
+@@ -12,7 +12,9 @@ func charge(ctx context.Context, c Card) error {
+ 	for attempt := 0; attempt < 3; attempt++ {
+-		err := gateway.Charge(ctx, c)
++		err := gateway.Charge(ctx, c, idempotencyKey(c))
+ 		if err == nil {
+ 			return nil
+ 		}
++		time.Sleep(backoff(attempt))
+ 	}

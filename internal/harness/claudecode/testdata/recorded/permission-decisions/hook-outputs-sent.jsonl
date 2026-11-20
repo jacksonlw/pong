@@ -1,0 +1,4 @@
+{"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "allow"}}}
+{"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "deny", "message": "Denied by the human: use notes.md instead"}}}
+{"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "deny", "message": "Denied by the human: use notes.md instead"}}}
+{"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "allow", "updatedPermissions": [{"type": "addRules", "rules": [{"toolName": "mcp__host__echo"}], "behavior": "allow", "destination": "localSettings"}]}}}

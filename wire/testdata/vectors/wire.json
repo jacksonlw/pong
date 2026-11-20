@@ -1,0 +1,509 @@
+{
+  "note": "Written by Go (wire, go test -run TestVectors -update). Byte strings are standard base64; times are Unix milliseconds.",
+  "devices": [
+    {
+      "name": "Laptop",
+      "platform": "mac",
+      "engine": true,
+      "seal_private": "iFMWSCZ9Qk/It8QYynlKxJ/3wSXXjhBLlwEPipG02X0=",
+      "sign_seed": "ITKSTmJ3etbNoMHs1sCWfFQZ8Pd6HA3pM5sBHkzHryA=",
+      "seal_public": "CKeqhXJ2MNUoXPqBrNIJIIUHiLGmpyYSNWd+CGOJbWc=",
+      "sign_public": "VYuAwYZH2GqQzCIxc6ZCbG7kNYWlmB48ggpN1lXG1M8=",
+      "id": "2a3d90d34daa27c2ce62e3406486610e",
+      "pairing_code": "373488"
+    },
+    {
+      "name": "Box",
+      "platform": "linux",
+      "engine": true,
+      "seal_private": "ViEtDzaD6GYkeQRAfxkGvn7QZs62RCwVD/QA26ckRX8=",
+      "sign_seed": "sSkYDeKqjAv6Ttrcmju2Z/gEf0n1CCuwFLOrRQNjrTg=",
+      "seal_public": "UXLfw9Vq03UGrbVm35WDYO3V2otrwNEZ47aWFnXwu1k=",
+      "sign_public": "j3oaSx+JcvOImT+T8cbA3aD89vDyQ1mxOHyhAn+F7nw=",
+      "id": "da19b5ef8e807b015e9aa22b10731965",
+      "pairing_code": "216194"
+    },
+    {
+      "name": "Phone",
+      "platform": "ios",
+      "engine": false,
+      "seal_private": "wbdY4ZN4xQjB8U3Odh1j2zBIsokw6ez7lr0Ctgf+lYI=",
+      "sign_seed": "mycz5qPwZVn78hHPKtk/ApwlZxXnVN5plbubTZDNx4k=",
+      "seal_public": "duvMrKb0xbiHDU0VFD2Wau6ouLmrYG9roObBjhAvR3c=",
+      "sign_public": "I9f/4hP7BjjQGoFcFBM1Q+YTxA6lvtUCNhlel97p64U=",
+      "id": "bf657fa5932f92eede45c055d57a1f11",
+      "pairing_code": "047338"
+    },
+    {
+      "name": "Stranger",
+      "platform": "mac",
+      "engine": true,
+      "seal_private": "dJW/J3548ViCuQBY8UW0UjJX9DlUb5FdU/l9RXWxHyU=",
+      "sign_seed": "3eav/L9mWDqDy75mesPSnwN0Ctk7JkQfS7xEscC2bYs=",
+      "seal_public": "pLPcAAEBYGqH6q/n1x+lYEFnrTT4hVn1L5MoYeNzbk0=",
+      "sign_public": "xXdx1swm3L7X1ifDp2gdm8x+1AVjz/UwN+NHeXC3QPM=",
+      "id": "f390e1679e8d46cb8461f920e6051fca",
+      "pairing_code": "073643"
+    }
+  ],
+  "chain": [
+    {
+      "seq": 0,
+      "prev": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "kind": "genesis",
+      "device": {
+        "id": "2a3d90d34daa27c2ce62e3406486610e",
+        "name": "Laptop",
+        "platform": "mac",
+        "seal_key": "CKeqhXJ2MNUoXPqBrNIJIIUHiLGmpyYSNWd+CGOJbWc=",
+        "sign_key": "VYuAwYZH2GqQzCIxc6ZCbG7kNYWlmB48ggpN1lXG1M8=",
+        "engine": true
+      },
+      "writer": "2a3d90d34daa27c2ce62e3406486610e",
+      "time": 1795000000000,
+      "sig": "P3zLIDFMqAIRk8Ot1oXlXA0HaDAhcsqcPGybakMc6qeVvUn+7e4f8k8aP05bG8nLwxaFDw6MdFomLjG6zsTADg=="
+    },
+    {
+      "seq": 1,
+      "prev": "99ihC/TfTlemmIF1qpdTJYGjkvxLQ/ywYDpeSPkHXI8=",
+      "kind": "admit",
+      "device": {
+        "id": "da19b5ef8e807b015e9aa22b10731965",
+        "name": "Box",
+        "platform": "linux",
+        "seal_key": "UXLfw9Vq03UGrbVm35WDYO3V2otrwNEZ47aWFnXwu1k=",
+        "sign_key": "j3oaSx+JcvOImT+T8cbA3aD89vDyQ1mxOHyhAn+F7nw=",
+        "engine": true
+      },
+      "writer": "2a3d90d34daa27c2ce62e3406486610e",
+      "time": 1795000001000,
+      "sig": "Zi5qTMfvvdDao7psABQYetkMdOt1QO/hnNQ0cV6MIzhTBlvJLWb1lByO7mNBAk5PvdvtnD11ra9B0Fkw46mBAw=="
+    },
+    {
+      "seq": 2,
+      "prev": "7Umb6sn6Ph5gs9vgQwSJaJQoeMGX4i4kP4IifQKd1Ds=",
+      "kind": "admit",
+      "device": {
+        "id": "bf657fa5932f92eede45c055d57a1f11",
+        "name": "Phone",
+        "platform": "ios",
+        "seal_key": "duvMrKb0xbiHDU0VFD2Wau6ouLmrYG9roObBjhAvR3c=",
+        "sign_key": "I9f/4hP7BjjQGoFcFBM1Q+YTxA6lvtUCNhlel97p64U=",
+        "engine": false
+      },
+      "writer": "da19b5ef8e807b015e9aa22b10731965",
+      "time": 1795000002000,
+      "sig": "OvZWxCtZ10qz2CWorkVzXteXnuKgJTHXc/Jkfu7n7VdGq3KLqA0GovzlA/ZggSKzTUbQiIdHRKupYNOn6mfFCA=="
+    },
+    {
+      "seq": 3,
+      "prev": "oQL7x46JBunEucmynFsU5YR7QkbW/FNstOPWBupANog=",
+      "kind": "revoke",
+      "device": {
+        "id": "da19b5ef8e807b015e9aa22b10731965",
+        "name": "Box",
+        "platform": "linux",
+        "seal_key": "UXLfw9Vq03UGrbVm35WDYO3V2otrwNEZ47aWFnXwu1k=",
+        "sign_key": "j3oaSx+JcvOImT+T8cbA3aD89vDyQ1mxOHyhAn+F7nw=",
+        "engine": true
+      },
+      "writer": "bf657fa5932f92eede45c055d57a1f11",
+      "time": 1795000003000,
+      "sig": "kFiKxS0bHJzmce8uBbFG9/IjbD8ppMCC+yC8VVmd4yqVfhtDp2Qv2/IlaAkEhNwk+3YD16paTPRvRwvQAtwXBQ=="
+    }
+  ],
+  "chain_hashes": [
+    "99ihC/TfTlemmIF1qpdTJYGjkvxLQ/ywYDpeSPkHXI8=",
+    "7Umb6sn6Ph5gs9vgQwSJaJQoeMGX4i4kP4IifQKd1Ds=",
+    "oQL7x46JBunEucmynFsU5YR7QkbW/FNstOPWBupANog=",
+    "mPJ3nt49d1XEsx23RvFnNTputut6RWjkaRJ4Mx82LOU="
+  ],
+  "members": [
+    "2a3d90d34daa27c2ce62e3406486610e",
+    "bf657fa5932f92eede45c055d57a1f11"
+  ],
+  "invalid_chains": [
+    {
+      "why": "a record written by a Device that is not in the set",
+      "records": [
+        {
+          "seq": 0,
+          "prev": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "kind": "genesis",
+          "device": {
+            "id": "2a3d90d34daa27c2ce62e3406486610e",
+            "name": "Laptop",
+            "platform": "mac",
+            "seal_key": "CKeqhXJ2MNUoXPqBrNIJIIUHiLGmpyYSNWd+CGOJbWc=",
+            "sign_key": "VYuAwYZH2GqQzCIxc6ZCbG7kNYWlmB48ggpN1lXG1M8=",
+            "engine": true
+          },
+          "writer": "2a3d90d34daa27c2ce62e3406486610e",
+          "time": 1795000000000,
+          "sig": "P3zLIDFMqAIRk8Ot1oXlXA0HaDAhcsqcPGybakMc6qeVvUn+7e4f8k8aP05bG8nLwxaFDw6MdFomLjG6zsTADg=="
+        },
+        {
+          "seq": 1,
+          "prev": "99ihC/TfTlemmIF1qpdTJYGjkvxLQ/ywYDpeSPkHXI8=",
+          "kind": "admit",
+          "device": {
+            "id": "f390e1679e8d46cb8461f920e6051fca",
+            "name": "Stranger",
+            "platform": "mac",
+            "seal_key": "pLPcAAEBYGqH6q/n1x+lYEFnrTT4hVn1L5MoYeNzbk0=",
+            "sign_key": "xXdx1swm3L7X1ifDp2gdm8x+1AVjz/UwN+NHeXC3QPM=",
+            "engine": true
+          },
+          "writer": "f390e1679e8d46cb8461f920e6051fca",
+          "time": 1795000001000,
+          "sig": "WiPsBXsV1RiJL7+ymLIiBhmAuTZs6DvXQKE1YS1k2hWtrdF+BX6JsJqGaDmlH87iIha1UdUzPsPVpktB076GCg=="
+        }
+      ]
+    },
+    {
+      "why": "a record written by a revoked Device",
+      "records": [
+        {
+          "seq": 0,
+          "prev": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "kind": "genesis",
+          "device": {
+            "id": "2a3d90d34daa27c2ce62e3406486610e",
+            "name": "Laptop",
+            "platform": "mac",
+            "seal_key": "CKeqhXJ2MNUoXPqBrNIJIIUHiLGmpyYSNWd+CGOJbWc=",
+            "sign_key": "VYuAwYZH2GqQzCIxc6ZCbG7kNYWlmB48ggpN1lXG1M8=",
+            "engine": true
+          },
+          "writer": "2a3d90d34daa27c2ce62e3406486610e",
+          "time": 1795000000000,
+          "sig": "P3zLIDFMqAIRk8Ot1oXlXA0HaDAhcsqcPGybakMc6qeVvUn+7e4f8k8aP05bG8nLwxaFDw6MdFomLjG6zsTADg=="
+        },
+        {
+          "seq": 1,
+          "prev": "99ihC/TfTlemmIF1qpdTJYGjkvxLQ/ywYDpeSPkHXI8=",
+          "kind": "admit",
+          "device": {
+            "id": "da19b5ef8e807b015e9aa22b10731965",
+            "name": "Box",
+            "platform": "linux",
+            "seal_key": "UXLfw9Vq03UGrbVm35WDYO3V2otrwNEZ47aWFnXwu1k=",
+            "sign_key": "j3oaSx+JcvOImT+T8cbA3aD89vDyQ1mxOHyhAn+F7nw=",
+            "engine": true
+          },
+          "writer": "2a3d90d34daa27c2ce62e3406486610e",
+          "time": 1795000001000,
+          "sig": "Zi5qTMfvvdDao7psABQYetkMdOt1QO/hnNQ0cV6MIzhTBlvJLWb1lByO7mNBAk5PvdvtnD11ra9B0Fkw46mBAw=="
+        },
+        {
+          "seq": 2,
+          "prev": "7Umb6sn6Ph5gs9vgQwSJaJQoeMGX4i4kP4IifQKd1Ds=",
+          "kind": "admit",
+          "device": {
+            "id": "bf657fa5932f92eede45c055d57a1f11",
+            "name": "Phone",
+            "platform": "ios",
+            "seal_key": "duvMrKb0xbiHDU0VFD2Wau6ouLmrYG9roObBjhAvR3c=",
+            "sign_key": "I9f/4hP7BjjQGoFcFBM1Q+YTxA6lvtUCNhlel97p64U=",
+            "engine": false
+          },
+          "writer": "da19b5ef8e807b015e9aa22b10731965",
+          "time": 1795000002000,
+          "sig": "OvZWxCtZ10qz2CWorkVzXteXnuKgJTHXc/Jkfu7n7VdGq3KLqA0GovzlA/ZggSKzTUbQiIdHRKupYNOn6mfFCA=="
+        },
+        {
+          "seq": 3,
+          "prev": "oQL7x46JBunEucmynFsU5YR7QkbW/FNstOPWBupANog=",
+          "kind": "revoke",
+          "device": {
+            "id": "da19b5ef8e807b015e9aa22b10731965",
+            "name": "Box",
+            "platform": "linux",
+            "seal_key": "UXLfw9Vq03UGrbVm35WDYO3V2otrwNEZ47aWFnXwu1k=",
+            "sign_key": "j3oaSx+JcvOImT+T8cbA3aD89vDyQ1mxOHyhAn+F7nw=",
+            "engine": true
+          },
+          "writer": "bf657fa5932f92eede45c055d57a1f11",
+          "time": 1795000003000,
+          "sig": "kFiKxS0bHJzmce8uBbFG9/IjbD8ppMCC+yC8VVmd4yqVfhtDp2Qv2/IlaAkEhNwk+3YD16paTPRvRwvQAtwXBQ=="
+        },
+        {
+          "seq": 4,
+          "prev": "mPJ3nt49d1XEsx23RvFnNTputut6RWjkaRJ4Mx82LOU=",
+          "kind": "admit",
+          "device": {
+            "id": "f390e1679e8d46cb8461f920e6051fca",
+            "name": "Stranger",
+            "platform": "mac",
+            "seal_key": "pLPcAAEBYGqH6q/n1x+lYEFnrTT4hVn1L5MoYeNzbk0=",
+            "sign_key": "xXdx1swm3L7X1ifDp2gdm8x+1AVjz/UwN+NHeXC3QPM=",
+            "engine": true
+          },
+          "writer": "da19b5ef8e807b015e9aa22b10731965",
+          "time": 1795000004000,
+          "sig": "ItlrClrSCXCpcG6fxpZjKt+mfbr1FuaIGkI2/62Fxt6TzEGPv83CX9J2WIyG9MmvynqB9c3JjTzN+hcqGnU/CA=="
+        }
+      ]
+    },
+    {
+      "why": "a record altered after signing",
+      "records": [
+        {
+          "seq": 0,
+          "prev": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "kind": "genesis",
+          "device": {
+            "id": "2a3d90d34daa27c2ce62e3406486610e",
+            "name": "Laptop",
+            "platform": "mac",
+            "seal_key": "CKeqhXJ2MNUoXPqBrNIJIIUHiLGmpyYSNWd+CGOJbWc=",
+            "sign_key": "VYuAwYZH2GqQzCIxc6ZCbG7kNYWlmB48ggpN1lXG1M8=",
+            "engine": true
+          },
+          "writer": "2a3d90d34daa27c2ce62e3406486610e",
+          "time": 1795000000000,
+          "sig": "P3zLIDFMqAIRk8Ot1oXlXA0HaDAhcsqcPGybakMc6qeVvUn+7e4f8k8aP05bG8nLwxaFDw6MdFomLjG6zsTADg=="
+        },
+        {
+          "seq": 1,
+          "prev": "99ihC/TfTlemmIF1qpdTJYGjkvxLQ/ywYDpeSPkHXI8=",
+          "kind": "admit",
+          "device": {
+            "id": "da19b5ef8e807b015e9aa22b10731965",
+            "name": "Renamed",
+            "platform": "linux",
+            "seal_key": "UXLfw9Vq03UGrbVm35WDYO3V2otrwNEZ47aWFnXwu1k=",
+            "sign_key": "j3oaSx+JcvOImT+T8cbA3aD89vDyQ1mxOHyhAn+F7nw=",
+            "engine": true
+          },
+          "writer": "2a3d90d34daa27c2ce62e3406486610e",
+          "time": 1795000001000,
+          "sig": "Zi5qTMfvvdDao7psABQYetkMdOt1QO/hnNQ0cV6MIzhTBlvJLWb1lByO7mNBAk5PvdvtnD11ra9B0Fkw46mBAw=="
+        }
+      ]
+    },
+    {
+      "why": "a record that does not link to the one before",
+      "records": [
+        {
+          "seq": 0,
+          "prev": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "kind": "genesis",
+          "device": {
+            "id": "2a3d90d34daa27c2ce62e3406486610e",
+            "name": "Laptop",
+            "platform": "mac",
+            "seal_key": "CKeqhXJ2MNUoXPqBrNIJIIUHiLGmpyYSNWd+CGOJbWc=",
+            "sign_key": "VYuAwYZH2GqQzCIxc6ZCbG7kNYWlmB48ggpN1lXG1M8=",
+            "engine": true
+          },
+          "writer": "2a3d90d34daa27c2ce62e3406486610e",
+          "time": 1795000000000,
+          "sig": "P3zLIDFMqAIRk8Ot1oXlXA0HaDAhcsqcPGybakMc6qeVvUn+7e4f8k8aP05bG8nLwxaFDw6MdFomLjG6zsTADg=="
+        },
+        {
+          "seq": 1,
+          "prev": "99ihC/TfTlemmIF1qpdTJYGjkvxLQ/ywYDpeSPkHXI8=",
+          "kind": "admit",
+          "device": {
+            "id": "da19b5ef8e807b015e9aa22b10731965",
+            "name": "Box",
+            "platform": "linux",
+            "seal_key": "UXLfw9Vq03UGrbVm35WDYO3V2otrwNEZ47aWFnXwu1k=",
+            "sign_key": "j3oaSx+JcvOImT+T8cbA3aD89vDyQ1mxOHyhAn+F7nw=",
+            "engine": true
+          },
+          "writer": "2a3d90d34daa27c2ce62e3406486610e",
+          "time": 1795000001000,
+          "sig": "Zi5qTMfvvdDao7psABQYetkMdOt1QO/hnNQ0cV6MIzhTBlvJLWb1lByO7mNBAk5PvdvtnD11ra9B0Fkw46mBAw=="
+        },
+        {
+          "seq": 2,
+          "prev": "99ihC/TfTlemmIF1qpdTJYGjkvxLQ/ywYDpeSPkHXI8=",
+          "kind": "admit",
+          "device": {
+            "id": "f390e1679e8d46cb8461f920e6051fca",
+            "name": "Stranger",
+            "platform": "mac",
+            "seal_key": "pLPcAAEBYGqH6q/n1x+lYEFnrTT4hVn1L5MoYeNzbk0=",
+            "sign_key": "xXdx1swm3L7X1ifDp2gdm8x+1AVjz/UwN+NHeXC3QPM=",
+            "engine": true
+          },
+          "writer": "2a3d90d34daa27c2ce62e3406486610e",
+          "time": 1795000002000,
+          "sig": "NykywqZMynAVIJFbjVqW1qJBwvcgC/Le/3JV5qvggSJKov+C9Rk9B5Llj/rzBu8NP4Pc8f+bG5EGwOT35wgBDw=="
+        }
+      ]
+    }
+  ],
+  "envelopes": [
+    {
+      "why": "a new Ping for the phone",
+      "recipient": "Phone",
+      "now": 1795000010000,
+      "members": [
+        "2a3d90d34daa27c2ce62e3406486610e",
+        "bf657fa5932f92eede45c055d57a1f11"
+      ],
+      "envelope": {
+        "v": 1,
+        "id": "1490066b778935b0bb4925e3db151c5b",
+        "from": "2a3d90d34daa27c2ce62e3406486610e",
+        "to": "bf657fa5932f92eede45c055d57a1f11",
+        "time": 1795000010000,
+        "notify": true,
+        "body": "OIn6k9UdMLvi1H+FW0ZIezXOtmWI+TxErhffKKovVVISX5wKJvqGGZ8QeXCr4YpRuKVvju0a3sydD4pA893G2zsGUBxhWMYv91ozzLF7sXMBS9/gbz5wl6SwvcrZLyNECWFZSVjrIKvPCM6jk+2y5NeGHyGAR7/XR68rutWyv4qysabqlWs/dNfL76oc7IOdLe9D5yKVb+DP2A2F",
+        "sig": "/48umkI9d6qviUq5XXHtP/PJvAD1V+3ZzjSaCR+lPG7y6qHLiO8cjM9fB16F38c8EguKvjN4SFrjmzpyUESiAw=="
+      },
+      "plaintext": {
+        "kind": "ping",
+        "computer": "2a3d90d34daa27c2ce62e3406486610e",
+        "ping": {
+          "id": "p_vector",
+          "question": "Ship it?"
+        }
+      },
+      "dropped": false
+    },
+    {
+      "why": "a Pong from the phone",
+      "recipient": "Laptop",
+      "now": 1795000010000,
+      "members": [
+        "2a3d90d34daa27c2ce62e3406486610e",
+        "bf657fa5932f92eede45c055d57a1f11"
+      ],
+      "envelope": {
+        "v": 1,
+        "id": "37c9f5b63d5480147a18f2bb2feaa21a",
+        "from": "bf657fa5932f92eede45c055d57a1f11",
+        "to": "2a3d90d34daa27c2ce62e3406486610e",
+        "time": 1795000010000,
+        "notify": false,
+        "body": "BC5fiJyHSMXQI8nex331kRMdp6+T9FLnBholj/BWzGp4x6zkW2xaiRj1umBUdrPsJzvy1SRaiQW2lFYr578LA0nhO/XT4a8sFbLrMPlZ1zUQ8d2k4rseSMwsP7CEPn+QkStJLARwNWCSLK2i",
+        "sig": "oIEk6T5+EEiD1FBh2v2XIERAq0jshXnNjoGWCcQkrdmm7OgEoEhoeyEGiltrMrLoQ7AN88k41ZoArrZonLKeAQ=="
+      },
+      "plaintext": {
+        "kind": "pong",
+        "ping_id": "p_vector",
+        "pong": {
+          "answer": "Yes"
+        }
+      },
+      "dropped": false
+    },
+    {
+      "why": "the body was altered",
+      "recipient": "Phone",
+      "now": 1795000010000,
+      "members": [
+        "2a3d90d34daa27c2ce62e3406486610e",
+        "bf657fa5932f92eede45c055d57a1f11"
+      ],
+      "envelope": {
+        "v": 1,
+        "id": "1490066b778935b0bb4925e3db151c5b",
+        "from": "2a3d90d34daa27c2ce62e3406486610e",
+        "to": "bf657fa5932f92eede45c055d57a1f11",
+        "time": 1795000010000,
+        "notify": true,
+        "body": "OIn6k9UdMLvi1H+FW0ZIezXOtmWI+TxErhffKKovVVISX5wKJvqGGZ8QeXCr4YpRuKVvju0a3sydD4pA893G2zsGUBxhWMYv91ozzLF7sXMBS9/gbz5wl6SwvcrZLyNECWFZSVjrIKvPCM6jk+2y5NeGHyGAR7/XR68rutWyv4qysabqlWs/dNfL76oc7IOdLe9D5yKVb+DP2A2E",
+        "sig": "/48umkI9d6qviUq5XXHtP/PJvAD1V+3ZzjSaCR+lPG7y6qHLiO8cjM9fB16F38c8EguKvjN4SFrjmzpyUESiAw=="
+      },
+      "dropped": true
+    },
+    {
+      "why": "the notification flag was altered",
+      "recipient": "Phone",
+      "now": 1795000010000,
+      "members": [
+        "2a3d90d34daa27c2ce62e3406486610e",
+        "bf657fa5932f92eede45c055d57a1f11"
+      ],
+      "envelope": {
+        "v": 1,
+        "id": "1490066b778935b0bb4925e3db151c5b",
+        "from": "2a3d90d34daa27c2ce62e3406486610e",
+        "to": "bf657fa5932f92eede45c055d57a1f11",
+        "time": 1795000010000,
+        "notify": false,
+        "body": "OIn6k9UdMLvi1H+FW0ZIezXOtmWI+TxErhffKKovVVISX5wKJvqGGZ8QeXCr4YpRuKVvju0a3sydD4pA893G2zsGUBxhWMYv91ozzLF7sXMBS9/gbz5wl6SwvcrZLyNECWFZSVjrIKvPCM6jk+2y5NeGHyGAR7/XR68rutWyv4qysabqlWs/dNfL76oc7IOdLe9D5yKVb+DP2A2F",
+        "sig": "/48umkI9d6qviUq5XXHtP/PJvAD1V+3ZzjSaCR+lPG7y6qHLiO8cjM9fB16F38c8EguKvjN4SFrjmzpyUESiAw=="
+      },
+      "dropped": true
+    },
+    {
+      "why": "the sender was revoked",
+      "recipient": "Laptop",
+      "now": 1795000010000,
+      "members": [
+        "2a3d90d34daa27c2ce62e3406486610e",
+        "bf657fa5932f92eede45c055d57a1f11"
+      ],
+      "envelope": {
+        "v": 1,
+        "id": "2533f82333c3ee2f14a1da05a19bd205",
+        "from": "da19b5ef8e807b015e9aa22b10731965",
+        "to": "2a3d90d34daa27c2ce62e3406486610e",
+        "time": 1795000010000,
+        "notify": false,
+        "body": "yZgE/PAc5SietvVqVvAvuXo16R56YORIARA12cWTsBeWS/bQrak48nUn4aTlFXQrT47Vy8oZX4rn1dExI5h6AC3pYuC+BJXfDoOLV7DNc3ZlMV36I4XOXGD3EYVF5lf8ZdS+i4aypWSgHE7w",
+        "sig": "4LRKUcsNkSZcfKtbkOl/NJWGikAKFYyleXxAhaa6SjcLOALJsc4kG8mVAvf9WSChvia9dKSSgkCz7WIMk/Z5BQ=="
+      },
+      "dropped": true
+    },
+    {
+      "why": "addressed to another Device",
+      "recipient": "Laptop",
+      "now": 1795000010000,
+      "members": [
+        "2a3d90d34daa27c2ce62e3406486610e",
+        "bf657fa5932f92eede45c055d57a1f11"
+      ],
+      "envelope": {
+        "v": 1,
+        "id": "1490066b778935b0bb4925e3db151c5b",
+        "from": "2a3d90d34daa27c2ce62e3406486610e",
+        "to": "bf657fa5932f92eede45c055d57a1f11",
+        "time": 1795000010000,
+        "notify": true,
+        "body": "OIn6k9UdMLvi1H+FW0ZIezXOtmWI+TxErhffKKovVVISX5wKJvqGGZ8QeXCr4YpRuKVvju0a3sydD4pA893G2zsGUBxhWMYv91ozzLF7sXMBS9/gbz5wl6SwvcrZLyNECWFZSVjrIKvPCM6jk+2y5NeGHyGAR7/XR68rutWyv4qysabqlWs/dNfL76oc7IOdLe9D5yKVb+DP2A2F",
+        "sig": "/48umkI9d6qviUq5XXHtP/PJvAD1V+3ZzjSaCR+lPG7y6qHLiO8cjM9fB16F38c8EguKvjN4SFrjmzpyUESiAw=="
+      },
+      "dropped": true
+    },
+    {
+      "why": "older than the replay window",
+      "recipient": "Phone",
+      "now": 1795086470000,
+      "members": [
+        "2a3d90d34daa27c2ce62e3406486610e",
+        "bf657fa5932f92eede45c055d57a1f11"
+      ],
+      "envelope": {
+        "v": 1,
+        "id": "1490066b778935b0bb4925e3db151c5b",
+        "from": "2a3d90d34daa27c2ce62e3406486610e",
+        "to": "bf657fa5932f92eede45c055d57a1f11",
+        "time": 1795000010000,
+        "notify": true,
+        "body": "OIn6k9UdMLvi1H+FW0ZIezXOtmWI+TxErhffKKovVVISX5wKJvqGGZ8QeXCr4YpRuKVvju0a3sydD4pA893G2zsGUBxhWMYv91ozzLF7sXMBS9/gbz5wl6SwvcrZLyNECWFZSVjrIKvPCM6jk+2y5NeGHyGAR7/XR68rutWyv4qysabqlWs/dNfL76oc7IOdLe9D5yKVb+DP2A2F",
+        "sig": "/48umkI9d6qviUq5XXHtP/PJvAD1V+3ZzjSaCR+lPG7y6qHLiO8cjM9fB16F38c8EguKvjN4SFrjmzpyUESiAw=="
+      },
+      "dropped": true
+    }
+  ],
+  "join": {
+    "request": {
+      "name": "Stranger",
+      "platform": "mac",
+      "engine": true,
+      "seal_key": "pLPcAAEBYGqH6q/n1x+lYEFnrTT4hVn1L5MoYeNzbk0=",
+      "sign_key": "xXdx1swm3L7X1ifDp2gdm8x+1AVjz/UwN+NHeXC3QPM=",
+      "time": 1795000020000,
+      "sig": "9TeUrz4mQUkYE9YDKCWBhYIuFkU7m5l7Neg/1+6Pz6SbMeCA1Plv97+QYBseaFiKYJ6RnwTBjAN7EK+vnmGKCA=="
+    },
+    "id": "f390e1679e8d46cb8461f920e6051fca",
+    "code": "073643"
+  }
+}

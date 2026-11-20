@@ -1,0 +1,1 @@
+{"mode":"local","this":"aa11","devices":[{"id":"aa11","name":"Laptop","platform":"mac","engine":true,"this":true,"reachable":true},{"id":"bb22","name":"Desktop","platform":"mac","engine":true,"this":false,"reachable":false}],"waiting":[{"id":"cc33","name":"Box","platform":"linux","code":"042917","asked_at":"2026-11-19T02:00:00Z"}]}

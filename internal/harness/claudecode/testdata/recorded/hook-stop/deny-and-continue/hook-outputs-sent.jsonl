@@ -1,0 +1,1 @@
+{"continue": false, "stopReason": "Your human stopped this turn in Pong.", "hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "Your human stopped this turn in Pong."}}

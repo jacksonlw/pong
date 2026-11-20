@@ -1,0 +1,35 @@
+id: 1
+event: project.changed
+data: {"seq":1,"kind":"project.changed","at":"2026-11-19T04:30:55.067513Z","data":{"id":"761aeaab99804467","root":"/Users/dev/shop","name":"shop","colour":"#E5484D","created_at":"2026-11-19T04:30:55.067513Z","updated_at":"2026-11-19T04:30:55.067513Z"}}
+
+id: 2
+event: session.changed
+data: {"seq":2,"kind":"session.changed","at":"2026-11-19T04:30:55.067453Z","data":{"harness":"claude-code","id":"s-migrate","folder":"/Users/dev/shop","project":"761aeaab99804467","title":"Backfill customer emails","started_by":"human","state":"working","created_at":"2026-11-19T04:30:55.067453Z","updated_at":"2026-11-19T04:30:55.067453Z","context":{"used_fraction":0.42,"tokens":420000,"window":1000000,"cost_usd":3.18,"model":"claude-opus-4-5"}}}
+
+id: 3
+event: project.changed
+data: {"seq":3,"kind":"project.changed","at":"2026-11-19T04:30:55.076971Z","data":{"id":"053f1d4938353db0","root":"/Users/dev/api","name":"api","colour":"#F76B15","created_at":"2026-11-19T04:30:55.076971Z","updated_at":"2026-11-19T04:30:55.076971Z"}}
+
+id: 4
+event: session.changed
+data: {"seq":4,"kind":"session.changed","at":"2026-11-19T04:30:55.076928Z","data":{"harness":"codex","id":"s-release","folder":"/Users/dev/api","project":"053f1d4938353db0","title":"Cut release 2.4 and roll it out","started_by":"human","state":"working","created_at":"2026-11-19T04:30:55.076928Z","updated_at":"2026-11-19T04:30:55.076928Z","context":{"used_fraction":0.86,"tokens":860000,"window":1000000,"model":"gpt-5-codex"}}}
+
+id: 5
+event: project.changed
+data: {"seq":5,"kind":"project.changed","at":"2026-11-19T04:30:55.08572Z","data":{"id":"2a73191776989b1e","root":"/Users/dev/shop/web","name":"web","colour":"#FFC53D","created_at":"2026-11-19T04:30:55.08572Z","updated_at":"2026-11-19T04:30:55.08572Z"}}
+
+id: 6
+event: session.changed
+data: {"seq":6,"kind":"session.changed","at":"2026-11-19T04:30:55.085674Z","data":{"harness":"claude-code","id":"s-flaky","folder":"/Users/dev/shop/web","project":"2a73191776989b1e","title":"Deflake checkout test","started_by":"human","state":"working","created_at":"2026-11-19T04:30:55.085674Z","updated_at":"2026-11-19T04:30:55.085674Z"}}
+
+id: 7
+event: ping.created
+data: {"seq":7,"kind":"ping.created","at":"2026-11-19T04:30:55.095753Z","data":{"id":"4a855b2716315ad6","session":"s-migrate","harness":"claude-code","project":"761aeaab99804467","folder":"/Users/dev/shop","question":"Two tables hold customer emails, and the migration rewrites 41,000 rows. Which should it touch?","answers":[{"label":"Users and orders","leads_to":"One migration that rewrites both tables in a single transaction.","hard_to_undo":true},{"label":"Users only","leads_to":"A smaller change; orders keep the email captured at checkout."},{"label":"Ask the data team"}],"context":"The users table and the orders table both store an email column. Orders copied it at checkout, so 3% of them disagree with users today.","why":"The migration script is written; it needs to know its scope before the dry run.","state":"waiting","created_at":"2026-11-19T04:30:55.095753Z","updated_at":"2026-11-19T04:30:55.095753Z"}}
+
+id: 8
+event: ping.created
+data: {"seq":8,"kind":"ping.created","at":"2026-11-19T04:30:55.09579Z","data":{"id":"f267f5e795b45c1e","session":"s-flaky","harness":"claude-code","project":"2a73191776989b1e","folder":"/Users/dev/shop/web","question":"The checkout test failed 3 of 20 runs after the retry change. How should I handle it?","answers":[{"label":"Fix the race"},{"label":"Quarantine the test"}],"state":"waiting","created_at":"2026-11-19T04:30:55.09579Z","updated_at":"2026-11-19T04:30:55.09579Z"}}
+
+id: 9
+event: ping.created
+data: {"seq":9,"kind":"ping.created","at":"2026-11-19T04:30:55.095757Z","data":{"id":"a4583a9c95ae9d2b","session":"s-release","harness":"codex","project":"053f1d4938353db0","folder":"/Users/dev/api","question":"Version 2.4 is ready; one change breaks the old webhook format. Where should it go first?","answers":[{"label":"Staging","leads_to":"Deploys to staging and runs the smoke tests."},{"label":"Production","leads_to":"Deploys to every customer at once.","hard_to_undo":true}],"why":"All checks passed on the release branch.","state":"waiting","created_at":"2026-11-19T04:30:55.095757Z","updated_at":"2026-11-19T04:30:55.095757Z"}}

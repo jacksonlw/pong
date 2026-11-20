@@ -1,0 +1,20 @@
+{
+    "card_corner": "top-right",
+    "ping_sound": "first",
+    "voice": false,
+    "voice_auto_listen": false,
+    "voice_model": "none",
+    "card_follows_active_display": false,
+    "first_launch_done": false,
+    "told_login_disallowed": false,
+    "palette": [
+        "#E5484D",
+        "#F76B15",
+        "#FFC53D",
+        "#30A46C",
+        "#12A594",
+        "#0090FF",
+        "#6E56CF",
+        "#D6409F"
+    ]
+}

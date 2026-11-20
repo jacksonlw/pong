@@ -1,0 +1,1 @@
+The gateway rate-limits retries that arrive within a second, so the third attempt always failed.

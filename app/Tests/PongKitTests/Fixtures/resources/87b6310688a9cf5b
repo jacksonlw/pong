@@ -1,0 +1,4 @@
+--- FAIL: TestTotal (0.00s)
+    total_test.go:14: got 1990, want 2090
+FAIL
+FAIL	shop/checkout	0.212s

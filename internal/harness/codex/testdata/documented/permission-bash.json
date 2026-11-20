@@ -1,0 +1,1 @@
+{"session_id":"thr_doc1","transcript_path":null,"cwd":"/tmp/proj","model":"gpt-5.5-codex","turn_id":"turn_1","hook_event_name":"PermissionRequest","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"date > stamp.txt","description":"Write the date to stamp.txt"}}

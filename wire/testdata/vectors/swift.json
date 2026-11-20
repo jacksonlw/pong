@@ -1,0 +1,32 @@
+{
+  "envelope" : {
+    "body" : "GEprRit3EVmvpNGAfbJyDHWKZ4r39po3ait0OuiVRGw7XGnS0v6MYszLtgokNKKJcV7vRR+jdHwOs1bxMD\/UE1JtB\/BHVpaJy\/85crwZ9a4DKnJ5Sb242yp4Q2wredQPpCOLKd4kRDTqmc7HBoJL8zzVp1UEtwI=",
+    "from" : "bf657fa5932f92eede45c055d57a1f11",
+    "id" : "be983c7abc39f7d6f6819c7fc5ac9da1",
+    "notify" : false,
+    "sig" : "4oPux0LGtuUisG4TgqLea0t2T92ekWsTgbVij2CteTFiHT0EHDR4YbBCJrIJ7jmXCKzCUT7eKW4vrMpbqCElCQ==",
+    "time" : 1795000010000,
+    "to" : "2a3d90d34daa27c2ce62e3406486610e",
+    "v" : 1
+  },
+  "join" : {
+    "engine" : false,
+    "name" : "Phone",
+    "platform" : "ios",
+    "seal_key" : "duvMrKb0xbiHDU0VFD2Wau6ouLmrYG9roObBjhAvR3c=",
+    "sig" : "Euhs3uWXMtdM2BhHnHvGE2j6pGJzO1HwojMUX1SzuGEEo1GHwddmmmM4vU9dDzPqy5FGwHuIK1gIoTC8R6hiCg==",
+    "sign_key" : "I9f\/4hP7BjjQGoFcFBM1Q+YTxA6lvtUCNhlel97p64U=",
+    "time" : 1795000020000
+  },
+  "note" : "Written by Swift (app\/Tests\/PongCoreTests\/WireVectorTests.swift, PONG_WRITE_SWIFT_VECTORS=1 swift test).",
+  "now" : 1795000010000,
+  "plaintext" : {
+    "kind" : "pong",
+    "ping_id" : "p_1",
+    "pong" : {
+      "answer" : "Yes"
+    },
+    "pong_id" : "q_1"
+  },
+  "recipient" : "Laptop"
+}
