@@ -108,6 +108,19 @@ func TestPermissionPromptsBecomeCapturedPingsThatApproveAnAction(t *testing.T) {
 	}
 }
 
+// Codex asks before an MCP tool runs even when Pong's server is set to run its
+// tools without asking (seen with codex 0.171.0). Pong's own tools exist to
+// ask the human, so asking first whether they may ask is answered at once.
+func TestPongsOwnToolsAreAllowedWithoutAPing(t *testing.T) {
+	c, dir := enginetest.Start(t)
+	if got := call(t, dir, "permission-pong-tool.json")(); got != `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}`+"\n" {
+		t.Fatalf("Codex would receive %q", got)
+	}
+	if ps, _ := c.Pings(""); len(ps) != 0 {
+		t.Fatalf("Pings = %+v", ps)
+	}
+}
+
 func TestHandedBackPermissionWritesNothing(t *testing.T) {
 	c, dir := enginetest.Start(t)
 	out := call(t, dir, "permission-bash.json")
@@ -231,6 +244,9 @@ func TestFailOpenWithNoEngine(t *testing.T) {
 	fs, _ := filepath.Glob("testdata/documented/*.json")
 	for _, dir := range []string{t.TempDir(), stale} {
 		for _, f := range fs {
+			if filepath.Base(f) == "permission-pong-tool.json" {
+				continue // Pong's own tools are allowed either way; with no Engine they tell the agent to ask as usual
+			}
 			start := time.Now()
 			if got := out(t, dir, filepath.Base(f)); got != "" {
 				t.Errorf("%s: wrote %q with no Engine", f, got)

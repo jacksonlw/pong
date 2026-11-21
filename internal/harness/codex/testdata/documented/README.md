@@ -12,6 +12,7 @@ placeholders; the documentation gives no full example payload for these events.
 | `permission-bash.json` | Common input fields; PermissionRequest (`tool_name` `Bash`, `tool_input.command`, `tool_input.description`) | permission prompt for a shell command |
 | `permission-apply-patch.json` | PermissionRequest (`apply_patch` uses `tool_input.command`; `description` null) | permission prompt for a file change |
 | `permission-mcp-tool.json` | PermissionRequest (MCP names `mcp__<server>__<tool>`, arguments as `tool_input`) | permission prompt for an MCP tool |
+| `permission-pong-tool.json` | PermissionRequest for Pong's own `mcp__pong__send_ping`, shaped like the request codex 0.171.0 made | Pong's own tool, allowed with no Ping |
 | `stop-first.json` | Stop (`stop_hook_active` false, `last_assistant_message`) | a turn's first Stop |
 | `stop-continued.json` | Stop (`stop_hook_active` true: "already continued by Stop") | Stop of a turn the hook continued |
 | `prompt-typed.json` | UserPromptSubmit (`prompt`) | the human typing a prompt |

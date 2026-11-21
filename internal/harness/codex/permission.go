@@ -38,7 +38,16 @@ type permissionDecision struct {
 	Message  string `json:"message,omitempty"`
 }
 
+// pongTools prefixes the names Codex gives Pong's own MCP tools.
+const pongTools = "mcp__pong__"
+
 func askPermission(c *client.Client, e Event) (any, error) {
+	if strings.HasPrefix(e.ToolName, pongTools) {
+		// Codex asks before Pong's own tools run even when its server is set
+		// to run them without asking (codex 0.171.0). They exist to ask the
+		// human, so asking first whether they may ask helps nobody.
+		return permissionAnswerFor(permissionDecision{Behavior: "allow"}), nil
+	}
 	n := permissionPing(e)
 	n.Answers = []engine.Answer{{Label: labelAllow, LeadsTo: "this call only"},
 		{Label: labelDeny, LeadsTo: "type a reason to tell Codex why"}}
@@ -54,10 +63,14 @@ func askPermission(c *client.Client, e Event) (any, error) {
 			d.Message = "The human denied this in Pong."
 		}
 	}
+	return permissionAnswerFor(d), nil
+}
+
+func permissionAnswerFor(d permissionDecision) permissionAnswer {
 	var out permissionAnswer
 	out.HookSpecificOutput.HookEventName = "PermissionRequest"
 	out.HookSpecificOutput.Decision = d
-	return out, nil
+	return out
 }
 
 // permissionPing is the question, Resource and kind Tag for one tool call. Codex
