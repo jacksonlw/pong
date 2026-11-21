@@ -93,7 +93,7 @@ Pong adds "Nothing more" as the last answer itself; do not add it.
 
 ### Work for a new Session
 
-When your human asks in Pong for work to go on in a new Session, offer that work as an answer on your finished Ping instead of starting the Session yourself. Its label names the work, such as "Add the export button", and its `leads_to` says what the new Session should do. Your human sends that answer with New Session with this Pong, and Pong starts the Session in this folder, with the Pong and your Ping as its first prompt. Only a finished Ping offers this: a Pong to a blocking question always comes back to you.
+When your human asks in Pong for work to go on in a new Session, offer that work as an answer on your finished Ping instead of starting the Session yourself. Your Harness refuses a Session you start on a Pong's say-so, because a Pong is not a message your human typed. Its label names the work, such as "Add the export button", and its `leads_to` says what the new Session should do. Your human sends that answer with New Session with this Pong, and Pong starts the Session in this folder, with the Pong and your Ping as its first prompt. Only a finished Ping offers this: a Pong to a blocking question always comes back to you.
 
 ## The summary
 
