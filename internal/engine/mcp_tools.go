@@ -173,9 +173,9 @@ var mcpTools = []mcpTool{
 	},
 	{
 		Name: ToolSendThought,
-		Description: "As you work, tell your human in one sentence each thing you find, decide or change, so they can follow the Session " +
-			"without opening it, in words they understand without the code open: never what you are running, never output, never " +
-			"the same news twice. Most turns need three to six. It shows only in the Session's Thread, never asks anything, and returns at once.",
+		Description: "As you work, tell your human in one sentence something you found, decided or changed, in words they " +
+			"understand without the code open: never what you are running, never output. It shows only in the Session's Thread, " +
+			"never asks anything, and returns at once.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": props(map[string]any{
