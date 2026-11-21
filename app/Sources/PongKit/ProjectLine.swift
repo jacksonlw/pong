@@ -67,7 +67,7 @@ struct ProjectTile: View {
             .fill(fill)
             .frame(width: side, height: side)
             .overlay {
-                if let logo, let image = NSImage(data: logo) {
+                if let logo, let image = Self.image(logo) {
                     Image(nsImage: image).resizable().scaledToFit().padding(side * 3 / 22)
                 } else {
                     Text(project.name.prefix(1).uppercased())
@@ -75,6 +75,17 @@ struct ProjectTile: View {
                         .foregroundStyle(Self.readableInk(on: project.colour))
                 }
             }
+    }
+
+    /// Logos decoded once: decoding on every redraw made a long Threads list lag under the pointer.
+    @MainActor private static let decoded = NSCache<NSData, NSImage>()
+
+    @MainActor static func image(_ data: Data) -> NSImage? {
+        let key = data as NSData
+        if let image = decoded.object(forKey: key) { return image }
+        guard let image = NSImage(data: data) else { return nil }
+        decoded.setObject(image, forKey: key)
+        return image
     }
 
     /// The kit's fixed Ink or White, whichever contrasts more with the tile.

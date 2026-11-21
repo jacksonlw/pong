@@ -10,6 +10,8 @@ struct ThreadRows: View {
     /// Lists more Threads; nil when every one is listed.
     var more: (() -> Void)? = nil
     var openThread: (SessionThread.SessionRef) -> Void
+    /// The Bar's margin, which the rows reach across so their hover fills the list edge to edge.
+    static let inset: CGFloat = 12
 
     var body: some View {
         if threads.isEmpty {
@@ -17,13 +19,14 @@ struct ThreadRows: View {
                 .brandStyle(.secondary)
                 .foregroundStyle(Brand.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, Self.inset)
         } else {
             VStack(spacing: 0) {
                 ForEach(threads) { t in ThreadRowView(thread: t, isOpen: open.contains(t.ref), openThread: openThread) }
                 if let more {
                     HoverButton(action: more) { hover in
                         Text("Show more").brandStyle(.label).foregroundStyle(hover ? Brand.text : Brand.secondary)
-                            .padding(.horizontal, 10)
+                            .padding(.horizontal, Self.inset + 10)
                             .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                             .background(hover ? Brand.row : .clear, in: Rectangle())
                             .contentShape(Rectangle())
@@ -56,7 +59,7 @@ private struct ThreadRowView: View {
                         .lineLimit(1).fixedSize()
                 }
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, ThreadRows.inset + 10)
             .frame(minHeight: 32)
             .background(isOpen ? (hover ? Brand.selectedHover : Brand.selected) : hover ? Brand.row : .clear, in: Rectangle())
             .contentShape(Rectangle())

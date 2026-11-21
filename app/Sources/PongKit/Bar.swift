@@ -276,12 +276,11 @@ public struct BarView: View {
     @ViewBuilder private var listPart: some View {
         if listed {
             VStack(alignment: .leading, spacing: 8) {
-                if !anchorsBottom, let held { heldButton(held) }
-                if part == .start, let start = start ?? kept { start } else { ThreadRows(threads: threads, open: openThreads, more: more, openThread: actions.openThread) }
-                if anchorsBottom, let held { heldButton(held) }
+                if !anchorsBottom, let held { heldButton(held).padding(.horizontal, ThreadRows.inset) }
+                if part == .start, let start = start ?? kept { start.padding(.horizontal, ThreadRows.inset) } else { ThreadRows(threads: threads, open: openThreads, more: more, openThread: actions.openThread) }
+                if anchorsBottom, let held { heldButton(held).padding(.horizontal, ThreadRows.inset) }
             }
             .opacity(visible ? 1 : 0)
-            .padding(.horizontal, 12)
             .padding(anchorsBottom ? .top : .bottom, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Brand.surface)
