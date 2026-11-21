@@ -47,7 +47,17 @@ func sessionStart(c *client.Client, e Event) (any, error) {
 }
 
 // sessionEnd records the Session as ended. Claude Code reads nothing back.
+//
+// A copy that no longer holds the Session does not end it. A Session moved
+// into the Claude app (move.go) is open there before its first copy ends:
+// seen on Claude Code 2.1.326, the app's copy registered its process 0.13
+// seconds before the first copy's SessionEnd arrived.
 func sessionEnd(c *client.Client, e Event) (any, error) {
+	if s, err := c.Session(HarnessName, e.SessionID); err == nil {
+		if me := attended.HarnessPID(); me > 0 && s.PID > 0 && s.PID != me {
+			return nil, nil
+		}
+	}
 	_, err := c.RegisterSession(engine.RegisterSession{Harness: HarnessName, ID: e.SessionID, State: engine.SessionEnded})
 	return nil, err
 }

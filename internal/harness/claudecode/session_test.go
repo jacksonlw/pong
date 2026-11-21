@@ -94,3 +94,27 @@ func TestSessionEventsFailOpenWithNoEngine(t *testing.T) {
 		}
 	}
 }
+
+// A Session moved into the Claude app is open there before its first copy
+// ends: that copy's SessionEnd, arriving after the app's copy took the
+// Session, leaves it open. Its own end still ends it.
+func TestTheEndOfACopyThatNoLongerHoldsTheSessionLeavesItOpen(t *testing.T) {
+	c, dir := enginetest.Start(t)
+	id := "db478e84-d472-4920-a67e-e18303060599" // plan-mode's
+	was := attended.HarnessPID
+	t.Cleanup(func() { attended.HarnessPID = was })
+	attended.HarnessPID = func() int { return 4358 } // the first copy
+	hook(t, dir, recorded(t, "plan-mode", "SessionStart"))
+	if _, err := c.RegisterSession(engine.RegisterSession{Harness: "claude-code", ID: id, PID: 4816, State: engine.SessionIdle}); err != nil {
+		t.Fatal(err) // the app's copy
+	}
+	hook(t, dir, recorded(t, "plan-mode", "SessionEnd"))
+	if s, _ := c.Session("claude-code", id); s.State != engine.SessionIdle {
+		t.Fatalf("the first copy's end left it %s", s.State)
+	}
+	attended.HarnessPID = func() int { return 4816 }
+	hook(t, dir, recorded(t, "plan-mode", "SessionEnd"))
+	if s, _ := c.Session("claude-code", id); s.State != engine.SessionEnded {
+		t.Fatalf("the app's copy's end left it %s", s.State)
+	}
+}
