@@ -616,7 +616,7 @@ struct IconButton: View {
 }
 
 /// The Pong mark at the start of the card's top bar and of the Bar, in the same place on both.
-/// The bar around it moves the window (`WindowDragArea`), which lights up on hover to say so.
+/// The bar around it moves the window (`WindowDragArea`).
 struct DragGrip: View {
     /// The Bar's list is stuck open: the mark stays stepped up, as if held down.
     var pressed = false
@@ -660,8 +660,7 @@ struct PongMark: View {
 
 /// Moves its window with the mouse, and reports a move once the mouse is let go. Shows an open
 /// hand while the pointer is over it and a closed hand while dragging, even while Pong is
-/// inactive (cursor rects only work in the key window, which the card rarely is), and lights its
-/// bar faintly while the pointer is on it, buttons included, to say the bar moves. With `menu`,
+/// inactive (cursor rects only work in the key window, which the card rarely is). With `menu`,
 /// a right click (or Control-click) opens that menu. With `clicked`, a click that moves nothing
 /// is reported at once; the click that turns out to start a double-click is reported a second
 /// time, which takes it back.
@@ -691,36 +690,6 @@ struct WindowDragArea: NSViewRepresentable {
         /// left, not the origin: the window may grow or shrink under the pointer mid-drag, and
         /// the grabbed spot must stay under it.
         private var start: (mouse: NSPoint, topLeft: NSPoint)?
-        private var lit = false
-
-        override init(frame: NSRect) {
-            super.init(frame: frame)
-            wantsLayer = true
-            layer?.opacity = 0
-        }
-
-        required init?(coder: NSCoder) { fatalError("not used") }
-
-        private func paint() {
-            effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = NSColor(Brand.row).cgColor }
-        }
-
-        /// The faint highlight, drawn in AppKit so showing it redraws nothing in SwiftUI.
-        private func light(_ on: Bool) {
-            guard on != lit else { return }
-            lit = on
-            paint()
-            NSAnimationContext.runAnimationGroup { c in
-                c.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.15
-                c.allowsImplicitAnimation = true
-                layer?.opacity = on ? 1 : 0
-            }
-        }
-
-        override func viewDidChangeEffectiveAppearance() {
-            super.viewDidChangeEffectiveAppearance()
-            paint()
-        }
 
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
         override var mouseDownCanMoveWindow: Bool { false }
@@ -741,15 +710,15 @@ struct WindowDragArea: NSViewRepresentable {
 
         private func inside(_ e: NSEvent) -> Bool { bounds.contains(convert(e.locationInWindow, from: nil)) }
 
-        override func mouseEntered(with e: NSEvent) { light(true); point(e) }
-        override func mouseMoved(with e: NSEvent) { light(true); point(e) }
+        override func mouseEntered(with e: NSEvent) { point(e) }
+        override func mouseMoved(with e: NSEvent) { point(e) }
         /// AppKit asks the view under the pointer for its cursor as the pointer moves; left to
         /// NSView this is the arrow, which then fights the open hand set on each move.
         override func cursorUpdate(with e: NSEvent) { point(e) }
         /// Rebuilding the tracking areas, as the window grows or shrinks under the pointer, can
         /// report an exit while the pointer is still on the area: that one keeps the hand.
         override func mouseExited(with e: NSEvent) {
-            if start == nil, !inside(e) { NSCursor.arrow.set(); light(false) }
+            if start == nil, !inside(e) { NSCursor.arrow.set() }
         }
 
         override func menu(for event: NSEvent) -> NSMenu? { contextMenu?() }
@@ -785,7 +754,6 @@ struct WindowDragArea: NSViewRepresentable {
             start = nil
             let inside = bounds.contains(convert(e.locationInWindow, from: nil))
             (inside ? NSCursor.openHand : NSCursor.arrow).set()
-            if !inside { light(false) }
             (window as? GrabbedWindow)?.grabbed(at: nil)
             if let w = window, NSPoint(x: w.frame.minX, y: w.frame.maxY) != s.topLeft { moved() } else if let clicked { reported = true; clicked() }
         }

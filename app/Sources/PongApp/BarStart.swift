@@ -5,33 +5,23 @@ import UniformTypeIdentifiers
 
 /// The start panel in the Bar: start a Session. The Bar's New Session button opens it, and the
 /// card's window takes typing while it is open. It closes when a Session starts, on Escape, on
-/// the button again, and when the human clicks elsewhere (the window stops being key).
+/// the button again. A click elsewhere leaves it open, with what was typed.
 @MainActor @Observable
 final class BarStart {
     /// The panel the Bar shows; nil while closed.
     private(set) var view: StartPanelView?
     var isOpen: Bool { model != nil }
-    /// The card shows over the open panel: it waits aside, with its draft, and losing key does
-    /// not close it.
-    @ObservationIgnored var aside = false
 
     @ObservationIgnored private let client: @Sendable () async -> EngineClient?
     @ObservationIgnored private let window: NSPanel
     /// Told when the panel opens or closes, so the window's face follows.
     @ObservationIgnored private let changed: (Bool) -> Void
     @ObservationIgnored private var model: StartPanelModel?
-    /// A folder or logo picker is up: losing key to it does not close the panel.
-    @ObservationIgnored private var choosing = false
-    @ObservationIgnored private var resigned: NSObjectProtocol?
 
     init(client: @escaping @Sendable () async -> EngineClient?, window: NSPanel, changed: @escaping (Bool) -> Void) {
         self.client = client
         self.window = window
         self.changed = changed
-        resigned = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: window,
-                                                          queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.windowDidResignKey() }
-        }
     }
 
     func toggle() {
@@ -71,9 +61,7 @@ final class BarStart {
     }
 
     private func pick(_ open: NSOpenPanel) -> NSApplication.ModalResponse {
-        choosing = true
         let response = open.runModal()
-        choosing = false
         takeKey()
         return response
     }
@@ -103,37 +91,5 @@ final class BarStart {
         }
         // The Project menu closed when the picker took key: it opens again, showing the new logo.
         model?.menuOpen = project.id
-    }
-
-    /// Key moving to the open Project menu keeps the panel; when that menu closes and key did
-    /// not come back (a click outside both), the panel closes too.
-    private func windowDidResignKey() {
-        guard isOpen, !choosing, !aside else { return }
-        // A press elsewhere may be the start of a drag of files to the panel: it stays while the
-        // button is held, and a drop makes the window key again.
-        if NSEvent.pressedMouseButtons & 1 != 0 { return closeAfterMouseUp() }
-        guard let model, model.menuOpen != nil else { return close() }
-        closeAfterMenu(model)
-    }
-
-    private func closeAfterMouseUp() {
-        let open = model
-        Task { @MainActor in
-            while NSEvent.pressedMouseButtons & 1 != 0 { try? await Task.sleep(for: .milliseconds(50)) }
-            try? await Task.sleep(for: .milliseconds(300))
-            guard let open, open === model, !window.isKeyWindow, !choosing else { return }
-            if open.menuOpen != nil { closeAfterMenu(open) } else { close() }
-        }
-    }
-
-    private func closeAfterMenu(_ model: StartPanelModel) {
-        withObservationTracking { _ = model.menuOpen } onChange: { [weak self] in
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(150))
-                guard let self, self.model === model else { return }
-                if model.menuOpen != nil { self.closeAfterMenu(model) }
-                else if !self.window.isKeyWindow, !self.choosing { self.close() }
-            }
-        }
     }
 }

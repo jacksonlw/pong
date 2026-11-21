@@ -332,7 +332,6 @@ final class CardController {
                 }
                 // The card shows over the start panel the human was writing in: the panel waits
                 // aside and takes typing again when the card goes. Elsewhere the panel closes.
-                self.start.aside = face == .card && self.start.isOpen
                 if face == .start, was == .card { self.start.takeKey() }
                 if face != .start, face != .card, self.start.isOpen { self.start.close() }
                 if face == .threads, was == .card { self.closeThreadsAwayFromPointer() }
