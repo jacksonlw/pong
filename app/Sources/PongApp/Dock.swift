@@ -135,14 +135,18 @@ final class Dock {
     func remove(_ key: String) {
         guard let p = panels.removeValue(forKey: key) else { return }
         let hadKey = p.isKeyWindow
-        row.close(key)
+        let next = row.close(key)
         unattach(key)
         closers[key] = nil
         detaching[key] = nil
         laidOut[key] = nil
         p.orderOut(nil)
-        // Typing goes back to the app the human was in.
-        if hadKey, NSApp.isActive { NSApp.deactivate() }
+        // Focus stays in Pong, so ⌘W after ⌘W closes the next panel and never reaches the app
+        // behind: the next panel takes it, else the card, where ⌘W does nothing. With no card on
+        // screen, typing goes back to the app the human was in.
+        if hadKey, NSApp.isActive {
+            if let next, let n = panels[next] { n.makeKey() } else if let card { card.makeKey() } else { NSApp.deactivate() }
+        }
         layout(eased: true)
         print("dock closed \(key)")
     }

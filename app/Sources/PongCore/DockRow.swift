@@ -25,9 +25,16 @@ public struct DockRow: Equatable, Sendable {
         return gone
     }
 
-    public mutating func close(_ key: String) {
+    /// Closes a panel and returns the one that takes focus after it, so the human can close one
+    /// after another by key: the docked panel that slides into its place, else the one before it,
+    /// else a detached one; nil when none is left.
+    @discardableResult
+    public mutating func close(_ key: String) -> String? {
+        let at = docked.firstIndex(of: key)
         docked.removeAll { $0 == key }
         detached.remove(key)
+        if let at, !docked.isEmpty { return docked[min(at, docked.count - 1)] }
+        return docked.first ?? detached.sorted().first
     }
 
     /// The human moved the panel away from the row.

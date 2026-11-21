@@ -26,6 +26,22 @@ final class DockRowTests: XCTestCase {
         XCTAssertEqual(row.detached, ["thread:b"], "a detached Thread is never replaced")
     }
 
+    /// Closing a panel names the one that takes focus, so ⌘W after ⌘W closes the rest: the one
+    /// that slides into its place, else the one before it, else a detached one, else none.
+    func testClosingNamesTheNextPanel() {
+        var row = DockRow()
+        row.open("c")
+        row.open("b")
+        row.open("a")
+        row.open("x", apart: true)
+        XCTAssertEqual(row.close("b"), "c", "the one further out slides into its place")
+        XCTAssertEqual(row.close("c"), "a", "the last in the row hands focus back along it")
+        XCTAssertEqual(row.close("x"), "a", "a detached one hands focus to the row")
+        row.open("y", apart: true)
+        XCTAssertEqual(row.close("a"), "y", "with the row empty, a detached one is next")
+        XCTAssertNil(row.close("y"), "none left")
+    }
+
     func testDetachDockAtTheEndAndClose() {
         var row = DockRow()
         row.open("a")
