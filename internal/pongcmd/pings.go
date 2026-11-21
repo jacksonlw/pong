@@ -102,6 +102,7 @@ func ping(args []string, stdout, stderr io.Writer) int {
 	fs.BoolVar(&n.MoreComing, "more-coming", false, "another Ping from this Session will follow")
 	fs.BoolVar(&n.BlocksAgent, "blocks", false, "the agent cannot continue until the Pong arrives")
 	fs.BoolVar(&n.Finished, "finished", false, "the Ping hands over finished work")
+	fs.StringVar(&n.NotVerified, "not-verified", "", "on finished work: what was not checked")
 	fs.BoolVar(&n.IsNote, "note", false, "send a Note: needs no Pong, returns at once")
 	var files, texts stringsFlag
 	fs.Var(&files, "file", "attach a file as a Resource: KIND:TITLE:PATH; repeat for several")
