@@ -300,3 +300,147 @@ func TestTooManyAskingDevicesAreRefused(t *testing.T) {
 		t.Fatalf("%d Devices waiting", len(s.Waiting))
 	}
 }
+
+// phoneOf joins a: a Device without an Engine asks on a direct connection
+// and is approved. It returns the phone's keys, the connection and a's
+// Device.
+func phoneOf(t *testing.T, a *enginetest.Computer) (*wire.Keys, *websocket.Conn, wire.DeviceInfo) {
+	t.Helper()
+	k, _ := wire.NewKeys()
+	ws, laptop := greeted(t, a.NetAddr)
+	websocket.Message.Send(ws, joinFrame(t, wire.NewJoinRequest(k, "Phone", "ios", false, time.Now().UnixMilli())))
+	enginetest.Eventually(t, "the phone to ask", func() bool { s, _ := a.C.Devices(); return len(s.Waiting) == 1 })
+	if _, err := a.C.ApproveDevice(k.ID()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := chainOn(t, ws, k, laptop); !ok {
+		t.Fatal("the phone was not sent the chain that admits it")
+	}
+	return k, ws, laptop
+}
+
+// greeted connects to the listener at addr and returns the Device it greets as.
+func greeted(t *testing.T, addr string) (*websocket.Conn, wire.DeviceInfo) {
+	t.Helper()
+	ws, err := websocket.Dial("ws://"+addr+"/wire", "", "http://"+addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ws.Close() })
+	var s string
+	if err := websocket.Message.Receive(ws, &s); err != nil {
+		t.Fatal(err)
+	}
+	var f struct{ Device wire.DeviceInfo }
+	if json.Unmarshal([]byte(s), &f) != nil || f.Device.ID == "" {
+		t.Fatalf("greeting %s", s)
+	}
+	return ws, f.Device
+}
+
+// chainOn waits for the next envelope on ws and returns the set its chain
+// leaves, when it carries one from the laptop.
+func chainOn(t *testing.T, ws *websocket.Conn, k *wire.Keys, laptop wire.DeviceInfo) (wire.Members, bool) {
+	t.Helper()
+	ws.SetReadDeadline(time.Now().Add(3 * time.Second))
+	defer ws.SetReadDeadline(time.Time{})
+	for {
+		var s string
+		if websocket.Message.Receive(ws, &s) != nil {
+			return nil, false
+		}
+		var f struct{ Envelope *wire.Envelope }
+		if json.Unmarshal([]byte(s), &f) != nil || f.Envelope == nil {
+			continue
+		}
+		m, err := wire.NewOpener(k).Open(f.Envelope, wire.Members{laptop.ID: laptop}, time.Now())
+		if err != nil {
+			t.Fatalf("an envelope from the laptop did not open: %v", err)
+		}
+		if cr, ok := m.(*wire.ChainRecords); ok {
+			members, err := cr.Records.Verify()
+			if err != nil {
+				t.Fatal(err)
+			}
+			return members, true
+		}
+	}
+}
+
+func sayHello(t *testing.T, ws *websocket.Conn, k *wire.Keys, laptop wire.DeviceInfo) {
+	t.Helper()
+	e, err := wire.Seal(k, laptop, &wire.Hello{ChainLen: 2}, false, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(map[string]any{"envelope": e})
+	websocket.Message.Send(ws, string(b))
+}
+
+func closed(ws *websocket.Conn) bool {
+	ws.SetReadDeadline(time.Now().Add(2 * time.Second))
+	for {
+		var s string
+		if err := websocket.Message.Receive(ws, &s); err != nil {
+			return !strings.Contains(err.Error(), "timeout")
+		}
+	}
+}
+
+// A phone connected when it is revoked is sent the chain that revokes it,
+// so it can forget the set, and is then let go.
+func TestARevokedDeviceIsToldItWasRevoked(t *testing.T) {
+	a := enginetest.StartComputer(t, &enginetest.Book{}, "Laptop")
+	k, ws, laptop := phoneOf(t, a)
+	sayHello(t, ws, k, laptop) // makes the connection the phone's
+	reachable(t, a, "Phone")
+	if _, err := a.C.RevokeDevice(k.ID()); err != nil {
+		t.Fatal(err)
+	}
+	members, ok := chainOn(t, ws, k, laptop)
+	if !ok {
+		t.Fatal("the revoked phone was sent nothing")
+	}
+	if _, in := members[k.ID()]; in {
+		t.Fatal("the chain the revoked phone was sent still has it in the set")
+	}
+	if !closed(ws) {
+		t.Fatal("the revoked phone's connection stayed open")
+	}
+}
+
+// A phone away when it was revoked learns it the next time it connects,
+// instead of being greeted and then ignored.
+func TestARevokedDeviceIsToldWhenItNextConnects(t *testing.T) {
+	a := enginetest.StartComputer(t, &enginetest.Book{}, "Laptop")
+	k, ws, _ := phoneOf(t, a)
+	ws.Close()
+	if _, err := a.C.RevokeDevice(k.ID()); err != nil {
+		t.Fatal(err)
+	}
+	back, laptop := greeted(t, a.NetAddr)
+	sayHello(t, back, k, laptop)
+	members, ok := chainOn(t, back, k, laptop)
+	if !ok {
+		t.Fatal("the revoked phone was sent nothing when it connected again")
+	}
+	if _, in := members[k.ID()]; in {
+		t.Fatal("the chain the revoked phone was sent still has it in the set")
+	}
+	if !closed(back) {
+		t.Fatal("the revoked phone's connection stayed open")
+	}
+}
+
+// A stranger whose envelope does not open is sent nothing.
+func TestAStrangersEnvelopeIsAnsweredWithNothing(t *testing.T) {
+	a := enginetest.StartComputer(t, &enginetest.Book{}, "Laptop")
+	k, _ := wire.NewKeys()
+	ws, laptop := greeted(t, a.NetAddr)
+	sayHello(t, ws, k, laptop)
+	ws.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	var s string
+	if websocket.Message.Receive(ws, &s) == nil {
+		t.Fatalf("a stranger was sent %s", s)
+	}
+}

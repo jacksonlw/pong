@@ -347,6 +347,9 @@ func (n *Node) onEnvelope(c *conn, e *wire.Envelope) bool {
 	}
 	m, err := n.opener.Open(e, set, n.cfg.Now())
 	if err != nil {
+		if c != nil {
+			n.answerRevoked(c, e)
+		}
 		return false
 	}
 	n.mu.Lock()
@@ -370,6 +373,35 @@ func (n *Node) onEnvelope(c *conn, e *wire.Envelope) bool {
 		h(e.From, m)
 	}
 	return true
+}
+
+// answerRevoked tells a Device revoked while it was away, on the connection
+// it came back on: when e opens as from a Device the chain revoked, it is
+// sent the chain and let go. Anyone else's envelope is answered with nothing.
+func (n *Node) answerRevoked(c *conn, e *wire.Envelope) {
+	n.mu.Lock()
+	var d wire.DeviceInfo
+	for _, r := range n.chain {
+		if r.Kind == wire.Revoke && r.Device.ID == e.From {
+			d = r.Device
+		}
+	}
+	chain := append(wire.Chain{}, n.chain...)
+	n.mu.Unlock()
+	if d.ID == "" {
+		return
+	}
+	if _, err := n.opener.Open(e, wire.Members{d.ID: d}, n.cfg.Now()); err != nil {
+		return
+	}
+	n.tellRevoked(c, d, chain)
+}
+
+// tellRevoked sends the revoked Device d the chain that revokes it, then
+// closes its connection.
+func (n *Node) tellRevoked(c *conn, d wire.DeviceInfo, chain wire.Chain) {
+	n.sendOn(c, d, &wire.ChainRecords{Records: chain})
+	c.close()
 }
 
 // dialLoop connects to every computer found that is not connected yet.
@@ -588,8 +620,9 @@ var ErrNotMember = errors.New("no Device with that identifier is in the set")
 var ErrRevokeSelf = errors.New("a Device cannot revoke itself; revoke it from another Device")
 
 // Revoke writes a revoke record for a Device in the set and sends the chain
-// to every other connected Device. The revoked Device is sent nothing more:
-// its connection is closed and its envelopes no longer open.
+// to every other connected Device. The revoked Device is sent that chain
+// once, so it can forget the set, and nothing more: its connection is
+// closed and its envelopes no longer open.
 func (n *Node) Revoke(id string) error {
 	if id == n.ID() {
 		return ErrRevokeSelf
@@ -615,12 +648,13 @@ func (n *Node) Revoke(id string) error {
 	}
 	n.outbox = kept
 	n.saveOutbox()
-	if c, ok := n.peers[id]; ok {
-		c.close()
-		delete(n.peers, id)
-	}
+	c, connected := n.peers[id]
+	delete(n.peers, id)
 	err = n.saveChain()
 	n.mu.Unlock()
+	if connected {
+		n.tellRevoked(c, d, next)
+	}
 	if err != nil {
 		return err
 	}
