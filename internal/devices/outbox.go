@@ -6,18 +6,29 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/jacksonlw/pong/wire"
 )
 
-// Queued is a message waiting in the outbox for a Device that is not
-// connected. It is sealed only when it goes, so it is never stale.
+// Queued is a message waiting in the outbox for a Device. It is sealed only
+// when it goes, so it is never stale, and it stays until the Device
+// acknowledges it (wire.Ack), or a carrier takes it: a message written to a
+// connection that dies, or to one that is not the Device's, is sent again.
 type Queued struct {
 	Key  string          `json:"key"` // the sender's name for it, to find or take it back
 	To   string          `json:"to"`
 	Kind string          `json:"kind"`
 	Body json.RawMessage `json:"body"` // the message as wire.Encode writes it
+	// Sent is the envelope it last went in, and SentAt when; empty until it
+	// first goes.
+	Sent   string    `json:"sent,omitempty"`
+	SentAt time.Time `json:"sent_at,omitempty"`
 }
+
+// resendAfter is how long a message sent and not acknowledged waits before
+// it goes again.
+const resendAfter = 30 * time.Second
 
 func (n *Node) outboxPath() string { return filepath.Join(n.cfg.Dir, "devices", "outbox.json") }
 
@@ -44,21 +55,13 @@ func (n *Node) saveOutbox() error {
 	return os.Rename(tmp, n.outboxPath())
 }
 
-// SendOrQueue sends m to the Device id now if it is connected and nothing
-// queued for it is still waiting to go, or keeps it in the outbox, across
-// restarts, until the two meet; messages for one Device go in the order they
-// were given. It reports whether it went now. A message queued under a key
-// replaces one queued under the same key.
+// SendOrQueue keeps m in the outbox for the Device id, across restarts,
+// until the Device acknowledges it, and sends it now if the Device is
+// connected and nothing queued before it is still waiting to go. Messages
+// for one Device go in the order they were given. It reports whether it
+// went now. A message queued under a key replaces one not yet sent under
+// the same key.
 func (n *Node) SendOrQueue(id, key string, m wire.Message) (bool, error) {
-	n.mu.Lock()
-	queued := false
-	for _, q := range n.outbox {
-		queued = queued || q.To == id
-	}
-	n.mu.Unlock()
-	if !queued && n.Send(id, m) {
-		return true, nil
-	}
 	body, err := wire.Encode(m)
 	if err != nil {
 		return false, err
@@ -70,28 +73,38 @@ func (n *Node) SendOrQueue(id, key string, m wire.Message) (bool, error) {
 	}
 	out := n.outbox[:0:0]
 	for _, q := range n.outbox {
-		if q.Key != key {
+		if q.Key != key || q.Sent != "" {
 			out = append(out, q)
 		}
 	}
 	n.outbox = append(out, Queued{Key: key, To: id, Kind: m.Kind(), Body: body})
 	err = n.saveOutbox()
-	_, connected := n.peers[id]
 	n.mu.Unlock()
-	if connected {
-		go n.flush(id) // it connected meanwhile
+	if err != nil {
+		return false, err
 	}
-	return false, err
+	n.flush(id)
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for _, q := range n.outbox {
+		if q.Key == key && q.To == id {
+			return q.Sent != "", nil
+		}
+	}
+	return true, nil // gone already: acknowledged, or taken by a carrier
 }
 
 // Unqueue takes back a message still waiting in the outbox, and reports
-// whether it was there. Once flush has taken a message to send it, it is no
-// longer there.
+// whether it was there. One already sent cannot be taken back: the Device
+// may have it.
 func (n *Node) Unqueue(key string) bool {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	for i, q := range n.outbox {
 		if q.Key == key {
+			if q.Sent != "" {
+				return false
+			}
 			before := n.outbox
 			n.outbox = append(n.outbox[:i:i], n.outbox[i+1:]...)
 			if n.saveOutbox() != nil {
@@ -111,39 +124,115 @@ func (n *Node) Outbox() []Queued {
 	return append([]Queued{}, n.outbox...)
 }
 
-// flush sends everything waiting for id, in order, now that it is
-// connected. Each message leaves the outbox before it is sent, so it cannot
-// also be taken back, and returns to the front if the send fails.
+// flush sends what waits for id, in order: each message not yet sent, or
+// sent longer than resendAfter ago and not acknowledged. Through a carrier
+// a message leaves the outbox once the carrier takes it, since the carrier
+// keeps it until the Device has it.
 func (n *Node) flush(id string) {
 	n.flushMu.Lock()
 	defer n.flushMu.Unlock()
-	for {
+	now := n.cfg.Now()
+	n.mu.Lock()
+	var due []Queued
+	for _, q := range n.outbox {
+		if q.To == id && (q.Sent == "" || now.Sub(q.SentAt) >= resendAfter) {
+			due = append(due, q)
+		}
+	}
+	n.mu.Unlock()
+	for _, q := range due {
+		m, err := wire.Decode(q.Body)
+		if err != nil {
+			n.dropQueued(q.Key, id, "") // written by an older version and unreadable
+			continue
+		}
+		envID, carried, ok := n.sendQueued(id, m)
+		if !ok {
+			return // the rest wait, in order
+		}
 		n.mu.Lock()
-		i := -1
-		for j, q := range n.outbox {
-			if q.To == id {
-				i = j
+		for j := range n.outbox {
+			if n.outbox[j].Key == q.Key && n.outbox[j].To == id && n.outbox[j].Sent == q.Sent {
+				if carried {
+					n.outbox = append(n.outbox[:j:j], n.outbox[j+1:]...)
+				} else {
+					n.outbox[j].Sent, n.outbox[j].SentAt = envID, now
+				}
 				break
 			}
 		}
-		if i < 0 {
-			n.mu.Unlock()
-			return
-		}
-		q := n.outbox[i]
-		n.outbox = append(n.outbox[:i:i], n.outbox[i+1:]...)
 		n.saveOutbox()
 		n.mu.Unlock()
-		m, err := wire.Decode(q.Body)
-		if err != nil {
-			continue // written by an older version and unreadable: dropped
-		}
-		if !n.Send(id, m) {
-			n.mu.Lock()
-			n.outbox = append([]Queued{q}, n.outbox...)
+	}
+}
+
+// sendQueued sends m to id and returns the envelope it went in, and whether
+// a carrier took it.
+func (n *Node) sendQueued(id string, m wire.Message) (envID string, carried, ok bool) {
+	n.mu.Lock()
+	info, member := n.members[id]
+	c, connected := n.peers[id]
+	n.mu.Unlock()
+	if !member {
+		return "", false, false
+	}
+	if n.active() {
+		return "", true, n.carrier.Send(info, m)
+	}
+	if !connected {
+		return "", false, false
+	}
+	e, err := wire.Seal(n.keys, info, m, false, n.cfg.Now())
+	if err != nil || c.send(frame{Envelope: e}) != nil {
+		return "", false, false
+	}
+	return e.ID, false, true
+}
+
+// dropQueued takes a message out of the outbox: the one under key for to,
+// or the one sent in envelope envID when key is empty.
+func (n *Node) dropQueued(key, to, envID string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for j, q := range n.outbox {
+		if q.To == to && (key != "" && q.Key == key || key == "" && envID != "" && q.Sent == envID) {
+			n.outbox = append(n.outbox[:j:j], n.outbox[j+1:]...)
 			n.saveOutbox()
-			n.mu.Unlock()
 			return
+		}
+	}
+}
+
+// onAck lets go of what the Device acknowledged.
+func (n *Node) onAck(from string, m wire.Message) {
+	for _, id := range m.(*wire.Ack).IDs {
+		n.dropQueued("", from, id)
+	}
+}
+
+// resendEvery sends again, now and then, what connected Devices have not
+// acknowledged, until the Node closes.
+func (n *Node) resendEvery(every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+		case <-n.closing:
+			return
+		}
+		n.mu.Lock()
+		var ids []string
+		seen := map[string]bool{}
+		for _, q := range n.outbox {
+			if !seen[q.To] {
+				seen[q.To] = true
+				ids = append(ids, q.To)
+			}
+		}
+		n.mu.Unlock()
+		for _, id := range ids {
+			n.flush(id)
 		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"slices"
 )
 
 // Record kinds.
@@ -180,19 +181,95 @@ func (c Chain) Verify() (Members, error) {
 
 // Extend returns the chain a Device holding c should keep after being
 // offered o: o when it is valid, extends c (c is a prefix of it) and is
-// longer; c otherwise. An offer that forks from c is refused with an error.
+// longer; c otherwise.
+//
+// When o forks from c, a revoke settles it. If o, from the fork on, revokes
+// every Device that wrote c's records from the fork on, o is kept, though it
+// drops those records: a Device revoked cannot keep its place by writing at
+// the place of its own revoke. If c revokes the writers of o's records, c is
+// kept and the error is a *Fork that picks "ours", so the holder sends c
+// back. When each revokes the other's writers, or neither does (two Devices
+// changed the set at the same time), only the human can say which stands:
+// c is kept, and the error is a *Fork that picks nothing.
 func (c Chain) Extend(o Chain) (Chain, error) {
 	if _, err := o.Verify(); err != nil {
 		return c, err
 	}
 	n := min(len(c), len(o))
 	for i := 0; i < n; i++ {
-		if !bytes.Equal(c[i].Hash(), o[i].Hash()) {
-			return c, fmt.Errorf("%w: forks at record %d", ErrChain, i)
+		if bytes.Equal(c[i].Hash(), o[i].Hash()) {
+			continue
 		}
+		ourWriters, ourRevokes := branch(c[i:])
+		theirWriters, theirRevokes := branch(o[i:])
+		theirsWins := subset(ourWriters, theirRevokes)
+		oursWins := subset(theirWriters, ourRevokes)
+		f := &Fork{At: i, Ours: ourWriters, Theirs: theirWriters, Mutual: theirsWins && oursWins}
+		switch {
+		case theirsWins && !oursWins:
+			return o, nil
+		case oursWins && !theirsWins:
+			f.Pick = "ours"
+		}
+		return c, f
 	}
 	if len(o) > len(c) {
 		return o, nil
 	}
 	return c, nil
+}
+
+// Fork is an offered chain that forks from the one held.
+type Fork struct {
+	At     int      // the first record the two differ at
+	Ours   []string // the Devices that wrote the held chain's records from At
+	Theirs []string // the Devices that wrote the offered chain's records from At
+	// Pick is "ours" when the held chain revokes the writers of the offered
+	// one, so it stands; "" when only the human can say.
+	Pick string
+	// Mutual is set when each chain revokes the other's writers.
+	Mutual bool
+}
+
+func (f *Fork) Error() string {
+	switch {
+	case f.Pick == "ours":
+		return fmt.Sprintf("wire: the offered chain forks at record %d, and the held one revokes its writers", f.At)
+	case f.Mutual:
+		return fmt.Sprintf("wire: the chains fork at record %d, each revoking the other's writers", f.At)
+	}
+	return fmt.Sprintf("wire: the chains fork at record %d", f.At)
+}
+
+func (f *Fork) Unwrap() error { return ErrChain }
+
+// branch returns the writers of a chain's records, and the Devices it
+// revokes, each sorted.
+func branch(rs Chain) (writers, revoked []string) {
+	w, r := map[string]bool{}, map[string]bool{}
+	for _, x := range rs {
+		w[x.Writer] = true
+		if x.Kind == Revoke {
+			r[x.Device.ID] = true
+		}
+	}
+	return sortedKeys(w), sortedKeys(r)
+}
+
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	slices.Sort(out)
+	return out
+}
+
+func subset(a, b []string) bool {
+	for _, x := range a {
+		if !slices.Contains(b, x) {
+			return false
+		}
+	}
+	return len(a) > 0
 }

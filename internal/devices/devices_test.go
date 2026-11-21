@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -436,12 +437,19 @@ func greeted(t *testing.T, addr string) (*websocket.Conn, wire.DeviceInfo) {
 	if err := websocket.Message.Receive(ws, &s); err != nil {
 		t.Fatal(err)
 	}
-	var f struct{ Device wire.DeviceInfo }
+	var f struct {
+		Device wire.DeviceInfo
+		Nonce  []byte
+	}
 	if json.Unmarshal([]byte(s), &f) != nil || f.Device.ID == "" {
 		t.Fatalf("greeting %s", s)
 	}
+	greetedWith.Store(ws, f.Nonce)
 	return ws, f.Device
 }
+
+// greetedWith keeps, for each connection greeted returned, the nonce the computer greeted with.
+var greetedWith sync.Map
 
 // chainOn waits for the next envelope on ws and returns the set its chain
 // leaves, when it carries one from the laptop.
@@ -472,9 +480,16 @@ func chainOn(t *testing.T, ws *websocket.Conn, k *wire.Keys, laptop wire.DeviceI
 	}
 }
 
+// sayHello greets the laptop as the phone, with a nonce, and says hello binding the connection.
 func sayHello(t *testing.T, ws *websocket.Conn, k *wire.Keys, laptop wire.DeviceInfo) {
 	t.Helper()
-	e, err := wire.Seal(k, laptop, &wire.Hello{ChainLen: 2}, false, time.Now())
+	mine := []byte("the test phone's greeting nonce.")
+	p := k.Public()
+	g, _ := json.Marshal(map[string]any{"device": wire.DeviceInfo{ID: k.ID(), Name: "Phone", Platform: "ios", SealKey: p.Seal, SignKey: p.Sign}, "nonce": mine})
+	websocket.Message.Send(ws, string(g))
+	theirs, _ := greetedWith.Load(ws)
+	bind := append(append([]byte{}, mine...), theirs.([]byte)...)
+	e, err := wire.Seal(k, laptop, &wire.Hello{ChainLen: 2, Bind: bind}, false, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

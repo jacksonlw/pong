@@ -1,9 +1,11 @@
 package wire
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"time"
@@ -33,6 +35,19 @@ type Vectors struct {
 	Envelopes     []VectorEnvelope `json:"envelopes"`
 	Join          VectorJoin       `json:"join"`
 	Pairing       VectorPairing    `json:"pairing"`
+	Forks         []VectorFork     `json:"forks"`
+}
+
+// VectorFork is a held chain offered another that forks from it, and what the
+// holder keeps: "held" or "offered", with the pick and whether it is mutual
+// when it keeps the held chain.
+type VectorFork struct {
+	Why     string `json:"why"`
+	Held    Chain  `json:"held"`
+	Offered Chain  `json:"offered"`
+	Keep    string `json:"keep"`
+	Pick    string `json:"pick"`
+	Mutual  bool   `json:"mutual"`
 }
 
 // VectorJoin is a join request with the identifier it yields.
@@ -192,6 +207,31 @@ func BuildVectors() (*Vectors, error) {
 	}
 	pv.Commit, pv.Nonce, pv.Reveal, pv.Code = commit, nonce, reveal, ask.Code()
 	v.Pairing = pv
+
+	// Forks from the first three records: Laptop, Box admitted by Laptop, Phone admitted by Box.
+	base := c[:3]
+	laptopRevokesBox := next(base, keys["Laptop"], Revoke, info["Box"], t0+4000)
+	boxAdmitsStranger := next(base, keys["Box"], Admit, info["Stranger"], t0+4000)
+	boxRevokesLaptop := next(base, keys["Box"], Revoke, info["Laptop"], t0+4000)
+	laptopAdmitsStranger := next(base, keys["Laptop"], Admit, info["Stranger"], t0+4000)
+	v.Forks = []VectorFork{
+		{Why: "the offered chain revokes the Device that wrote the held one's record", Held: boxAdmitsStranger, Offered: laptopRevokesBox, Keep: "offered"},
+		{Why: "the held chain revokes the Device that wrote the offered one's record", Held: laptopRevokesBox, Offered: boxAdmitsStranger, Keep: "held", Pick: "ours"},
+		{Why: "each revokes the other's writer", Held: laptopRevokesBox, Offered: boxRevokesLaptop, Keep: "held", Mutual: true},
+		{Why: "two Devices changed the set at the same time", Held: laptopAdmitsStranger, Offered: boxAdmitsStranger, Keep: "held"},
+	}
+	for _, f := range v.Forks {
+		got, err := f.Held.Extend(f.Offered)
+		var fork *Fork
+		errors.As(err, &fork)
+		kept := "held"
+		if len(got) > 0 && bytes.Equal(got[len(got)-1].Hash(), f.Offered[len(f.Offered)-1].Hash()) {
+			kept = "offered"
+		}
+		if kept != f.Keep || (fork != nil && (fork.Pick != f.Pick || fork.Mutual != f.Mutual)) || (fork == nil) != (f.Keep == "offered") {
+			return nil, fmt.Errorf("fork vector %q: kept %s, fork %+v", f.Why, kept, fork)
+		}
+	}
 	return v, nil
 }
 

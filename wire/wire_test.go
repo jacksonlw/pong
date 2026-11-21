@@ -150,6 +150,33 @@ func TestLongestValidExtensionWinsAndForksAreRefused(t *testing.T) {
 	}
 }
 
+// A Device revoked while another was away cannot keep its place there by
+// writing at the place of its own revoke: the revoke wins the fork.
+func TestARevokeWinsAForkAgainstTheDeviceItRevokes(t *testing.T) {
+	laptop, box, _, c := set(t) // laptop admits box, box admits phone
+	stranger := newDev(t, "Stranger", "mac")
+	revoke, err := c.Append(laptop.k, wire.Revoke, box.info, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	thief, err := c.Append(box.k, wire.Admit, stranger.info, 4) // the stolen box, before it hears of its revoke
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := thief.Extend(revoke); err != nil || len(got) != len(revoke) || got[3].Kind != wire.Revoke {
+		t.Fatalf("a member holding the thief's record kept it: %v", err)
+	}
+	var f *wire.Fork
+	if got, err := revoke.Extend(thief); !errors.As(err, &f) || f.Pick != "ours" || got[3].Kind != wire.Revoke {
+		t.Fatalf("the revoking chain did not stand: %v", err)
+	}
+	// The stolen box revokes the laptop as the laptop revokes it: only the human can say.
+	counter, _ := c.Append(box.k, wire.Revoke, laptop.info, 4)
+	if _, err := revoke.Extend(counter); !errors.As(err, &f) || !f.Mutual || f.Pick != "" {
+		t.Fatalf("a mutual revoke was settled without the human: %v", err)
+	}
+}
+
 func TestEveryMessageKindRoundTripsThroughSealAndOpen(t *testing.T) {
 	laptop, _, phone, c := set(t)
 	m, _ := c.Verify()
@@ -157,7 +184,7 @@ func TestEveryMessageKindRoundTripsThroughSealAndOpen(t *testing.T) {
 	now := time.Now()
 	raw := json.RawMessage(`{"x":1}`)
 	msgs := []wire.Message{
-		&wire.Hello{ChainLen: 3, Want: "snapshot"}, &wire.ChainRecords{Records: c},
+		&wire.Hello{ChainLen: 3, Want: "snapshot", Head: []byte("h"), Bind: []byte("b")}, &wire.ChainRecords{Records: c}, &wire.Ack{IDs: []string{"e1"}},
 		&wire.Ping{Computer: laptop.k.ID(), Ping: raw, Project: raw, Session: raw},
 		&wire.Snapshot{Computer: "c", Pings: []wire.Ping{{Computer: "c", Ping: raw}}, Threads: raw, Sessions: []json.RawMessage{raw}},
 		&wire.Session{Computer: "c", Session: raw},

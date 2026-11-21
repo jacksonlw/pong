@@ -14,8 +14,22 @@ const MaxResourcePart = 192 * 1024
 
 // Hello is sent on connecting.
 type Hello struct {
-	ChainLen int    `json:"chain_len"`
-	Want     string `json:"want,omitempty"` // "snapshot" or empty
+	ChainLen int `json:"chain_len"`
+	// Head is the hash of the sender's last record: two chains of one length
+	// that differ are a fork, and are exchanged.
+	Head []byte `json:"head,omitempty"`
+	Want string `json:"want,omitempty"` // "snapshot" or empty
+	// Bind is the nonce the sender greeted with on this connection, then the
+	// one it was greeted with. A connection becomes the sender's only on a
+	// hello that binds it, so an envelope taken off another connection
+	// cannot make it the sender's.
+	Bind []byte `json:"bind,omitempty"`
+}
+
+// Ack says which envelopes from the recipient were opened. A message waits in
+// the sender's outbox until it is acknowledged, and is sent again until then.
+type Ack struct {
+	IDs []string `json:"ids"`
 }
 
 // ChainRecords carries records the recipient lacks.
@@ -196,12 +210,13 @@ func (StartResult) Kind() string  { return "start_result" }
 func (State) Kind() string        { return "state" }
 func (Project) Kind() string      { return "project" }
 func (CloudGrant) Kind() string   { return "cloud_grant" }
+func (Ack) Kind() string          { return "ack" }
 
 var kinds = map[string]func() Message{}
 
 func init() {
 	for _, f := range []func() Message{
-		func() Message { return &Hello{} }, func() Message { return &ChainRecords{} },
+		func() Message { return &Hello{} }, func() Message { return &ChainRecords{} }, func() Message { return &Ack{} },
 		func() Message { return &Ping{} }, func() Message { return &Snapshot{} },
 		func() Message { return &Pong{} }, func() Message { return &Draft{} },
 		func() Message { return &Withdraw{} }, func() Message { return &Dismiss{} },

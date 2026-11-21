@@ -5,6 +5,7 @@
 package devices
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -57,6 +58,8 @@ type Node struct {
 	peers     map[string]*conn // by Device identifier, once an envelope from it opened or its greeting matched the chain
 	waiting   map[string]*asking
 	pairing   *pairing
+	fork      *heldFork            // a fork only the human can settle, while it waits
+	suspended map[string]bool      // Devices whose envelopes wait for the human: they revoked a Device of this chain as it revoked them
 	dialing   map[string]bool      // addresses being dialled or connected
 	own       map[string]bool      // addresses found to be this Engine
 	refused   map[string]time.Time // addresses of computers outside the set, not dialled until then
@@ -142,6 +145,7 @@ func Start(cfg Config) (*Node, error) {
 	}
 	n.handlers["hello"] = n.onHello
 	n.handlers["chain"] = n.onChain
+	n.handlers["ack"] = n.onAck
 
 	ln, err := net.Listen("tcp", cfg.NetAddr)
 	if err != nil {
@@ -160,6 +164,7 @@ func Start(cfg Config) (*Node, error) {
 	}
 	n.wg.Add(1)
 	go n.dialLoop()
+	n.Go(func() { n.resendEvery(10 * time.Second) })
 	if cfg.Carrier != nil {
 		n.carrier = cfg.Carrier
 		if err := n.carrier.Start(n); err != nil {
@@ -298,8 +303,18 @@ func (n *Node) saveChain() error {
 	return os.Rename(tmp, n.chainPath())
 }
 
-// adopt takes c as the chain if it is valid and extends the one held, or
-// replaces a set of one when pairing. It reports whether the chain changed.
+// heldFork is a chain that forks from this one in a way only the human can
+// settle (wire.Fork): who wrote each side, and the offered chain to take if
+// the human picks it.
+type heldFork struct {
+	fork  *wire.Fork
+	offer wire.Chain
+}
+
+// adopt takes c as the chain if it is valid and extends the one held, wins a
+// fork against it (wire.Chain.Extend), or replaces a set of one when pairing.
+// It reports whether the chain changed. A fork only the human can settle is
+// kept for them (Set's Fork) and returned as the error.
 func (n *Node) adopt(c wire.Chain, replacingAlone bool) (bool, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -312,9 +327,22 @@ func (n *Node) adopt(c wire.Chain, replacingAlone bool) (bool, error) {
 	} else {
 		var err error
 		if next, err = n.chain.Extend(c); err != nil {
+			var f *wire.Fork
+			if errors.As(err, &f) && f.Pick == "" && (n.fork == nil || n.fork.fork.At >= f.At) {
+				n.fork = &heldFork{fork: f, offer: c}
+				n.suspended = map[string]bool{}
+				if f.Mutual {
+					for _, id := range f.Ours {
+						if id != n.ID() {
+							n.suspended[id] = true
+						}
+					}
+				}
+				go n.notify()
+			}
 			return false, err
 		}
-		if len(next) == len(n.chain) {
+		if bytes.Equal(next[len(next)-1].Hash(), n.chain[len(n.chain)-1].Hash()) {
 			return false, nil
 		}
 	}
@@ -388,10 +416,13 @@ func (n *Node) sendOn(c *conn, to wire.DeviceInfo, m wire.Message) error {
 func (n *Node) onHello(from string, m wire.Message) {
 	h := m.(*wire.Hello)
 	n.mu.Lock()
-	longer := len(n.chain) > h.ChainLen
+	// A longer chain is sent; so is one of the same length that differs, a
+	// fork the two must settle.
+	differs := len(n.chain) == h.ChainLen && len(h.Head) > 0 && !bytes.Equal(h.Head, n.chain[len(n.chain)-1].Hash())
+	send := len(n.chain) > h.ChainLen || differs
 	c := append(wire.Chain{}, n.chain...)
 	n.mu.Unlock()
-	if longer {
+	if send {
 		n.Send(from, &wire.ChainRecords{Records: c})
 	}
 }
@@ -399,6 +430,15 @@ func (n *Node) onHello(from string, m wire.Message) {
 func (n *Node) onChain(from string, m wire.Message) {
 	changed, err := n.adopt(m.(*wire.ChainRecords).Records, false)
 	if err != nil {
+		var f *wire.Fork
+		if errors.As(err, &f) && f.Pick == "ours" {
+			// This chain revokes the writers of the one offered: the sender takes it.
+			n.mu.Lock()
+			c := append(wire.Chain{}, n.chain...)
+			n.mu.Unlock()
+			n.Send(from, &wire.ChainRecords{Records: c})
+			return
+		}
 		fmt.Fprintln(os.Stderr, "pong-engine: chain from", from, "refused:", err)
 		return
 	}
@@ -410,6 +450,56 @@ func (n *Node) onChain(from string, m wire.Message) {
 		n.chainChanged()
 		n.notify()
 	}
+}
+
+// ErrNoFork is returned when settling a fork while none waits.
+var ErrNoFork = errors.New("no fork waits for you to settle")
+
+// SettleFork takes the human's word on a fork only they can settle: keep
+// this chain ("ours"), or take the one offered ("theirs"). Either way every
+// connected Device is sent the chain that stands, and suspended Devices are
+// heard again.
+func (n *Node) SettleFork(keep string) error {
+	n.mu.Lock()
+	hf := n.fork
+	if hf == nil {
+		n.mu.Unlock()
+		return ErrNoFork
+	}
+	switch keep {
+	case "ours":
+	case "theirs":
+		m, err := hf.offer.Verify()
+		if err != nil {
+			n.mu.Unlock()
+			return err
+		}
+		if _, in := m[n.ID()]; !in {
+			n.mu.Unlock()
+			return errors.New("devices: the other chain leaves this Device out: keep this one, or pair this Device again")
+		}
+		n.chain, n.members = append(wire.Chain{}, hf.offer...), m
+		for id, c := range n.peers {
+			if _, ok := m[id]; !ok {
+				c.close()
+				delete(n.peers, id)
+			}
+		}
+		if err := n.saveChain(); err != nil {
+			n.mu.Unlock()
+			return err
+		}
+	default:
+		n.mu.Unlock()
+		return errors.New(`devices: keep "ours" or "theirs"`)
+	}
+	n.fork, n.suspended = nil, nil
+	c := append(wire.Chain{}, n.chain...)
+	n.mu.Unlock()
+	n.Broadcast(&wire.ChainRecords{Records: c}, "")
+	n.chainChanged()
+	n.notify()
+	return nil
 }
 
 // active reports whether a carrier takes every message now.

@@ -47,6 +47,15 @@ type Pairing struct {
 	Confirm bool `json:"confirm,omitempty"`
 }
 
+// Fork is a chain that forks from this Device's in a way only the human can
+// settle: the Devices that wrote each side from where they differ. Mutual is
+// set when each side revokes the other's writers; their envelopes wait.
+type Fork struct {
+	Ours   []Device `json:"ours"`
+	Theirs []Device `json:"theirs"`
+	Mutual bool     `json:"mutual"`
+}
+
 // Set is GET /devices.
 type Set struct {
 	Mode    string   `json:"mode"`              // "local", or the carrier's name while it is active
@@ -56,6 +65,7 @@ type Set struct {
 	Devices []Device `json:"devices"`
 	Waiting []Asking `json:"waiting"`
 	Pairing *Pairing `json:"pairing,omitempty"`
+	Fork    *Fork    `json:"fork,omitempty"`
 }
 
 // Set reports the set as this Device sees it.
@@ -86,6 +96,27 @@ func (n *Node) Set() Set {
 		if code := p.code(); code != "" {
 			s.Pairing.Offers = append(s.Pairing.Offers, Offer{Device: deviceOf(p.target), Code: code})
 		}
+	}
+	if hf := n.fork; hf != nil {
+		// Writers are named from either chain: one may be in the offered chain alone.
+		known := map[string]wire.DeviceInfo{}
+		for _, c := range []wire.Chain{n.chain, hf.offer} {
+			for _, r := range c {
+				if r.Kind != wire.Revoke {
+					known[r.Device.ID] = r.Device
+				}
+			}
+		}
+		named := func(ids []string) []Device {
+			out := []Device{}
+			for _, id := range ids {
+				d := deviceOf(known[id])
+				d.ID, d.This = id, id == n.ID()
+				out = append(out, d)
+			}
+			return out
+		}
+		s.Fork = &Fork{Ours: named(hf.fork.Ours), Theirs: named(hf.fork.Theirs), Mutual: hf.fork.Mutual}
 	}
 	if n.carrier != nil {
 		n.carrier.Status(&s) // the Node's lock is held: it must not call back
@@ -156,6 +187,20 @@ func (n *Node) Routes(mux *http.ServeMux) {
 			writeError(w, http.StatusNotFound, err.Error())
 		case errors.Is(err, ErrRevokeSelf):
 			writeError(w, http.StatusConflict, err.Error())
+		case err != nil:
+			writeError(w, http.StatusConflict, err.Error())
+		default:
+			writeJSON(w, http.StatusOK, n.Set())
+		}
+	})
+	mux.HandleFunc("POST /devices/fork", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Keep string `json:"keep"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		switch err := n.SettleFork(body.Keep); {
+		case errors.Is(err, ErrNoFork):
+			writeError(w, http.StatusNotFound, err.Error())
 		case err != nil:
 			writeError(w, http.StatusConflict, err.Error())
 		default:

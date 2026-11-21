@@ -22,6 +22,14 @@ actor FakeDevices: DevicesAPI {
         return current
     }
 
+    var settled: [String] = []
+    func setFork(_ f: DeviceSet.Fork) { current.fork = f }
+    func settleFork(_ keep: String) async throws -> DeviceSet {
+        settled.append(keep)
+        current.fork = nil
+        return current
+    }
+
     func approveDevice(_ id: String) async throws -> DeviceSet {
         approved.append(id)
         let a = current.waiting.first { $0.id == id }!
@@ -52,6 +60,23 @@ final class DevicesTests: XCTestCase {
         await m.revoke("bb22")
         XCTAssertNil(m.confirmingRevoke)
         XCTAssertEqual(m.set?.devices.map(\.name), ["Laptop"])
+    }
+
+    /// Two Devices that removed each other wait for the human, who says which is theirs.
+    func testAForkWaitsForTheHumanWhoKeepsOneSide() async throws {
+        let api = try FakeDevices()
+        await api.setFork(.init(ours: [.init(id: "aa11", name: "Laptop", platform: "mac", engine: true, this: true, reachable: true)],
+                                theirs: [.init(id: "bb22", name: "Desktop", platform: "mac", engine: true, this: false, reachable: false)],
+                                mutual: true))
+        let m = DevicesModel(api: api)
+        await m.load()
+        try assertSnapshot(VStack(alignment: .leading, spacing: 12) { DevicesSection(model: m) }
+            .brandStyle(.body).foregroundStyle(Brand.text).padding(14).frame(width: 512).background(Brand.surface),
+            named: "devices-fork")
+        await m.settleFork(keepOurs: true)
+        let settled = await api.settled
+        XCTAssertEqual(settled, ["ours"])
+        XCTAssertNil(m.set?.fork)
     }
 
     func testTheSectionShowsTheAskingDeviceAndItsCode() async throws {

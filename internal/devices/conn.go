@@ -3,6 +3,7 @@ package devices
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,10 @@ import (
 	"github.com/jacksonlw/pong/wire"
 )
 
+// quietAfter is how long a peer's connection may go unheard before a newer
+// one may replace it.
+const quietAfter = 15 * time.Second
+
 // maxFrame bounds one WebSocket frame: a 192 KiB Resource part or a 1 MB logo, sealed and
 // base64-encoded, fits with room to spare.
 const maxFrame = 3 << 20
@@ -23,6 +28,7 @@ const maxFrame = 3 << 20
 // field is set.
 type frame struct {
 	Device   *wire.DeviceInfo  `json:"device,omitempty"`
+	Nonce    []byte            `json:"nonce,omitempty"` // with Device: the greeting's own random value
 	Join     *wire.JoinRequest `json:"join,omitempty"`
 	Pair     *wire.PairStep    `json:"pair,omitempty"`
 	Envelope *wire.Envelope    `json:"envelope,omitempty"`
@@ -53,9 +59,30 @@ type conn struct {
 	addr   string
 	wmu    sync.Mutex
 	mu     sync.Mutex
-	remote *wire.DeviceInfo // from its greeting; a hint until an envelope opens
+	remote *wire.DeviceInfo // from its greeting; a hint until a hello binds it
+	mine   []byte           // the nonce this end greeted with
+	theirs []byte           // the nonce the other end greeted with
 	since  time.Time        // when it became a peer's connection
+	heard  time.Time        // when a frame last came on it
 	once   sync.Once
+}
+
+// bind is what a hello on c must carry for c to become its sender's: the
+// sender's greeting nonce, then this end's.
+func (c *conn) bind() []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.mine) == 0 || len(c.theirs) == 0 {
+		return nil
+	}
+	return append(append([]byte{}, c.theirs...), c.mine...)
+}
+
+// lastHeard is when a frame last came on c.
+func (c *conn) lastHeard() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.heard
 }
 
 func (c *conn) send(f frame) error {
@@ -120,7 +147,7 @@ func (n *Node) serve(c *conn) {
 	}
 	defer n.wg.Done()
 	defer n.dropConn(c)
-	if err := c.send(frame{Device: ptr(n.self())}); err != nil {
+	if err := c.send(frame{Device: ptr(n.self()), Nonce: c.greetNonce()}); err != nil {
 		return
 	}
 	for {
@@ -132,9 +159,12 @@ func (n *Node) serve(c *conn) {
 		if err != nil {
 			return
 		}
+		c.mu.Lock()
+		c.heard = n.cfg.Now()
+		c.mu.Unlock()
 		switch {
 		case f.Device != nil:
-			if !n.onGreeting(c, *f.Device) {
+			if !n.onGreeting(c, *f.Device, f.Nonce) {
 				return
 			}
 		case f.Join != nil:
@@ -152,10 +182,21 @@ func (n *Node) serve(c *conn) {
 
 func ptr[T any](v T) *T { return &v }
 
+// greetNonce is the random value this end greets with on c, made once.
+func (c *conn) greetNonce() []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.mine == nil {
+		c.mine = make([]byte, 32)
+		rand.Read(c.mine)
+	}
+	return c.mine
+}
+
 // onGreeting records who c says it is. A connection this Engine dialled to
 // a computer outside the set is closed, unless it is the one being paired
 // with; one to a member is taken as that member's and greeted with hello.
-func (n *Node) onGreeting(c *conn, d wire.DeviceInfo) bool {
+func (n *Node) onGreeting(c *conn, d wire.DeviceInfo, nonce []byte) bool {
 	if wire.DeviceID(d.SignKey) != d.ID {
 		return false
 	}
@@ -163,6 +204,7 @@ func (n *Node) onGreeting(c *conn, d wire.DeviceInfo) bool {
 	first := c.remote == nil
 	if first {
 		c.remote = &d
+		c.theirs = nonce
 	}
 	c.mu.Unlock()
 	if !first || !c.dialed {
@@ -194,9 +236,15 @@ func (n *Node) onGreeting(c *conn, d wire.DeviceInfo) bool {
 
 func (n *Node) sendHello(c *conn, to wire.DeviceInfo) {
 	n.mu.Lock()
-	l := len(n.chain)
+	l, head := len(n.chain), n.chain[len(n.chain)-1].Hash()
 	n.mu.Unlock()
-	n.sendOn(c, to, &wire.Hello{ChainLen: l})
+	n.sendOn(c, to, &wire.Hello{ChainLen: l, Head: head, Bind: append(append([]byte{}, c.greetNonce()...), c.theirsNonce()...)})
+}
+
+func (c *conn) theirsNonce() []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.theirs
 }
 
 // addPeer takes c as the connection to id. Only called once an envelope
@@ -208,9 +256,15 @@ func (n *Node) addPeer(id string, c *conn) bool {
 	n.mu.Lock()
 	old, had := n.peers[id]
 	// The tie-break applies only while both are fresh, as when the two
-	// dialled each other at once; later a newer connection always wins.
+	// dialled each other at once.
 	fresh := had && n.cfg.Now().Sub(old.since) < 5*time.Second
 	if had && old != c && fresh && preferred(n.ID(), id, old) && !preferred(n.ID(), id, c) {
+		n.mu.Unlock()
+		return false
+	}
+	// Later a newer connection replaces one that has gone quiet, as one may
+	// after sleep; one still heard from stays.
+	if had && old != c && !fresh && n.cfg.Now().Sub(old.lastHeard()) < quietAfter {
 		n.mu.Unlock()
 		return false
 	}
@@ -443,22 +497,34 @@ func (n *Node) onEnvelope(c *conn, e *wire.Envelope) bool {
 	n.mu.Lock()
 	cur, ok := n.peers[e.From]
 	n.mu.Unlock()
-	if c != nil && (!ok || cur != c) {
-		// When two connections race, both ends send on the same one, but
-		// a message already on its way over the other is still taken.
-		if n.addPeer(e.From, c) && !c.dialed {
+	// Only a hello that binds this connection makes it the sender's: an
+	// envelope taken off another connection is still taken, but binds none.
+	if h, hello := m.(*wire.Hello); hello && c != nil && (!ok || cur != c) {
+		if b := c.bind(); b != nil && bytes.Equal(h.Bind, b) && n.addPeer(e.From, c) && !c.dialed {
 			n.sendHello(c, set[e.From])
 		}
 	}
 	n.mu.Lock()
 	h := n.handlers[m.Kind()]
 	_, still := n.members[e.From] // revoked while it was being opened
+	if n.suspended[e.From] {
+		still = false // it revoked a Device of this chain as this chain revoked it: the human decides
+	}
 	n.mu.Unlock()
 	if !still {
 		return false
 	}
 	if h != nil {
 		h(e.From, m)
+	}
+	if m.Kind() != "ack" {
+		// Opened and handled: the sender may let it go from its outbox.
+		ack := &wire.Ack{IDs: []string{e.ID}}
+		if c != nil {
+			n.sendOn(c, set[e.From], ack)
+		} else {
+			n.Send(e.From, ack)
+		}
 	}
 	return true
 }
@@ -627,6 +693,7 @@ func (n *Node) Pair(addr string) (code string, target wire.DeviceInfo, err error
 	}
 	c.mu.Lock()
 	c.remote = f.Device
+	c.theirs = f.Nonce
 	c.mu.Unlock()
 	self := n.self()
 	j := wire.NewJoinRequest(n.keys, self.Name, self.Platform, self.Engine, n.cfg.Now().UnixMilli())

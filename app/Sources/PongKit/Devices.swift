@@ -22,6 +22,13 @@ public struct DeviceSet: Decodable, Sendable, Equatable {
     public var account: Bool?
     public var devices: [Device]
     public var waiting: [Asking]
+    /// Two Devices changed the set in ways only the human can settle: who wrote each side.
+    public struct Fork: Decodable, Sendable, Equatable {
+        public var ours: [Device]
+        public var theirs: [Device]
+        public var mutual: Bool
+    }
+    public var fork: Fork?
 }
 
 /// A computer's state as it reports it (`GET /computers`).
@@ -51,10 +58,13 @@ public protocol DevicesAPI: Sendable {
     func approveDevice(_ id: String) async throws -> DeviceSet
     func revokeDevice(_ id: String) async throws -> DeviceSet
     func cloudSignIn(address: String, code: String?) async throws -> DeviceSet
+    /// Keeps this Mac's set ("ours") or takes the other ("theirs") when a fork waits.
+    func settleFork(_ keep: String) async throws -> DeviceSet
 }
 
 public extension DevicesAPI {
     func computers() async throws -> [ComputerState] { [] }
+    func settleFork(_ keep: String) async throws -> DeviceSet { try await devices() }
     func cloudSignIn(address: String, code: String?) async throws -> DeviceSet { try await devices() }
 }
 
@@ -66,6 +76,9 @@ extension EngineClient: DevicesAPI {
     public func devices() async throws -> DeviceSet { try await json("/devices") }
     public func approveDevice(_ id: String) async throws -> DeviceSet { try await json("/devices/\(id)/approve", "POST") }
     public func revokeDevice(_ id: String) async throws -> DeviceSet { try await json("/devices/\(id)/revoke", "POST") }
+    public func settleFork(_ keep: String) async throws -> DeviceSet {
+        try await json("/devices/fork", "POST", JSONEncoder().encode(["keep": keep]))
+    }
 }
 
 /// What Settings shows about the set, refreshed while Settings is open.
@@ -117,6 +130,10 @@ public final class DevicesModel {
     public func revoke(_ id: String) async {
         confirmingRevoke = nil
         do { set = try await api.revokeDevice(id); problem = nil } catch { problem = "\(error)" }
+    }
+
+    public func settleFork(keepOurs: Bool) async {
+        do { set = try await api.settleFork(keepOurs ? "ours" : "theirs"); problem = nil } catch { problem = "\(error)" }
     }
 
     public func approve(_ id: String) async {
@@ -221,6 +238,9 @@ struct DevicesSection: View {
                     }
                 }
             }
+            if let f = set.fork {
+                ForkRow(fork: f) { keepOurs in Task { await model.settleFork(keepOurs: keepOurs) } }
+            }
             ForEach(set.waiting) { a in
                 AskingRow(asking: a) { Task { await model.approve(a.id) } }
             }
@@ -234,4 +254,38 @@ struct DevicesSection: View {
             Text(p).brandStyle(.secondary).foregroundStyle(Brand.warning)
         }
     }
+}
+
+/// Two Devices changed the set in ways only the human can settle: each revoked the other, so one
+/// may be stolen, or both changed it at the same time. The human keeps one side; the other
+/// side's change is undone everywhere.
+struct ForkRow: View {
+    var fork: DeviceSet.Fork
+    var settle: (_ keepOurs: Bool) -> Void
+
+    private func names(_ ds: [DeviceSet.Device]) -> String {
+        ds.map { $0.this ? "this Mac" : $0.name }.joined(separator: " and ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(fork.mutual
+                 ? "\(names(fork.ours).capitalizedFirst) and \(names(fork.theirs)) removed each other from your set. One of them may not be yours any more. Which one is still yours?"
+                 : "\(names(fork.ours).capitalizedFirst) and \(names(fork.theirs)) changed your set at the same time. Which change stands? The other is undone, and can be made again.")
+                .brandStyle(.body)
+                .foregroundStyle(Brand.text)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button(fork.mutual ? "\(names(fork.ours).capitalizedFirst) is mine" : "Keep \(names(fork.ours))'s") { settle(true) }
+                    .buttonStyle(.brand)
+                Button(fork.mutual ? "\(names(fork.theirs).capitalizedFirst) is mine" : "Keep \(names(fork.theirs))'s") { settle(false) }
+                    .buttonStyle(.brand)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private extension String {
+    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }

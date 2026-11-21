@@ -31,6 +31,13 @@ func (c *Client) ConfirmPairing(match bool) (devices.Set, error) {
 	return s, c.do(c.HTTP, http.MethodPost, "/devices/pair/confirm", map[string]bool{"match": match}, &s)
 }
 
+// SettleFork keeps this computer's chain ("ours") or takes the other one
+// ("theirs") when two Devices changed the set in ways only the human can settle.
+func (c *Client) SettleFork(keep string) (devices.Set, error) {
+	var s devices.Set
+	return s, c.do(c.HTTP, http.MethodPost, "/devices/fork", map[string]string{"keep": keep}, &s)
+}
+
 // ApproveDevice admits a Device that is asking to join.
 func (c *Client) ApproveDevice(id string) (devices.Set, error) {
 	var s devices.Set
