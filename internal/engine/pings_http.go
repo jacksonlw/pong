@@ -14,9 +14,12 @@ import (
 
 // NewPing is the body of POST /pings.
 type NewPing struct {
-	Session      string   `json:"session"`
-	Harness      string   `json:"harness,omitempty"`
-	Folder       string   `json:"folder"`
+	Session string `json:"session"`
+	Harness string `json:"harness,omitempty"`
+	Folder  string `json:"folder"`
+	// PID is the Harness process the Session runs in, set by `pong mcp`
+	// only, so a Session no hook tells about still ends when it is gone.
+	PID          int      `json:"pid,omitempty"`
 	Question     string   `json:"question"`
 	Answers      []Answer `json:"answers,omitempty"`
 	Recommended  string   `json:"recommended,omitempty"`
@@ -199,10 +202,10 @@ func (n NewPing) offered() []Answer {
 
 func (n NewPing) ping() Ping {
 	if n.Thought {
-		return Ping{Session: n.Session, Harness: n.Harness, Folder: n.Folder, Question: strings.TrimSpace(n.Question),
+		return Ping{Session: n.Session, Harness: n.Harness, Folder: n.Folder, PID: n.PID, Question: strings.TrimSpace(n.Question),
 			Summary: strings.TrimSpace(n.Summary), IsNote: true, Thought: true}
 	}
-	p := Ping{Session: n.Session, Harness: n.Harness, Folder: n.Folder, Question: n.Question, AllowSeveral: n.AllowSeveral,
+	p := Ping{Session: n.Session, Harness: n.Harness, Folder: n.Folder, PID: n.PID, Question: n.Question, AllowSeveral: n.AllowSeveral,
 		Approves: n.Approves, Call: n.Call, Context: n.Context, Why: n.Why, NotVerified: strings.TrimSpace(n.NotVerified), Summary: strings.TrimSpace(n.Summary), MoreComing: n.MoreComing,
 		BlocksAgent: n.BlocksAgent, Finished: n.Finished, IsNote: n.IsNote, Tags: n.Tags}
 	if n.Captured {

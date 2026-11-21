@@ -67,6 +67,7 @@ type Ping struct {
 	Harness      string   `json:"harness,omitempty"` // with Session, identifies the Session
 	Project      string   `json:"project,omitempty"` // the Project's id
 	Folder       string   `json:"folder"`
+	PID          int      `json:"-"` // its Session's Harness process, for registering the Session only
 	Question     string   `json:"question"`
 	Answers      []Answer `json:"answers"`
 	AllowSeveral bool     `json:"allow_several,omitempty"`

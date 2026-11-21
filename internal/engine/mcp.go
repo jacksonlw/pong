@@ -31,9 +31,16 @@ var ErrEngineDown = errors.New("Engine is not running")
 // MCP serves Pong's tools to one agent over MCP's JSON-RPC.
 type MCP struct {
 	Backend MCPBackend
-	Session string // used when a tool call names no session
-	Harness string // used when a tool call names no harness
-	Folder  string // used when a tool call names no folder
+	// Session is the caller's, when the server knows it: Codex names it on
+	// each call, or `pong mcp -session` was given. It wins over the call's.
+	Session string
+	// Fallback is used when neither the server nor the call names a Session.
+	// Claude Code's hook names it in the call, so a made-up id here must
+	// never win over that one.
+	Fallback string
+	Harness  string // used when a tool call names no harness
+	Folder   string // used when a tool call names no folder
+	PID      int    // the Harness process this server runs under, when known
 	// Quiet serves an agent nobody attends: no instruction and no tools, so it
 	// works as it would without Pong.
 	Quiet bool
@@ -174,11 +181,7 @@ func (s *pings) mountMCP(mux *http.ServeMux, hold time.Duration) {
 			sid = "mcp-" + hex.EncodeToString(b)
 			w.Header().Set("Mcp-Session-Id", sid)
 		}
-		session := r.Header.Get(SessionHeader)
-		if session == "" {
-			session = sid
-		}
-		m := MCP{Backend: engineBackend{s, hold, r.Context().Done()}, Session: session}
+		m := MCP{Backend: engineBackend{s, hold, r.Context().Done()}, Session: r.Header.Get(SessionHeader), Fallback: sid}
 		out := m.Handle(body)
 		if out == nil {
 			w.WriteHeader(http.StatusAccepted)

@@ -14,7 +14,8 @@ import (
 
 // serveMCP serves Pong's tools over standard input and output, forwarding
 // each call to the Engine's local API. The Session comes from -session or
-// $PONG_SESSION, else one is made for this process.
+// $PONG_SESSION, else from each call (Claude Code's hook names it there),
+// else one is made for this process.
 func serveMCP(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs, dir := flags("mcp", stderr)
 	cwd, _ := os.Getwd()
@@ -23,10 +24,8 @@ func serveMCP(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if *session == "" {
-		*session = fmt.Sprintf("mcp-%d-%d", os.Getpid(), time.Now().Unix())
-	}
-	m := engine.MCP{Backend: forward{*dir}, Session: *session, Folder: *folder, Quiet: attended.Unattended()}
+	fallback := fmt.Sprintf("mcp-%d-%d", os.Getpid(), time.Now().Unix())
+	m := engine.MCP{Backend: forward{*dir}, Session: *session, Fallback: fallback, Folder: *folder, PID: attended.HarnessPID(), Quiet: attended.Unattended()}
 	if err := m.ServeStdio(stdin, stdout); err != nil {
 		fmt.Fprintln(stderr, "pong mcp:", err)
 		return 1

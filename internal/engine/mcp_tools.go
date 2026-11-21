@@ -173,9 +173,9 @@ var mcpTools = []mcpTool{
 	},
 	{
 		Name: ToolSendThought,
-		Description: "As you work, tell your human in one sentence something you found, decided or changed, in words they " +
-			"understand without the code open: never what you are running, never output. It shows only in the Session's Thread, " +
-			"never asks anything, and returns at once.",
+		Description: "As you work, tell your human in one sentence each thing you find, decide or change, so they can follow the Session " +
+			"without opening it, in words they understand without the code open: never what you are running, never output, never " +
+			"the same news twice. Most turns need three to six. It shows only in the Session's Thread, never asks anything, and returns at once.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": props(map[string]any{
@@ -218,12 +218,16 @@ const (
 // caller is the Session and Harness a tool call comes from. When the server
 // knows them (Codex names them in each call, or `pong mcp -session`), they
 // are those, whatever the agent wrote; otherwise they are what the call
-// carries, which Claude Code's hook writes into it (claudecode/tools.go).
+// carries, which Claude Code's hook writes into it (claudecode/tools.go);
+// with neither, the server's Fallback.
 func (m MCP) caller(session, harness string) (string, string) {
-	if m.Session != "" {
+	switch {
+	case m.Session != "":
 		return m.Session, m.Harness
+	case session != "":
+		return session, harness
 	}
-	return session, harness
+	return m.Fallback, ""
 }
 
 // call runs the named tool; ok is false when there is no such tool.
@@ -258,6 +262,7 @@ func (m MCP) call(name string, args json.RawMessage) (res toolResult, ok bool) {
 		if n.Folder == "" {
 			n.Folder = m.Folder
 		}
+		n.PID = m.PID // never what the agent wrote
 		p, err := m.Backend.CreatePing(n)
 		if err != nil {
 			return fail(err), true
@@ -289,6 +294,7 @@ func (m MCP) call(name string, args json.RawMessage) (res toolResult, ok bool) {
 		if n.Folder == "" {
 			n.Folder = m.Folder
 		}
+		n.PID = m.PID // never what the agent wrote
 		p, err := m.Backend.CreatePing(n)
 		if errors.Is(err, ErrEngineDown) {
 			return textResult(false, map[string]string{"state": "engine_not_running"}, thoughtDropped), true

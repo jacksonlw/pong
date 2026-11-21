@@ -210,3 +210,76 @@ func TestOwnSendThoughtCarriesTheSessionAndIsNoPing(t *testing.T) {
 		t.Fatalf("a turn of only Thoughts woke with %q; want the nudge", w.Text)
 	}
 }
+
+// mcpOverClient serves Pong's MCP tools from the test's Engine, as `pong mcp`
+// does from the real one.
+type mcpOverClient struct{ c *client.Client }
+
+func (b mcpOverClient) CreatePing(n engine.NewPing) (engine.Ping, error) { return b.c.CreatePing(n) }
+func (b mcpOverClient) WaitOnce(id string) (engine.Ping, error)          { return b.c.WaitOnce(id) }
+func (b mcpOverClient) Get(id string) (engine.Ping, error)               { return b.c.Ping(id) }
+func (b mcpOverClient) Withdraw(id string) (engine.Ping, error)          { return b.c.Withdraw(id) }
+
+// The plugin's `pong mcp` knows no Session and makes one up for its process.
+// The Session the hook writes into the call wins over that one, so a Ping the
+// agent left waiting when it ended its turn, answered later, still wakes the
+// Claude Code Session the human started.
+func TestPongAnsweredAfterTheTurnEndedReachesTheHumansSession(t *testing.T) {
+	c, dir := enginetest.Start(t)
+	const session = "18a161df-6ebe-48e5-bd7a-585961d12947"
+	if _, err := c.RegisterSession(engine.RegisterSession{Harness: "claude-code", ID: session, State: engine.SessionWorking}); err != nil {
+		t.Fatal(err)
+	}
+	in, err := os.ReadFile(filepath.Join("testdata", "tools/send-ping.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in = bytes.Replace(in, []byte(`"blocks_agent":false`), []byte(`"blocks_agent":true`), 1)
+	var out bytes.Buffer
+	if err := claudecode.Hook(dir, bytes.NewReader(in), &out); err != nil {
+		t.Fatal(err)
+	}
+	var hook struct {
+		HookSpecificOutput struct {
+			UpdatedInput json.RawMessage `json:"updatedInput"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &hook); err != nil {
+		t.Fatal(err)
+	}
+	// The call as Claude Code sends it to the plugin's MCP server.
+	call, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": engine.ToolSendPing, "arguments": hook.HookSpecificOutput.UpdatedInput}})
+	m := engine.MCP{Backend: mcpOverClient{c}, Fallback: "mcp-4242-1795234236"}
+	m.Handle(call) // its short wait runs out with no Pong
+	ps, err := c.Pings("")
+	if err != nil || len(ps) != 1 {
+		t.Fatalf("Pings = %+v, %v; want the agent's one", ps, err)
+	}
+	mine := ps[0]
+	if mine.Session != session || mine.Harness != "claude-code" {
+		t.Fatalf("the Ping is on %s %q; want the hook's Session", mine.Harness, mine.Session)
+	}
+	// The agent ends its turn, and the human answers afterwards.
+	stopIn, _ := os.ReadFile(filepath.Join("testdata", "stop/first.json"))
+	stopIn = bytes.ReplaceAll(stopIn, []byte(recordedSession), []byte(session))
+	woke := make(chan string, 1)
+	go func() {
+		var w claudecode.Wake
+		errors.As(claudecode.Hook(dir, bytes.NewReader(stopIn), &bytes.Buffer{}), &w)
+		woke <- w.Text
+	}()
+	waitIdle(t, c, session)
+	pong(t, c, mine.ID, engine.SendPong{Answer: "Yes"})
+	select {
+	case w := <-woke:
+		if w == turn.Nudge || !strings.Contains(w, ": Yes\n") {
+			t.Fatalf("woke with %q", w)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the Stop hook did not return")
+	}
+	if got, _ := c.Ping(mine.ID); got.Pong == nil || got.Pong.Delivery != engine.DeliveryDelivered {
+		t.Fatalf("the Pong is %+v; want it delivered", got.Pong)
+	}
+}
