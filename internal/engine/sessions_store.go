@@ -254,9 +254,14 @@ func (s *projects) registerLocked(n RegisterSession) (Session, error) {
 	return sess, nil
 }
 
-// put stores sess as changed now and says so on the event stream. The caller
-// holds smu.
+// put stores sess as changed now and says so on the event stream. A Session
+// registers at every tool call, so one that did not change is neither
+// written nor told: it keeps its stored time. The caller holds smu.
 func (s *projects) put(sess *Session) error {
+	if old, err := s.session(sess.Harness, sess.ID); err == nil && sameApartFromTime(old, *sess, func(x *Session) { x.UpdatedAt = time.Time{} }) {
+		sess.UpdatedAt = old.UpdatedAt
+		return nil
+	}
 	sess.UpdatedAt = time.Now().UTC()
 	body, _ := json.Marshal(sess)
 	if _, err := s.db.Exec(`INSERT INTO sessions (harness, id, body) VALUES (?,?,?)

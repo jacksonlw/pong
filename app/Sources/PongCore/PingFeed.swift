@@ -28,6 +28,12 @@ public protocol PingFeed: Sendable {
     var unreachable: String { get }
 }
 
+/// A feed that says which event its list is at least as new as, so a follower takes the
+/// events after it and not the whole log.
+public protocol PingFeedAtSeq: PingFeed {
+    func allPingsAtSeq() async throws -> ([Ping], Int)
+}
+
 /// A feed that cannot yet send a Pong again refuses, in words the card shows.
 struct CannotSendAgain: FeedRefusal {
     var message: String? { "This Pong can only be sent again from the Mac." }

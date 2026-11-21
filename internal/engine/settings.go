@@ -128,6 +128,10 @@ func (s *settings) change(ch ChangeSettings) (Settings, error) {
 		cur.ToldLoginDisallowed = *ch.ToldLoginDisallowed
 	}
 	b, _ := json.Marshal(cur)
+	var stored string
+	if s.db.QueryRow(`SELECT body FROM settings WHERE id = 1`).Scan(&stored) == nil && stored == string(b) {
+		return cur, nil // nothing changed: nothing to write or tell
+	}
 	if _, err := s.db.Exec(`INSERT INTO settings (id, body) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body`, string(b)); err != nil {
 		return cur, err
 	}

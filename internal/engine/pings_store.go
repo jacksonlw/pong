@@ -267,6 +267,9 @@ func newPings(db *sql.DB) (*pings, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := indexPingEvents(db); err != nil {
+		return nil, err
+	}
 	ps := &pings{db: db, waiters: map[string]chan struct{}{}, events: make(chan struct{}), closing: make(chan struct{}),
 		holders: map[string]int{}, wasHeld: map[string]bool{}, grace: DefaultDeliveryGrace}
 	var n sql.NullInt64
@@ -275,6 +278,20 @@ func newPings(db *sql.DB) (*pings, error) {
 	}
 	ps.seq = n.Int64
 	return ps, nil
+}
+
+// indexPingEvents gives each event about a Ping that Ping's id in a column of
+// its own, with an index, so a Ping's events are found without reading every
+// event. Stores from before the column get it filled from each event once.
+func indexPingEvents(db *sql.DB) error {
+	if _, err := db.Exec(`SELECT ping_id FROM events LIMIT 0`); err == nil {
+		return nil
+	}
+	_, err := db.Exec(`ALTER TABLE events ADD COLUMN ping_id TEXT;
+		UPDATE events SET ping_id = json_extract(data, '$.id') WHERE kind LIKE 'ping.%';
+		CREATE INDEX IF NOT EXISTS events_ping ON events(ping_id) WHERE ping_id IS NOT NULL;
+		CREATE INDEX IF NOT EXISTS events_kind_at ON events(kind, at)`)
+	return err
 }
 
 // save writes p and appends an event of kind carrying it, in one
@@ -295,7 +312,7 @@ func (s *pings) save(p Ping, kind string, insert bool) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`INSERT INTO events (seq, kind, at, data) VALUES (?,?,?,?)`, s.seq+1, kind, p.UpdatedAt.Format(time.RFC3339Nano), string(body)); err != nil {
+	if _, err := tx.Exec(`INSERT INTO events (seq, kind, at, data, ping_id) VALUES (?,?,?,?,?)`, s.seq+1, kind, p.UpdatedAt.Format(time.RFC3339Nano), string(body), p.ID); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {

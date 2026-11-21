@@ -227,10 +227,20 @@ func (s *pings) serveResource(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusNotFound, "this Ping has no such Resource: check the id")
 }
 
-// sweep removes Pings that left waiting longer than retention ago, with their
-// Resources and their events.
+// How long the log keeps an event that is not about a Ping, and an ended
+// Session with no Ping. A client that starts or reconnects reads the current
+// state from /directory, so it needs no older event.
+const (
+	stateEventRetention   = 7 * 24 * time.Hour
+	endedSessionRetention = 30 * 24 * time.Hour
+)
+
+// sweep removes this Engine's Pings that left waiting longer than retention
+// ago, each with its events and Resources at once; events about Sessions,
+// Projects and settings past their retention; and ended Sessions long gone
+// that no Ping names.
 func (s *pings) sweep(retention time.Duration) error {
-	ps, err := s.list("")
+	ps, err := s.listOldest("")
 	if err != nil {
 		return err
 	}
@@ -241,15 +251,36 @@ func (s *pings) sweep(retention time.Duration) error {
 		if p.State == StateWaiting || p.UpdatedAt.After(cutoff) {
 			continue
 		}
-		if _, err := s.db.Exec(`DELETE FROM pings WHERE id = ?`, p.ID); err != nil {
-			return err
-		}
-		if _, err := s.db.Exec(`DELETE FROM events WHERE kind LIKE 'ping.%' AND json_extract(data, '$.id') = ?`, p.ID); err != nil {
+		if err := s.forget(p.ID); err != nil {
 			return err
 		}
 		s.removeResources(p.Resources)
 	}
-	return nil
+	now := time.Now().UTC()
+	if _, err := s.db.Exec(`DELETE FROM events WHERE kind IN (?,?,?) AND at < ?`,
+		EventSessionChanged, EventProjectChanged, EventSettingsChanged, now.Add(-stateEventRetention).Format(time.RFC3339Nano)); err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`DELETE FROM sessions WHERE json_extract(body, '$.state') = ? AND json_extract(body, '$.updated_at') < ?
+		AND NOT EXISTS (SELECT 1 FROM pings WHERE json_extract(pings.body, '$.session') = json_extract(sessions.body, '$.id'))`,
+		SessionEnded, now.Add(-endedSessionRetention).Format(time.RFC3339Nano))
+	return err
+}
+
+// forget deletes a Ping and its events in one transaction. The caller holds s.mu.
+func (s *pings) forget(id string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM pings WHERE id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM events WHERE ping_id = ?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // sweepEvery sweeps now and then every interval until the Engine stops.

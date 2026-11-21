@@ -65,21 +65,44 @@ public final class Inbox {
     /// stream drops. `clientProvider` is asked again after each drop (the Mac's Engine may
     /// have restarted on a new port).
     public func follow(clientProvider: @escaping @Sendable () async -> (any PingFeed)?, retry: Duration = .milliseconds(500)) async {
-        var since = 0
         while !Task.isCancelled {
             if let c = await clientProvider() {
                 client = c
                 do {
-                    try await refresh()
-                    for try await e in c.events(since: since) {
-                        since = e.seq
+                    // The list, then every change after it. An events-only catch-up from the log's
+                    // start would mean one fetch for each event ever kept.
+                    var since = 0
+                    if let s = c as? any PingFeedAtSeq {
+                        let (all, seq) = try await s.allPingsAtSeq()
+                        apply(all)
+                        since = seq
+                    } else {
                         try await refresh()
                     }
+                    for try await _ in c.events(since: since) { refreshSoon() }
                 } catch {
                     lastError = "\(error)"
                 }
             }
             try? await Task.sleep(for: retry)
+        }
+    }
+
+    @ObservationIgnored private var refreshing = false
+    @ObservationIgnored private var refreshAgain = false
+
+    /// Fetches the list once for each burst of events: an event that arrives while a fetch is
+    /// on its way asks for one more fetch after it, not one each.
+    private func refreshSoon() {
+        refreshAgain = true
+        guard !refreshing else { return }
+        refreshing = true
+        Task {
+            defer { refreshing = false }
+            while refreshAgain {
+                refreshAgain = false
+                do { try await refresh() } catch { lastError = "\(error)" }
+            }
         }
     }
 

@@ -267,8 +267,12 @@ func (s *projects) update(id string, change func(*Project) error) (Project, erro
 	if err != nil {
 		return p, err
 	}
+	before := p
 	if err := change(&p); err != nil {
 		return p, err
+	}
+	if sameApartFromTime(before, p, func(x *Project) { x.UpdatedAt = time.Time{} }) {
+		return before, nil // nothing to write or tell
 	}
 	p.UpdatedAt = time.Now().UTC()
 	return p, s.save(p, false)

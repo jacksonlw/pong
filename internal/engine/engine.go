@@ -190,6 +190,14 @@ func Start(cfg Config) (*Engine, error) {
 
 	pr.routes(mux)
 	st.routes(mux)
+	mux.HandleFunc("GET /directory", func(w http.ResponseWriter, r *http.Request) {
+		d, err := directory(ps, pr, st)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, d)
+	})
 	voiceKeyRoutes(mux, cfg.Keychain)
 	starter := newStarter(pr, ps, cfg.Dir, cfg.Env, cfg.Runners, cfg.Launch)
 	starter.hold = hold

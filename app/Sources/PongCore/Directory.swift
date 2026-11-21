@@ -148,7 +148,30 @@ public final class Directory {
     @discardableResult
     public func apply(_ line: String) -> Int? {
         guard line.hasPrefix("data:") else { return nil }
-        let body = Data(line.dropFirst(5).drop(while: { $0 == " " }).utf8)
+        return apply(event: Data(line.dropFirst(5).drop(while: { $0 == " " }).utf8))
+    }
+
+    /// Takes the Engine's current state (`GET /directory`) in place of what it held: what the
+    /// snapshot leaves out is gone. Returns the seq to follow the event stream from.
+    @discardableResult
+    public func apply(snapshot data: Data) -> Int? {
+        guard let s = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let seq = s["seq"] as? Int, let events = s["events"] as? [Any] else { return nil }
+        let oldProjects = Set(projects.keys)
+        sessions = [:]
+        pings = [:]
+        var seen = Set<String>()
+        for e in events {
+            guard let body = try? JSONSerialization.data(withJSONObject: e) else { continue }
+            apply(event: body)
+            if let p = try? JSON.decoder.decode(Envelope<Project>.self, from: body), p.kind == "project.changed" { seen.insert(p.data.id) }
+        }
+        for gone in oldProjects.subtracting(seen) { projects[gone] = nil; logos[gone] = nil }
+        return seq
+    }
+
+    @discardableResult
+    private func apply(event body: Data) -> Int? {
         guard let head = try? JSON.decoder.decode(Head.self, from: body) else { return nil }
         switch head.kind {
         case "project.changed":
@@ -188,13 +211,19 @@ public final class Directory {
 
     @ObservationIgnored private var client: EngineClient?
 
-    /// Follows the Engine's event stream until cancelled, replaying it from the start and
-    /// catching up after each drop.
+    /// Follows the Engine until cancelled: at each connection it takes the current state from
+    /// `/directory`, then the events after it. The log keeps old events about Sessions and
+    /// Projects for a week only, so it is never replayed from its start. An Engine without
+    /// `/directory` is replayed from the start, as before.
     public func follow(clientProvider: @escaping @Sendable () async -> EngineClient?, retry: Duration = .milliseconds(500)) async {
         var since = 0
         while !Task.isCancelled {
             if let c = await clientProvider() {
                 client = c
+                if let (data, resp) = try? await URLSession.shared.data(for: Self.request(c, "/directory")),
+                   (resp as? HTTPURLResponse)?.statusCode == 200, let seq = apply(snapshot: data) {
+                    since = seq
+                }
                 var r = Self.request(c, "/events?since=\(since)")
                 r.timeoutInterval = 3600
                 do {

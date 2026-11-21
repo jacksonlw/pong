@@ -278,6 +278,10 @@ func (s *pings) routes(mux *http.ServeMux, hold time.Duration) {
 		writeJSON(w, http.StatusCreated, p)
 	})
 	mux.HandleFunc("GET /pings", func(w http.ResponseWriter, r *http.Request) {
+		// The seq the list is at least as new as: a client that follows /events
+		// from it misses nothing, without reading the log from its start.
+		seq, _ := s.lastSeq()
+		w.Header().Set("X-Pong-Seq", strconv.FormatInt(seq, 10))
 		ps, err := s.list(r.URL.Query().Get("state"))
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

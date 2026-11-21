@@ -1,7 +1,7 @@
 import Foundation
 
 /// Talks to the Engine's local API.
-public struct EngineClient: PingFeed {
+public struct EngineClient: PingFeedAtSeq {
     public var address: String
     public var secret: String
 
@@ -68,7 +68,20 @@ public struct EngineClient: PingFeed {
 
     /// Every Ping the Engine keeps, in the Engine's order.
     public func allPings() async throws -> [Ping] {
-        try JSON.decoder.decode([Ping].self, from: await send(request("/pings")))
+        try await allPingsAtSeq().0
+    }
+
+    /// Every Ping, and the event seq the list is at least as new as (`X-Pong-Seq`).
+    public func allPingsAtSeq() async throws -> ([Ping], Int) {
+        var r = request("/pings")
+        r.timeoutInterval = 10
+        let (data, resp) = try await Self.session.data(for: r)
+        let http = resp as? HTTPURLResponse
+        guard http?.statusCode == 200 else {
+            throw Failure(description: "GET /pings: \(http?.statusCode ?? 0) \(String(decoding: data, as: UTF8.self))", message: nil, status: http?.statusCode ?? 0)
+        }
+        let seq = (http?.value(forHTTPHeaderField: "X-Pong-Seq")).flatMap(Int.init) ?? 0
+        return (try JSON.decoder.decode([Ping].self, from: data), seq)
     }
 
     /// Sends a Pong: any mix of one answer, ticked answers and typed text.
