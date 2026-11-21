@@ -118,7 +118,7 @@ var mcpTools = []mcpTool{
 					"items": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
-							"label":        str("at most 5 words"),
+							"label":        str("the answer itself, as short as it can be said: five words or fewer when that is enough, at most 12 when the answer needs more. Put what it leads to in leads_to, not here"),
 							"leads_to":     str("what choosing this answer leads to"),
 							"hard_to_undo": boolean("this answer is hard to undo"),
 						},

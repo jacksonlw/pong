@@ -41,10 +41,15 @@ type NewPing struct {
 	Tags      []Tag         `json:"tags,omitempty"`
 	// Captured marks a Ping a Harness adapter captured from the Harness's own
 	// prompt rather than one an agent wrote; it is accepted as it comes, so the
-	// three strict rules (at most 4 answers, labels of at most 5 words, labels
+	// three strict rules (at most 4 answers, labels of at most MaxLabelWords words, labels
 	// not repeated in the question) are skipped.
 	Captured bool `json:"captured,omitempty"`
 }
+
+// MaxLabelWords is the most words an answer's label may have. Most answers
+// need five or fewer; the rest of the room is for the answer that cannot be
+// said that briefly.
+const MaxLabelWords = 12
 
 // SendPong is the body of POST /pings/{id}/pong.
 type SendPong struct {
@@ -74,10 +79,10 @@ func (n NewPing) validate() string {
 	for i, a := range n.Answers {
 		label := strings.TrimSpace(a.Label)
 		if label == "" {
-			return fmt.Sprintf("answer %d has no label: give each answer a label of at most 5 words", i+1)
+			return fmt.Sprintf("answer %d has no label: give each answer a short label, five words or fewer when it can be", i+1)
 		}
-		if w := len(strings.Fields(label)); w > 5 && !n.Captured {
-			return fmt.Sprintf("answer label %q has %d words: shorten it to at most 5 and put the rest in leads_to", a.Label, w)
+		if w := len(strings.Fields(label)); w > MaxLabelWords && !n.Captured {
+			return fmt.Sprintf("answer label %q has %d words: shorten it to at most %d, five or fewer when it can be, and put the rest in leads_to", a.Label, w, MaxLabelWords)
 		}
 		if seen[a.Label] && !n.Captured {
 			return fmt.Sprintf("answer label %q appears twice: give each answer a different label", a.Label)

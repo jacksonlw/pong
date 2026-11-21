@@ -29,7 +29,8 @@ Pong refuses a Ping that is none of these, and one that is both finished and blo
 ## Answers
 
 - At most four. If there are more options, merge them or ask a narrower question.
-- Each label is at most five words. Say in `leads_to` what choosing it leads to, and set `hard_to_undo` when it is.
+- Keep each label as short as the answer allows: five words or fewer when that says it, such as "Use SQLite". When an answer cannot be said that briefly, such as a value to confirm or a choice that needs its condition, the label may run to twelve words. Pong refuses a longer one.
+- Say in `leads_to` what choosing it leads to, never in the label, and set `hard_to_undo` when it is.
 - Put your recommendation first and name it in `recommended`. Nothing else marks it; do not write "(recommended)" in the label.
 - Set `allow_several` when the human may tick more than one. Leave answers out when you need typed text.
 - To ask for approval of a plan or an action, set `approves` to `plan` or `action`.

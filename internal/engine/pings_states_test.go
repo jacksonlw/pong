@@ -70,7 +70,7 @@ func TestCapturedPingIsAcceptedAsItComes(t *testing.T) {
 		p              client.NewPing
 	}{
 		{"five answers", "at most 4 answers", client.NewPing{Finished: true, Question: "Pick one?", Answers: ans("a", "b", "c", "d", "e")}},
-		{"long label", "at most 5", client.NewPing{Finished: true, Question: "Pick one?", Answers: ans("one two three four five six")}},
+		{"long label", "at most 12", client.NewPing{Finished: true, Question: "Pick one?", Answers: ans("one two three four five six seven eight nine ten eleven twelve thirteen")}},
 		{"question repeats label", "word for word", client.NewPing{Finished: true, Question: "Postgres or SQLite?", Answers: ans("Postgres", "SQLite")}},
 		{"repeated label", "appears twice", client.NewPing{Finished: true, Question: "Pick?", Answers: ans("a", "a")}},
 		{"recommended matches nothing", "not one of the answers", client.NewPing{Finished: true, Question: "Pick?", Answers: ans("a", "b"), Recommended: "c"}},
@@ -122,7 +122,7 @@ func TestMalformedPingsAreRefusedNamingTheFault(t *testing.T) {
 		mentions string
 	}{
 		{"five answers", client.NewPing{Finished: true, Question: "Pick one?", Answers: ans("a", "b", "c", "d", "e")}, "at most 4 answers"},
-		{"long label", client.NewPing{Finished: true, Question: "Pick one?", Answers: ans("one two three four five six")}, "at most 5"},
+		{"long label", client.NewPing{Finished: true, Question: "Pick one?", Answers: ans("one two three four five six seven eight nine ten eleven twelve thirteen")}, "at most 12"},
 		{"question repeats label", client.NewPing{Finished: true, Question: "Deploy now or wait?", Answers: ans("Deploy now", "Wait a day")}, `"Deploy now" word for word`},
 		{"unknown recommended", client.NewPing{Finished: true, Question: "Pick one?", Answers: ans("a", "b"), Recommended: "c"}, "recommended"},
 		{"bad approves", client.NewPing{Finished: true, Question: "Go?", Approves: "merge"}, "approves"},
