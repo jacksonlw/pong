@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import PongKit
 
 /// How large Pong draws everything in its windows, as a browser zooms a page: ⌘+ and ⌘− (or
 /// ⌃+ and ⌃−) step it, ⌘0 puts it back. Kept between launches.
@@ -30,15 +31,15 @@ final class Zoom {
         NotificationCenter.default.post(name: Self.changed, object: nil, userInfo: ["was": was])
     }
 
-    /// Handles ⌘ or ⌃ with +, = , − or 0, wherever in Pong it is pressed.
+    /// Handles ⌘ or ⌃ with +, = , − or 0, wherever in Pong it is pressed; over an image, or with
+    /// one full screen, they zoom only that image.
     func handle(_ e: NSEvent) -> Bool {
-        let keys = e.modifierFlags.intersection([.command, .control, .option])
-        guard keys == .command || keys == .control else { return false }
-        switch e.charactersIgnoringModifiers {
-        case "+", "=": zoomIn()
-        case "-", "_": zoomOut()
-        case "0": reset()
-        default: return false
+        guard let key = ZoomKey(e) else { return false }
+        if ImageZoomKeys.handle(e) { return true }
+        switch key {
+        case .in: zoomIn()
+        case .out: zoomOut()
+        case .reset: reset()
         }
         return true
     }

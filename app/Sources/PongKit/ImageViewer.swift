@@ -60,7 +60,9 @@ public enum ImageViewer {
     }
 }
 
-/// The image fitted to the screen on the kit's ink, with its title and the close control.
+/// The image fitted to the screen on the kit's ink, never larger than it is until zoomed, with
+/// the zoom controls and the close control. A click around the image puts it away; a click on it
+/// does not, so a zoomed image can be looked over.
 struct ImageViewerView: View {
     var image: NSImage
     var title: String
@@ -69,18 +71,13 @@ struct ImageViewerView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Brand.fixedInk
-            Image(nsImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: image.size.width, maxHeight: image.size.height) // never larger than it is
+                .contentShape(Rectangle())
+                .onTapGesture(perform: close)
+            ZoomableImage(image: image, title: title, onInk: true, click: {}, fullScreen: true)
                 .padding(48)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityLabel(title)
             IconButton(symbol: "xmark", label: "Close image", help: "Close (Esc)", colour: Brand.fixedWhite, action: close)
             .padding(16)
         }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: close)
         .ignoresSafeArea()
     }
 }

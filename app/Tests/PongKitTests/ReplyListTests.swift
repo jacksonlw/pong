@@ -22,7 +22,7 @@ final class ReplyListTests: XCTestCase {
         w.makeKeyAndOrderFront(nil)
         defer { w.orderOut(nil) }
         try await Task.sleep(for: .milliseconds(100))
-        let field = try XCTUnwrap(ReplyGrowthTests.find(NSTextField.self, in: host))
+        let field = try XCTUnwrap(ReplyGrowthTests.reply(in: host))
         XCTAssertTrue(w.makeFirstResponder(field))
         try await Task.sleep(for: .milliseconds(100))
         let editor = try XCTUnwrap(w.firstResponder as? NSTextView)

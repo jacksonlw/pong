@@ -483,7 +483,12 @@ public struct CardView: View {
     private func replyRow() -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .bottom, spacing: 8) {
-                ReplyField(text: shownDraft, placeholder: placeholder, enabled: canReply, typing: $typing) { sendReply() }
+                ReplyField(text: shownDraft, placeholder: placeholder, enabled: canReply, typing: $typing,
+                           escape: {
+                               guard choosing else { return false }
+                               choosing = false
+                               return true
+                           }) { sendReply() }
                     // A draft written on another Device shows here while nobody types here.
                     .onChange(of: ping.draft?.text, initial: true) { before, theirs in
                         guard let theirs, !typing, ListText.bulleted(theirs) != draft else { return }
@@ -493,11 +498,6 @@ public struct CardView: View {
                         draft = ListText.bulleted(theirs)
                         // A draft kept here is replaced too, so it cannot win over the newer one later.
                         if !Drafts.shared.text(.ping(ping.id)).isEmpty { Drafts.shared.set(theirs, .ping(ping.id)) }
-                    }
-                    .onKeyPress(.escape) {
-                        guard choosing else { return .ignored }
-                        choosing = false
-                        return .handled
                     }
                 SendGroup(canSend: canSend, canOpen: canReply, typed: canChoose,
                           send: { sendReply() }, caret: { choosing.toggle() })

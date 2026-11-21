@@ -28,9 +28,21 @@ public struct ResourcePreview: View {
         VStack(alignment: .leading, spacing: 0) {
             PanelTitle(symbol: symbol(forKind: resource.kind), title: resource.title, closeLabel: "Close preview",
                        moved: moved, putBack: putBack, onClose: onClose)
-            if resource.kind == "sheet", let data, let sheet = SheetContent.decode(data) {
+            if resource.kind == "image", let data, let img = NSImage(data: data) {
+                // An image zooms and scrolls inside its own frame, so it is not put in the page's scroll.
+                ZoomableImage(image: img, title: resource.title, growsToFit: true, click: { ImageViewer.show(img, title: resource.title) })
+                    .help("Click to see it full screen")
+                    .accessibilityHint("Click to see it full screen")
+                    .padding(16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else if resource.kind == "sheet", let data, let sheet = SheetContent.decode(data) {
                 // A table scrolls both ways inside its own frame, so it is not put in the page's scroll.
                 SheetView(content: sheet)
+                    .padding([.horizontal, .bottom], 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else if let files = changeFiles() {
+                // A change to several files shows one at a time, with a picker of them.
+                ChangeFilesView(files: files)
                     .padding([.horizontal, .bottom], 16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else if let lines = longLines() {
@@ -52,6 +64,13 @@ public struct ResourcePreview: View {
         .background(Brand.surface, in: Rectangle())
     }
 
+    /// A change's files, when it touches more than one; nil for anything else.
+    private func changeFiles() -> [DiffFile]? {
+        guard let data, resource.kind == "change" else { return nil }
+        let files = DiffFile.split(String(decoding: data, as: UTF8.self))
+        return files.count > 1 ? files : nil
+    }
+
     /// The lines of a change, file or output too long to draw at once; nil for anything else.
     private func longLines() -> [Substring]? {
         guard let data, ["change", "output", "file", "error"].contains(resource.kind) else { return nil }
@@ -66,17 +85,8 @@ public struct ResourcePreview: View {
         } else {
             switch resource.kind {
             case "image":
-                if let img = NSImage(data: data!) {
-                    Image(nsImage: img).resizable().aspectRatio(contentMode: .fit)
-                        .clipShape(Rectangle())
-                        .contentShape(Rectangle())
-                        .onTapGesture { ImageViewer.show(img, title: resource.title) }
-                        .help("Click to see it full screen")
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityHint("Shows the image full screen")
-                } else {
-                    Text("This image cannot be shown.").brandStyle(.body).foregroundStyle(Brand.secondary)
-                }
+                // An image that decodes is shown by ZoomableImage above.
+                Text("This image cannot be shown.").brandStyle(.body).foregroundStyle(Brand.secondary)
             case "document": MarkdownView(source: text)
             case "change": DiffView(source: text)
             case "error": Mono(text: text, error: true)
