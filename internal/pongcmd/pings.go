@@ -178,7 +178,9 @@ func printPong(w io.Writer, p *engine.Pong) {
 	}
 }
 
-// inbox lists waiting Pings.
+// inbox lists waiting Pings. Answering them is the human's alone, in Pong's
+// apps: no command answers a Ping, so an agent with a shell cannot answer
+// one for its human.
 func inbox(args []string, stdout, stderr io.Writer) int {
 	fs, dir := flags("inbox", stderr)
 	if err := fs.Parse(args); err != nil {
@@ -208,36 +210,5 @@ func inbox(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "    - %s\n", a.Label)
 		}
 	}
-	return 0
-}
-
-// sendPong sends a Pong to a waiting Ping.
-func sendPong(args []string, stdout, stderr io.Writer) int {
-	fs, dir := flags("pong", stderr)
-	answer := fs.String("answer", "", "the chosen answer's label")
-	text := fs.String("text", "", "typed text")
-	var ticked stringsFlag
-	fs.Var(&ticked, "tick", "a ticked answer's label; repeat for several")
-	newSession := fs.Bool("new-session", false, "the Pong should start a new Session")
-	usage := "usage: pong pong PING-ID [-answer LABEL] [-tick LABEL]... [-text TEXT] [-new-session]"
-	pos, err := parse(fs, args, 1)
-	if err != nil {
-		return 2
-	}
-	if len(pos) == 0 {
-		fmt.Fprintln(stderr, usage)
-		return 2
-	}
-	id := pos[0]
-	c := connect(*dir, stderr)
-	if c == nil {
-		return 1
-	}
-	p, err := c.Pong(id, client.SendPong{Answer: *answer, Answers: ticked, Text: *text, NewSession: *newSession})
-	if err != nil {
-		fmt.Fprintln(stderr, "pong:", err)
-		return 1
-	}
-	fmt.Fprintf(stdout, "Pong sent to %s\n", p.ID)
 	return 0
 }

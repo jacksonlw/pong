@@ -306,3 +306,29 @@ func TestMCPThoughtPongCannotTakeSaysCarryOn(t *testing.T) {
 		})
 	}
 }
+
+// A Session reaches only its own Pings, and no agent asks to allow a tool call.
+func TestMCPActsOnlyOnTheCallersOwnPings(t *testing.T) {
+	transports(t, func(t *testing.T, c *client.Client, conn mcpConn) {
+		other, err := c.CreatePing(client.NewPing{Session: "s2", Question: "Deploy?", BlocksAgent: true, Answers: []engine.Answer{{Label: "Yes"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tool := range []string{"wait_for_pong", "withdraw_ping"} {
+			text, _, isErr := call(t, conn, tool, map[string]any{"ping_id": other.ID, "session": "s2"})
+			if !isErr || !strings.Contains(text, "another Session's") {
+				t.Fatalf("%s on another Session's Ping = %v %q", tool, isErr, text)
+			}
+		}
+		if p, _ := c.Ping(other.ID); p.State != engine.StateWaiting {
+			t.Fatalf("another Session's Ping is %s", p.State)
+		}
+		_, s, _ := call(t, conn, "send_ping", map[string]any{"question": "Push?", "blocks_agent": true, "session": "s2",
+			"call": map[string]any{"tool": "Bash", "input": map[string]string{"command": "git push"}, "allow": "Yes"}})
+		p, _ := c.Ping(s["ping_id"].(string))
+		if p.Call != nil || p.Session != "s1" {
+			t.Fatalf("an agent's Ping carries a call or names another Session: %+v", p)
+		}
+		call(t, conn, "withdraw_ping", map[string]any{"ping_id": p.ID})
+	})
+}

@@ -71,8 +71,10 @@ type Ping struct {
 	Answers      []Answer `json:"answers"`
 	AllowSeveral bool     `json:"allow_several,omitempty"`
 	Approves     string   `json:"approves,omitempty"`
-	Context      string   `json:"context,omitempty"`
-	Why          string   `json:"why,omitempty"`
+	// Call is the tool call an Allow to this Ping allows (allowed.go).
+	Call    *Call  `json:"call,omitempty"`
+	Context string `json:"context,omitempty"`
+	Why     string `json:"why,omitempty"`
 	// NotVerified is what the agent says it did not check in the finished
 	// work it hands over.
 	NotVerified string `json:"not_verified,omitempty"`
@@ -268,6 +270,9 @@ func newPings(db *sql.DB) (*pings, error) {
 		return nil, err
 	}
 	if err := indexPingEvents(db); err != nil {
+		return nil, err
+	}
+	if err := newAllowed(db); err != nil {
 		return nil, err
 	}
 	ps := &pings{db: db, waiters: map[string]chan struct{}{}, events: make(chan struct{}), closing: make(chan struct{}),
@@ -499,6 +504,9 @@ func (s *pings) end(id, state string, check func(Ping) error, pong *Pong) (Ping,
 	if err := s.save(p, kind, false); err != nil {
 		return p, err
 	}
+	if err := s.allowCall(p, pong); err != nil {
+		return p, err
+	}
 	if ch, ok := s.waiters[id]; ok {
 		close(ch)
 		delete(s.waiters, id)
@@ -699,5 +707,6 @@ func (s *pings) unsend(id string) (Ping, error) {
 	if err := s.save(p, EventPingState, false); err != nil {
 		return p, err
 	}
-	return p, nil
+	// A withdrawn Allow allows nothing.
+	return p, s.unallow(p.ID)
 }

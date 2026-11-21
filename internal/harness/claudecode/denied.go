@@ -1,13 +1,8 @@
 package claudecode
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/jacksonlw/pong/internal/client"
 	"github.com/jacksonlw/pong/internal/engine"
@@ -20,13 +15,16 @@ import (
 // verdict, which takes three hooks (checked on 2.1.322, testdata/README.md):
 //
 //  1. PermissionDenied fires with the refused call. It becomes a blocking
-//     Ping that approves the action. On Allow the hook notes the call as
-//     allowed and answers retry, which tells the agent it may send it again:
+//     Ping that approves the action and carries the call. The human's Allow
+//     makes the Engine note that call as allowed, for this Session, once
+//     (engine.Call): nothing but that Pong can. The hook then answers retry,
+//     which tells the agent it may send it again:
 //     {"hookSpecificOutput":{"hookEventName":"PermissionDenied","retry":true}}
-//  2. The call comes again. PreToolUse finds it noted and answers "ask",
-//     which sends it to the permission prompt instead of the classifier.
-//  3. PermissionRequest finds it noted and allows it (permission.go); the
-//     note is used up, so the Allow covers that one call.
+//  2. The call comes again. PreToolUse asks the Engine whether it is
+//     allowed and answers "ask", which sends it to the permission prompt
+//     instead of the classifier.
+//  3. PermissionRequest takes the Engine's allow and allows the call
+//     (permission.go); the allow is used up, so it covers that one call.
 //
 // Some calls never reach step 3: in the Claude app (2.1.326) auto mode
 // refused mcp__ccd_session__start_session and an Edit again after the "ask",
@@ -38,9 +36,6 @@ func init() {
 	on("PermissionDenied", askAfterRefusal)
 	on("PreToolUse", otherToolCall)
 }
-
-// allowedFor is how long an Allow waits for the agent to send the call again.
-const allowedFor = 10 * time.Minute
 
 // RetryInstruction is added to the standing instruction at Session start.
 // retry is all Claude Code reads from a PermissionDenied hook, and all it
@@ -62,7 +57,7 @@ func askAfterRefusal(c *client.Client, e Event) (any, error) {
 	if err := json.Unmarshal(e.Raw, &d); err != nil {
 		return nil, err
 	}
-	if refusedAgain(e) {
+	if refusedAgain(c, e) {
 		return nil, nil
 	}
 	n := permissionPing(e)
@@ -74,19 +69,13 @@ func askAfterRefusal(c *client.Client, e Event) (any, error) {
 		{Label: labelAllow, LeadsTo: "this call only"},
 		{Label: labelDeny, LeadsTo: "it stays refused"},
 	}
+	n.Call = &engine.Call{Tool: e.ToolName, Input: e.ToolInput, Allow: labelAllow}
 	pongs, err := ask(c, e, []engine.NewPing{n})
 	if err != nil {
 		return nil, err
 	}
 	if pongs[0].Answer != labelAllow {
 		return nil, nil
-	}
-	p := allowedCall(e)
-	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-		return nil, err
-	}
-	if err := os.WriteFile(p, nil, 0o600); err != nil {
-		return nil, err
 	}
 	var out permissionDenied
 	out.HookSpecificOutput.HookEventName = "PermissionDenied"
@@ -100,7 +89,7 @@ func askAfterRefusal(c *client.Client, e Event) (any, error) {
 // the Engine only when text is kept, so it costs any other call nothing.
 func otherToolCall(c *client.Client, e Event) (any, error) {
 	d := preToolUseDecision{HookEventName: "PreToolUse", AdditionalContext: markedText(c, e)}
-	if isAllowed(e) {
+	if allowed(c, e, "check") {
 		d.PermissionDecision, d.PermissionDecisionReason = "ask", "The human allowed this call in Pong."
 	}
 	if d.PermissionDecision == "" && d.AdditionalContext == "" {
@@ -109,47 +98,14 @@ func otherToolCall(c *client.Client, e Event) (any, error) {
 	return preToolUse{HookSpecificOutput: d}, nil
 }
 
-// allowedCall is where an Allow for e's tool call is noted: a file named for
-// the Session, the tool and its input. The agent rewrites a shell command's
-// description when it sends the command again, so that part is left out.
-func allowedCall(e Event) string { return callFile(e, "allowed-calls") }
-
-// stuckCall is where a call auto mode refused again after an Allow is noted.
-func stuckCall(e Event) string { return callFile(e, "refused-after-allow") }
-
-func callFile(e Event, folder string) string {
-	var in map[string]any
-	json.Unmarshal(e.ToolInput, &in)
-	if e.ToolName == "Bash" {
-		delete(in, "description")
-	}
-	b, _ := json.Marshal(in)
-	sum := sha256.Sum256([]byte(e.SessionID + "\x00" + e.ToolName + "\x00" + string(b)))
-	return filepath.Join(e.Dir, folder, hex.EncodeToString(sum[:]))
+// allowed asks the Engine about e's call: "check" whether the human allowed
+// it, "take" the allow, or say it was "refused" again (engine.CallQuery).
+// With no Engine nothing is allowed.
+func allowed(c *client.Client, e Event, do string) bool {
+	ok, err := c.AskAllowed(engine.CallQuery{Harness: HarnessName, Session: e.SessionID, Tool: e.ToolName, Input: e.ToolInput, Do: do})
+	return err == nil && ok
 }
 
 // refusedAgain reports whether auto mode has refused e's call after the
-// human allowed it, now or before; a new such refusal is noted.
-func refusedAgain(e Event) bool {
-	if _, err := os.Stat(stuckCall(e)); err == nil {
-		return true
-	}
-	if !useAllowed(e) {
-		return false
-	}
-	p := stuckCall(e)
-	if os.MkdirAll(filepath.Dir(p), 0o700) == nil {
-		os.WriteFile(p, nil, 0o600)
-	}
-	return true
-}
-
-func isAllowed(e Event) bool {
-	fi, err := os.Stat(allowedCall(e))
-	return err == nil && time.Since(fi.ModTime()) < allowedFor
-}
-
-// useAllowed reports whether e's call was allowed, and uses the Allow up.
-func useAllowed(e Event) bool {
-	return isAllowed(e) && os.Remove(allowedCall(e)) == nil
-}
+// human allowed it, now or before; the Engine notes a new such refusal.
+func refusedAgain(c *client.Client, e Event) bool { return allowed(c, e, "refused") }

@@ -54,7 +54,7 @@ type permissionDecision struct {
 
 func askPermission(c *client.Client, e Event) (any, error) {
 	// A call auto mode refused and the human then allowed in Pong (denied.go).
-	if useAllowed(e) {
+	if allowed(c, e, "take") {
 		var out permissionAnswer
 		out.HookSpecificOutput.HookEventName = "PermissionRequest"
 		out.HookSpecificOutput.Decision.Behavior = "allow"

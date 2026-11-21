@@ -98,7 +98,7 @@ var summarySchema = str("one or two lines on where this Session stands now: what
 
 var pingIDSchema = map[string]any{
 	"type":       "object",
-	"properties": map[string]any{"ping_id": str("the ping_id send_ping returned")},
+	"properties": map[string]any{"ping_id": str("the ping_id send_ping returned"), "session": whereProps["session"]},
 	"required":   []string{"ping_id"},
 }
 
@@ -215,6 +215,17 @@ const (
 	thoughtDropped = "Pong is not taking Thoughts here, so this one was dropped. Carry on."
 )
 
+// caller is the Session and Harness a tool call comes from. When the server
+// knows them (Codex names them in each call, or `pong mcp -session`), they
+// are those, whatever the agent wrote; otherwise they are what the call
+// carries, which Claude Code's hook writes into it (claudecode/tools.go).
+func (m MCP) caller(session, harness string) (string, string) {
+	if m.Session != "" {
+		return m.Session, m.Harness
+	}
+	return session, harness
+}
+
 // call runs the named tool; ok is false when there is no such tool.
 func (m MCP) call(name string, args json.RawMessage) (res toolResult, ok bool) {
 	if len(args) == 0 {
@@ -237,16 +248,12 @@ func (m MCP) call(name string, args json.RawMessage) (res toolResult, ok bool) {
 		}
 		n := in.NewPing
 		n.Captured = false // only Harness adapters capture Pings
+		n.Call = nil       // nor ask to allow a tool call
+		n.Session, n.Harness = m.caller(n.Session, n.Harness)
 		if name == ToolSendNote {
 			n = NewPing{Session: n.Session, Harness: n.Harness, Folder: n.Folder, Question: in.Text, Context: n.Context, Summary: n.Summary, MoreComing: n.MoreComing, IsNote: true, Resources: n.Resources, Tags: n.Tags}
 		} else {
 			n.IsNote = false
-		}
-		if n.Session == "" {
-			n.Session = m.Session
-		}
-		if n.Harness == "" {
-			n.Harness = m.Harness
 		}
 		if n.Folder == "" {
 			n.Folder = m.Folder
@@ -277,13 +284,8 @@ func (m MCP) call(name string, args json.RawMessage) (res toolResult, ok bool) {
 		if m.Quiet {
 			return textResult(false, map[string]string{"state": "dropped"}, thoughtDropped), true
 		}
-		n := NewPing{Thought: true, Session: in.Session, Harness: in.Harness, Folder: in.Folder, Question: in.Text, Summary: in.Summary}
-		if n.Session == "" {
-			n.Session = m.Session
-		}
-		if n.Harness == "" {
-			n.Harness = m.Harness
-		}
+		n := NewPing{Thought: true, Folder: in.Folder, Question: in.Text, Summary: in.Summary}
+		n.Session, n.Harness = m.caller(in.Session, in.Harness)
 		if n.Folder == "" {
 			n.Folder = m.Folder
 		}
@@ -297,10 +299,20 @@ func (m MCP) call(name string, args json.RawMessage) (res toolResult, ok bool) {
 		return textResult(false, map[string]string{"ping_id": p.ID, "state": p.State}, thoughtKept), true
 	case ToolWaitForPong, ToolWithdrawPing:
 		var in struct {
-			PingID string `json:"ping_id"`
+			PingID  string `json:"ping_id"`
+			Session string `json:"session"`
+			Harness string `json:"harness"`
 		}
 		if json.Unmarshal(args, &in); in.PingID == "" {
 			return textResult(true, nil, "ping_id is required: pass the ping_id send_ping returned"), true
+		}
+		// A Session acts only on its own Pings: it may not withdraw another's
+		// request for approval, nor read the human's answer to it.
+		if session, harness := m.caller(in.Session, in.Harness); session != "" {
+			// A Ping that cannot be read gets the tool's own answer below.
+			if p, err := m.Backend.Get(in.PingID); err == nil && (p.Session != session || harness != "" && p.Harness != "" && p.Harness != harness) {
+				return textResult(true, nil, "Ping %s is another Session's: pass a ping_id your own send_ping returned", in.PingID), true
+			}
 		}
 		if name == ToolWithdrawPing {
 			p, err := m.Backend.Withdraw(in.PingID)

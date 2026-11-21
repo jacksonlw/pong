@@ -29,7 +29,7 @@ func Run(args []string, stdout, stderr io.Writer) int { return run(args, stdout,
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		usage := "setup|status|remove|open|devices|projects|ping|inbox|pong|mcp"
+		usage := "setup|status|remove|open|devices|projects|ping|inbox|mcp"
 		for name := range extra {
 			usage += "|" + name
 		}
@@ -43,8 +43,6 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return ping(args[1:], stdout, stderr)
 	case "inbox":
 		return inbox(args[1:], stdout, stderr)
-	case "pong":
-		return sendPong(args[1:], stdout, stderr)
 	case "mcp":
 		return serveMCP(args[1:], os.Stdin, stdout, stderr)
 	case "hook":

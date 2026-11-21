@@ -58,6 +58,10 @@ func (f forward) CreatePing(n engine.NewPing) (engine.Ping, error) {
 	return f.with(func(c *client.Client) (engine.Ping, error) { return c.CreatePing(n) })
 }
 
+func (f forward) Get(id string) (engine.Ping, error) {
+	return f.with(func(c *client.Client) (engine.Ping, error) { return c.Ping(id) })
+}
+
 func (f forward) WaitOnce(id string) (engine.Ping, error) {
 	return f.with(func(c *client.Client) (engine.Ping, error) { return c.WaitOnce(id) })
 }

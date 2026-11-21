@@ -22,12 +22,14 @@ type NewPing struct {
 	Recommended  string   `json:"recommended,omitempty"`
 	AllowSeveral bool     `json:"allow_several,omitempty"`
 	Approves     string   `json:"approves,omitempty"`
-	Context      string   `json:"context,omitempty"`
-	Why          string   `json:"why,omitempty"`
-	NotVerified  string   `json:"not_verified,omitempty"` // on finished work: what the agent did not check
-	Summary      string   `json:"summary,omitempty"`      // where the Session stands now; becomes the Session's summary
-	MoreComing   bool     `json:"more_coming,omitempty"`
-	BlocksAgent  bool     `json:"blocks_agent,omitempty"`
+	// Call is set by a Harness adapter only (allowed.go).
+	Call        *Call  `json:"call,omitempty"`
+	Context     string `json:"context,omitempty"`
+	Why         string `json:"why,omitempty"`
+	NotVerified string `json:"not_verified,omitempty"` // on finished work: what the agent did not check
+	Summary     string `json:"summary,omitempty"`      // where the Session stands now; becomes the Session's summary
+	MoreComing  bool   `json:"more_coming,omitempty"`
+	BlocksAgent bool   `json:"blocks_agent,omitempty"`
 	// Finished marks a Ping handing over finished work: it gets the Finished
 	// mark and offers NothingMore. Pong never infers it.
 	Finished bool `json:"finished,omitempty"`
@@ -196,7 +198,7 @@ func (n NewPing) ping() Ping {
 			Summary: strings.TrimSpace(n.Summary), IsNote: true, Thought: true}
 	}
 	p := Ping{Session: n.Session, Harness: n.Harness, Folder: n.Folder, Question: n.Question, AllowSeveral: n.AllowSeveral,
-		Approves: n.Approves, Context: n.Context, Why: n.Why, NotVerified: strings.TrimSpace(n.NotVerified), Summary: strings.TrimSpace(n.Summary), MoreComing: n.MoreComing,
+		Approves: n.Approves, Call: n.Call, Context: n.Context, Why: n.Why, NotVerified: strings.TrimSpace(n.NotVerified), Summary: strings.TrimSpace(n.Summary), MoreComing: n.MoreComing,
 		BlocksAgent: n.BlocksAgent, Finished: n.Finished, IsNote: n.IsNote, Tags: n.Tags}
 	if n.Captured {
 		p.Tags = goodTags(n.Tags)

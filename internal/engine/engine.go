@@ -186,6 +186,7 @@ func Start(cfg Config) (*Engine, error) {
 	}
 	mux := routes()
 	ps.routes(mux, hold)
+	ps.allowedRoutes(mux)
 	ps.mountMCP(mux, hold)
 
 	pr.routes(mux)

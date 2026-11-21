@@ -187,3 +187,12 @@ func (c *Client) Draft(id string, draft any) (engine.Ping, error) {
 
 // WithdrawPong takes back a Pong not yet delivered; the Ping waits again.
 func (c *Client) WithdrawPong(id string) (engine.Ping, error) { return c.end(id, "withdraw-pong") }
+
+// AskAllowed asks the Engine about a tool call the human may have allowed in
+// a Pong: q.Do is "check", "take" or "refused" (engine.CallQuery).
+func (c *Client) AskAllowed(q engine.CallQuery) (bool, error) {
+	var out struct {
+		Allowed bool `json:"allowed"`
+	}
+	return out.Allowed, c.do(c.HTTP, "POST", "/allowed", q, &out)
+}

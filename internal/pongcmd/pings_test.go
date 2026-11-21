@@ -48,9 +48,8 @@ func TestPingBlocksUntilPongThenPrintsIt(t *testing.T) {
 	case <-time.After(2 * enginetest.WaitHold):
 	}
 
-	var pongOut bytes.Buffer
-	if code := run([]string{"pong", p.ID, "-dir", dir, "-answer", "After review", "-text", "ask Sam"}, &pongOut, &pongOut); code != 0 {
-		t.Fatalf("pong exit %d: %s", code, pongOut.String())
+	if _, err := c.Pong(p.ID, client.SendPong{Answer: "After review", Text: "ask Sam"}); err != nil { // the human, in Pong's app
+		t.Fatal(err)
 	}
 	select {
 	case code := <-done:
@@ -70,18 +69,19 @@ func TestPingBlocksUntilPongThenPrintsIt(t *testing.T) {
 	}
 }
 
-func TestPongToUnknownAnswerFails(t *testing.T) {
+// No command answers a Ping: that is the human's, in Pong's apps.
+func TestNoCommandAnswersAPing(t *testing.T) {
 	c, dir := enginetest.Start(t)
 	p, err := c.CreatePing(client.NewPing{Finished: true, Session: "s1", Question: "Go?", Answers: []engine.Answer{{Label: "Yes"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if code := run([]string{"pong", p.ID, "-dir", dir, "-answer", "No"}, &out, &out); code != 1 {
-		t.Fatalf("exit %d, want 1: %s", code, out.String())
+	if code := run([]string{"pong", p.ID, "-dir", dir, "-answer", "Yes"}, &out, &out); code == 0 {
+		t.Fatalf("pong exit 0: %s", out.String())
 	}
-	if !strings.Contains(out.String(), "not one of this Ping's answers") {
-		t.Fatalf("output = %q", out.String())
+	if got, _ := c.Ping(p.ID); got.State != engine.StateWaiting {
+		t.Fatalf("the Ping is %s", got.State)
 	}
 }
 
@@ -114,25 +114,5 @@ func TestPingHandedBackExitsThree(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("ping did not return")
-	}
-}
-
-// Flags go before or after the Ping's id; a stray word is refused, not ignored.
-func TestPongTakesFlagsEitherSideOfTheID(t *testing.T) {
-	c, dir := enginetest.Start(t)
-	p, err := c.CreatePing(client.NewPing{Finished: true, Session: "s1", Question: "Go?", Answers: []engine.Answer{{Label: "Yes"}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var out bytes.Buffer
-	if code := run([]string{"pong", p.ID, "-dir", dir, "-answer", "Run", "it"}, &out, &out); code != 2 {
-		t.Fatalf("stray word: exit %d: %s", code, out.String())
-	}
-	out.Reset()
-	if code := run([]string{"pong", "-dir", dir, "-answer", "Yes", p.ID, "-text", "now"}, &out, &out); code != 0 {
-		t.Fatalf("exit %d: %s", code, out.String())
-	}
-	if got, _ := c.Ping(p.ID); got.Pong == nil || got.Pong.Answer != "Yes" || got.Pong.Text != "now" {
-		t.Fatalf("Pong %+v", got.Pong)
 	}
 }

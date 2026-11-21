@@ -21,6 +21,7 @@ import (
 type MCPBackend interface {
 	CreatePing(NewPing) (Ping, error)
 	WaitOnce(id string) (Ping, error) // returns after a short wait
+	Get(id string) (Ping, error)
 	Withdraw(id string) (Ping, error)
 }
 
@@ -204,6 +205,8 @@ func (b engineBackend) CreatePing(n NewPing) (Ping, error) {
 	}
 	return b.s.createWithResources(n)
 }
+
+func (b engineBackend) Get(id string) (Ping, error) { return b.s.getAny(id) }
 
 func (b engineBackend) WaitOnce(id string) (Ping, error) {
 	return fixIt(b.s.wait(id, b.hold, b.done, false))

@@ -256,6 +256,9 @@ func (s *pings) sweep(retention time.Duration) error {
 		}
 		s.removeResources(p.Resources)
 	}
+	if err := s.sweepAllowed(); err != nil {
+		return err
+	}
 	now := time.Now().UTC()
 	if _, err := s.db.Exec(`DELETE FROM events WHERE kind IN (?,?,?) AND at < ?`,
 		EventSessionChanged, EventProjectChanged, EventSettingsChanged, now.Add(-stateEventRetention).Format(time.RFC3339Nano)); err != nil {
