@@ -13,7 +13,7 @@ struct ThreadRows: View {
 
     var body: some View {
         if threads.isEmpty {
-            Text("No Threads yet. A Thread appears once a Session starts or sends a Ping.")
+            Text("No Threads yet.")
                 .brandStyle(.secondary)
                 .foregroundStyle(Brand.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -35,17 +35,12 @@ struct ThreadRows: View {
     }
 }
 
-/// One Thread row. Once the pointer has rested on it a moment, its details open beside it.
+/// One Thread row. Hovering it only highlights it: nothing opens beside it.
 private struct ThreadRowView: View {
     var thread: ThreadRow
     /// Its Thread is open in a panel beside the card.
     var isOpen = false
     var openThread: (SessionThread.SessionRef) -> Void
-    @State private var resting = false
-    @State private var showsDetails = false
-
-    /// How long the pointer rests on a row before its details open, so passing over rows opens none.
-    static let rest: Duration = .milliseconds(450)
 
     var body: some View {
         let t = thread
@@ -66,50 +61,11 @@ private struct ThreadRowView: View {
             .background(isOpen ? (hover ? Brand.selectedHover : Brand.selected) : hover ? Brand.row : .clear, in: Rectangle())
             .contentShape(Rectangle())
         }
-        .background(HoverTracker { resting = $0 })
-        .task(id: resting) {
-            guard resting else { showsDetails = false; return }
-            try? await Task.sleep(for: Self.rest)
-            if !Task.isCancelled, resting { showsDetails = true }
-        }
-        .popover(isPresented: Binding(get: { showsDetails && hasDetails }, set: { if !$0 { showsDetails = false } }),
-                 arrowEdge: .trailing) {
-            if let d = t.details { ThreadDetailsView(details: d).presentationBackground(Brand.surface) }
-        }
         .accessibilityLabel([t.title, t.project?.name, t.status.label].compactMap { $0 }.joined(separator: ", "))
         .accessibilityValue(t.details?.summary ?? "")
         .accessibilityValue(isOpen ? "Open" : "")
         .accessibilityHint("Opens the Thread")
     }
-
-    private var hasDetails: Bool { !(thread.details?.sections(now: Date()).isEmpty ?? true) }
-}
-
-/// A Thread's details: the agent's latest summary, when the Session started and how long it has
-/// run, and how full its context is. The times count up each second.
-struct ThreadDetailsView: View {
-    var details: ThreadDetails
-    /// Fixed in snapshots; otherwise the current time, every second while it counts.
-    var now: Date? = nil
-    @Environment(\.calendar) private var calendar
-    @Environment(\.locale) private var locale
-
-    static let width: CGFloat = 300
-
-    var body: some View {
-        Group {
-            if let now { list(now) } else if details.counts {
-                TimelineView(.periodic(from: .now, by: 1)) { list($0.date) }
-            } else { list(Date()) }
-        }
-        .monospacedDigit() // the counting times keep their width as they tick
-        .padding(14)
-        .frame(width: Self.width, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
-        .background(Brand.surface)
-    }
-
-    private func list(_ at: Date) -> some View { ContextSectionList(sections: details.sections(now: at, calendar: calendar, locale: locale)) }
 }
 
 extension ThreadStatus {

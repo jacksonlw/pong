@@ -85,7 +85,7 @@ struct ContextSectionList: View {
     static func inline(_ s: String) -> AttributedString {
         let a = (try? AttributedString(markdown: s, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
             ?? AttributedString(s)
-        return styled(a)
+        return styled(Autolink.apply(a))
     }
 
     private func hardText(_ t: String) -> some View {

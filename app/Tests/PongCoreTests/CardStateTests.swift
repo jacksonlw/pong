@@ -7,7 +7,7 @@ struct CardStateTests {
                        allowSeveral: true, state: .waiting)
 
     @Test func tickedAnswersAndTypedTextGoAsOnePong() {
-        let c = CardState()
+        let c = CardState(drafts: Drafts(file: nil))
         c.toggle("B", on: several); c.toggle("A", on: several)
         c.setDraft("and C", for: several)
         #expect(c.pong(for: several) == Ping.Pong(answers: ["A", "B"], text: "and C"))
@@ -16,20 +16,20 @@ struct CardStateTests {
     }
 
     @Test func nothingTickedOrTypedSendsNothing() {
-        let c = CardState()
+        let c = CardState(drafts: Drafts(file: nil))
         c.setDraft("   ", for: several)
         #expect(c.pong(for: several) == nil)
     }
 
     @Test func draftsStayOnTheirCard() {
-        let c = CardState()
+        let c = CardState(drafts: Drafts(file: nil))
         c.setDraft("first", for: several)
         #expect(c.draft(for: several) == "first")
         #expect(c.draft(for: Ping(id: "other", session: "s", question: "?", state: .waiting)) == "")
     }
 
     @Test func outcomes() {
-        let c = CardState()
+        let c = CardState(drafts: Drafts(file: nil))
         var p = several
         #expect(c.outcome(of: p) == nil)
         c.sent(Ping.Pong(answer: "A"), for: p)

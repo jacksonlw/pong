@@ -75,7 +75,7 @@ public enum MarkdownReader {
     static func inline(_ m: Markup) -> AttributedString {
         var out = AttributedString()
         append(m.children, to: &out, intent: [], link: nil)
-        return out
+        return Autolink.apply(out)
     }
 
     static func append(_ children: MarkupChildren, to out: inout AttributedString, intent: InlinePresentationIntent, link: URL?) {

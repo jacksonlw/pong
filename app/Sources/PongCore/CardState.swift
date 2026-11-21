@@ -3,18 +3,19 @@ import Observation
 
 /// What the human has done on each card that the feed does not yet hold: typed text, ticked
 /// answers, and the Pong they sent, so the card can say where it stands. Kept per Ping, so
-/// text typed on one card stays there when the human moves to another.
+/// text typed on one card stays there when the human moves to another. Typed text is kept in
+/// `Drafts`, on disk, and goes only once the Pong carrying it is taken (`Inbox.send`).
 @MainActor @Observable
 public final class CardState {
-    private var drafts: [String: String] = [:]
+    private let drafts: Drafts
     private var ticked: [String: [String]] = [:]
     private var mine: [String: Ping.Pong] = [:]
     private var refusals: [String: String] = [:]
 
-    public init() {}
+    public init(drafts: Drafts? = nil) { self.drafts = drafts ?? .shared }
 
-    public func draft(for ping: Ping) -> String { drafts[ping.id] ?? "" }
-    public func setDraft(_ text: String, for ping: Ping) { drafts[ping.id] = text }
+    public func draft(for ping: Ping) -> String { drafts.text(.ping(ping.id)) }
+    public func setDraft(_ text: String, for ping: Ping) { drafts.set(text, .ping(ping.id)) }
 
     public func isTicked(_ label: String, on ping: Ping) -> Bool { ticked[ping.id]?.contains(label) == true }
 
@@ -35,11 +36,11 @@ public final class CardState {
         return Ping.Pong(answers: answers.isEmpty ? nil : answers, text: text.isEmpty ? nil : text, newSession: newSession)
     }
 
-    /// The human sent this Pong; the card's text and ticks are cleared.
+    /// The human sent this Pong; the card's ticks are cleared. Its text stays until the Pong is
+    /// taken, so a refused one keeps it.
     public func sent(_ pong: Ping.Pong, for ping: Ping) {
         mine[ping.id] = pong
         refusals[ping.id] = nil
-        drafts[ping.id] = nil
         ticked[ping.id] = nil
     }
 

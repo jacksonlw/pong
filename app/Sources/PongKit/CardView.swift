@@ -108,6 +108,8 @@ public struct CardView: View {
         self.writing = writing
         self.stage = stage
         self.actions = actions
+        // What was typed here before the card closed, the app quit or the human moved on.
+        _draft = State(initialValue: ListText.bulleted(Drafts.shared.text(.ping(ping.id))))
     }
 
     /// A card as it stands with text typed and the caret's choices open or not, for tests.
@@ -199,6 +201,7 @@ public struct CardView: View {
             if new == .takenOver {
                 if several { ticked.formUnion(fill.choices) }
                 draft = fill.text
+                actions.draft(ListText.markdown(fill.text))
             }
         }
     }
@@ -482,8 +485,14 @@ public struct CardView: View {
             HStack(alignment: .bottom, spacing: 8) {
                 ReplyField(text: shownDraft, placeholder: placeholder, enabled: canReply, typing: $typing) { sendReply() }
                     // A draft written on another Device shows here while nobody types here.
-                    .onChange(of: ping.draft?.text, initial: true) { _, theirs in
-                        if let theirs, !typing, ListText.bulleted(theirs) != draft { draft = ListText.bulleted(theirs) }
+                    .onChange(of: ping.draft?.text, initial: true) { before, theirs in
+                        guard let theirs, !typing, ListText.bulleted(theirs) != draft else { return }
+                        // On opening, the draft kept on this Device wins: the shared one may be
+                        // older than what was typed here.
+                        if before == theirs, !draft.isEmpty { return }
+                        draft = ListText.bulleted(theirs)
+                        // A draft kept here is replaced too, so it cannot win over the newer one later.
+                        if !Drafts.shared.text(.ping(ping.id)).isEmpty { Drafts.shared.set(theirs, .ping(ping.id)) }
                     }
                     .onKeyPress(.escape) {
                         guard choosing else { return .ignored }

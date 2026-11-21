@@ -280,11 +280,6 @@ final class BarTests: XCTestCase {
         XCTAssertTrue(a?.details?.working == true)
     }
 
-    func testAThreadsDetailsLook() throws {
-        try assertSnapshot(ThreadDetailsView(details: details(), now: Self.now).environment(\.locale, Self.usEnglish)
-            .environment(\.calendar, Self.utc), named: "thread-details")
-    }
-
     // MARK: Moving it
 
     /// What a press at a point lands on, from the top-left of the view, in a window as the app has it.

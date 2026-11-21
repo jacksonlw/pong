@@ -26,6 +26,8 @@ public final class Inbox {
     public private(set) var hidden = false
     /// Ids of every waiting Ping seen so far, to tell a new Ping from one already waiting.
     @ObservationIgnored private var seenWaiting: Set<String> = []
+    /// The human's unsent replies, kept on disk until what they hold is sent and taken.
+    @ObservationIgnored public var drafts = Drafts.shared
 
     public init(pings: [Ping] = []) {
         apply(pings)
@@ -91,7 +93,9 @@ public final class Inbox {
     /// refusal is kept for the card to show.
     public func send(_ pong: Ping.Pong, for ping: Ping) {
         refusals[ping.id] = nil
-        act(refused: { [weak self] in self?.refusals[ping.id] = $0 }) { try await $0.pong(ping.id, pong) }
+        // The draft goes only once the Pong is taken: refused or unsent, it stays on the card.
+        act(refused: { [weak self] in self?.refusals[ping.id] = $0 },
+            taken: { [weak self] in self?.drafts.sent(.ping(ping.id)) }) { try await $0.pong(ping.id, pong) }
     }
 
     public func handBack(_ ping: Ping) {
@@ -104,8 +108,10 @@ public final class Inbox {
 
     @ObservationIgnored private var drafting: [String: Task<Void, Never>] = [:]
 
-    /// Shares what the human is typing for a Ping, a moment after they pause.
+    /// Keeps what the human is typing for a Ping on this Device at once, and shares it a moment
+    /// after they pause.
     public func draft(_ text: String, for ping: Ping) {
+        drafts.set(text, .ping(ping.id))
         guard let client else { return }
         drafting[ping.id]?.cancel()
         drafting[ping.id] = Task {
@@ -132,7 +138,7 @@ public final class Inbox {
         act { try await $0.leave(ping.id) }
     }
 
-    private func act(refused: ((String) -> Void)? = nil, _ call: @escaping @Sendable (any PingFeed) async throws -> Void) {
+    private func act(refused: ((String) -> Void)? = nil, taken: (() -> Void)? = nil, _ call: @escaping @Sendable (any PingFeed) async throws -> Void) {
         guard let client else { return }
         browsing = false
         let unreachable = client.unreachable
@@ -144,6 +150,7 @@ public final class Inbox {
                 refused?((error as? FeedRefusal)?.message ?? unreachable)
                 return
             }
+            taken?()
             do { try await refresh() } catch { lastError = "\(error)" }
         }
     }

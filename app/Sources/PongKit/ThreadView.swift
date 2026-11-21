@@ -302,16 +302,25 @@ public struct ThreadReply: View {
     var refusal: String?
     /// Sends the text; true when it went, and the box then empties.
     var send: (String) async -> Bool
+    /// Where what is written is kept until it is sent, so closing the Thread or quitting loses none.
+    var key: Drafts.Key?
     @State private var draft: String
     @FocusState private var typing: Bool
 
-    public init(target: ThreadReplyTarget, sending: Bool = false, refusal: String? = nil, draft: String = "",
-                send: @escaping (String) async -> Bool = { _ in false }) {
+    public init(target: ThreadReplyTarget, session: SessionThread.SessionRef? = nil, sending: Bool = false,
+                refusal: String? = nil, draft: String? = nil, send: @escaping (String) async -> Bool = { _ in false }) {
         self.target = target
         self.sending = sending
         self.refusal = refusal
         self.send = send
-        _draft = State(initialValue: draft)
+        let key = session.map(Drafts.Key.session)
+        self.key = key
+        _draft = State(initialValue: draft ?? ListText.bulleted(key.map(Drafts.shared.text) ?? ""))
+    }
+
+    private func keep(_ text: String) {
+        draft = text
+        if let key { Drafts.shared.set(ListText.markdown(text), key) }
     }
 
     private var enabled: Bool {
@@ -336,13 +345,14 @@ public struct ThreadReply: View {
 
     private func submit() {
         guard canSend, let typed else { return }
-        Task { if await send(typed) { draft = "" } }
+        // The draft goes only once it is sent; refused, it stays in the box.
+        Task { if await send(typed) { keep("") } }
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .bottom, spacing: 8) {
-                ReplyField(text: Binding(get: { draft }, set: { draft = ListText.bulleted($0) }),
+                ReplyField(text: Binding(get: { draft }, set: { keep(ListText.bulleted($0)) }),
                            placeholder: placeholder, enabled: enabled, typing: $typing, send: submit)
                 SendGroup(canSend: canSend, canOpen: false, typed: false, send: submit)
             }

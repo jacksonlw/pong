@@ -60,7 +60,8 @@ public struct ThreadPage: View {
                 }
             }
             if let t = model.thread {
-                ThreadReply(target: t.replyTarget, sending: model.sending, refusal: model.refusal) { await model.send($0) }
+                ThreadReply(target: t.replyTarget, session: t.session.ref, sending: model.sending, refusal: model.refusal) { await model.send($0) }
+                    .id(t.session.ref) // each Session's Thread shows its own draft
                     // Its own surface, floating clear of the Thread scrolling under it.
                     .brandShadow()
                     .padding(.top, ThreadScroll.replyGap)

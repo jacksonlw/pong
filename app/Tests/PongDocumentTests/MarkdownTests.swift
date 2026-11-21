@@ -41,6 +41,18 @@ final class MarkdownTests: XCTestCase {
         XCTAssertEqual(p[p.range(of: "a link")!].runs.first?.link, URL(string: "https://example.com"))
     }
 
+    /// A web address written bare, as in a setup guide's steps, is a link; one in code and a name
+    /// without its scheme stay as they are.
+    func testBareAddressIsALink() throws {
+        let src = "- Open https://developer.apple.com/account/resources/certificates/add, then `https://not.a/link` and example.com."
+        guard case let .list(_, items) = MarkdownReader.blocks(src).first,
+              case let .paragraph(p) = items.first?.blocks.first else { return XCTFail() }
+        let url = "https://developer.apple.com/account/resources/certificates/add"
+        XCTAssertEqual(p[p.range(of: url)!].runs.first?.link, URL(string: url))
+        XCTAssertEqual(p.runs.filter { $0.link != nil }.count, 1)
+        XCTAssertEqual(plain(p), "Open \(url), then https://not.a/link and example.com.")
+    }
+
     /// Nested lists keep their nesting, ordered lists their start, and task items their box.
     func testLists() throws {
         let src = """
