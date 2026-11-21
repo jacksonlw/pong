@@ -9,6 +9,10 @@ This repository is the part of Pong that runs on your own computers: the Engine,
 On a Mac with Homebrew:
 
 ```bash
+brew tap jacksonlw/pong https://github.com/jacksonlw/pong
+```
+
+```bash
 brew install --cask jacksonlw/pong/pong
 ```
 
