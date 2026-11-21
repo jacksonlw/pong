@@ -11,15 +11,16 @@ import (
 	"github.com/jacksonlw/pong/internal/engine"
 )
 
-// devicesCmd is `pong devices [pair|approve]`.
+// devicesCmd is `pong devices [pair|confirm|approve|revoke]`.
 func devicesCmd(args []string, stdout, stderr io.Writer) int {
 	sub := ""
-	if len(args) > 0 && (args[0] == "pair" || args[0] == "approve" || args[0] == "revoke") {
+	if len(args) > 0 && (args[0] == "pair" || args[0] == "confirm" || args[0] == "approve" || args[0] == "revoke") {
 		sub, args = args[0], args[1:]
 	}
 	fs, dir := flags("devices", stderr)
 	to := fs.String("to", "", "pair: the address (host:port) of a computer in the set, when it is not found on the network")
-	wait := fs.Duration("wait", 5*time.Minute, "pair: how long to wait for the approval")
+	wait := fs.Duration("wait", 5*time.Minute, "confirm: how long to wait for the approval")
+	differ := fs.Bool("differ", false, "confirm: the other computer shows another code, or none")
 	pos, err := parse(fs, args, 1)
 	if err != nil {
 		return 2
@@ -31,7 +32,9 @@ func devicesCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	switch sub {
 	case "pair":
-		return pairCmd(c, *to, *wait, stdout, stderr)
+		return pairCmd(c, *to, stdout, stderr)
+	case "confirm":
+		return confirmCmd(c, *differ, *wait, stdout, stderr)
 	case "approve":
 		return approveCmd(c, pos, stdout, stderr)
 	case "revoke":
@@ -115,7 +118,7 @@ func platformName(p string) string {
 	return p
 }
 
-func pairCmd(c *client.Client, to string, wait time.Duration, stdout, stderr io.Writer) int {
+func pairCmd(c *client.Client, to string, stdout, stderr io.Writer) int {
 	if to == "" {
 		found, err := c.FoundDevices()
 		if err != nil {
@@ -147,14 +150,46 @@ func pairCmd(c *client.Client, to string, wait time.Duration, stdout, stderr io.
 		fmt.Fprintln(stderr, "pong:", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "Asked %s to add this computer. Check that it shows the code %s, then approve it there.\n", p.Target.Name, p.Code)
+	if len(p.Offers) != 1 {
+		fmt.Fprintln(stderr, "pong: the computer asked gave no code")
+		return 1
+	}
+	target, code := p.Offers[0].Device.Name, p.Offers[0].Code
+	fmt.Fprintf(stdout, "Asked %s to add this computer. This computer shows the code %s.\n", target, code)
+	fmt.Fprintf(stdout, "If %s shows the same code, approve it there, then run here: pong devices confirm\n", target)
+	fmt.Fprintf(stdout, "If it shows another code, or none, do not approve it there, and run here: pong devices confirm -differ\n")
+	return 0
+}
+
+// confirmCmd is the human's word, on the computer that asked to join, on
+// whether the computer asked shows the same code. It joins only after a match.
+func confirmCmd(c *client.Client, differ bool, wait time.Duration, stdout, stderr io.Writer) int {
+	s, err := c.Devices()
+	if err != nil {
+		fmt.Fprintln(stderr, "pong:", err)
+		return 1
+	}
+	if s.Pairing == nil || len(s.Pairing.Offers) == 0 {
+		fmt.Fprintln(stdout, "This computer is not asking to join a set. Run pong devices pair first.")
+		return 1
+	}
+	target := s.Pairing.Offers[0].Device.Name
+	if differ {
+		c.ConfirmPairing(false)
+		fmt.Fprintln(stdout, "Stopped: this computer joins no set. Another computer may have answered in place of "+target+": do not approve the request there.")
+		return 1
+	}
+	if _, err := c.ConfirmPairing(true); err != nil {
+		fmt.Fprintln(stderr, "pong:", err)
+		return 1
+	}
 	for deadline := time.Now().Add(wait); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
 		s, err := c.Devices()
 		if err != nil {
 			continue
 		}
 		if s.Pairing == nil {
-			fmt.Fprintln(stdout, "The connection to "+p.Target.Name+" was lost before it approved this computer. Run pong devices pair again.")
+			fmt.Fprintln(stdout, "The connection to "+target+" was lost before it approved this computer. Run pong devices pair again.")
 			return 1
 		}
 		if s.Pairing.Joined {
@@ -163,7 +198,7 @@ func pairCmd(c *client.Client, to string, wait time.Duration, stdout, stderr io.
 			return 0
 		}
 	}
-	fmt.Fprintln(stdout, "No approval came. Run pong devices pair again when you are at "+p.Target.Name+".")
+	fmt.Fprintln(stdout, "No approval came. Run pong devices pair again when you are at "+target+".")
 	return 1
 }
 

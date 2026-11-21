@@ -24,6 +24,7 @@ const maxFrame = 3 << 20
 type frame struct {
 	Device   *wire.DeviceInfo  `json:"device,omitempty"`
 	Join     *wire.JoinRequest `json:"join,omitempty"`
+	Pair     *wire.PairStep    `json:"pair,omitempty"`
 	Envelope *wire.Envelope    `json:"envelope,omitempty"`
 }
 
@@ -35,13 +36,13 @@ func decodeFrame(b []byte) (frame, error) {
 		return f, err
 	}
 	set := 0
-	for _, p := range []bool{f.Device != nil, f.Join != nil, f.Envelope != nil} {
+	for _, p := range []bool{f.Device != nil, f.Join != nil, f.Pair != nil, f.Envelope != nil} {
 		if p {
 			set++
 		}
 	}
 	if set != 1 {
-		return f, errors.New("a frame carries exactly one of device, join or envelope")
+		return f, errors.New("a frame carries exactly one of device, join, pair or envelope")
 	}
 	return f, nil
 }
@@ -141,6 +142,8 @@ func (n *Node) serve(c *conn) {
 				return
 			}
 			n.onJoin(c, *f.Join)
+		case f.Pair != nil:
+			n.onPairStep(c, *f.Pair)
 		case f.Envelope != nil:
 			n.onEnvelope(c, f.Envelope)
 		}
@@ -270,8 +273,9 @@ func (n *Node) dropConn(c *conn) {
 	}
 }
 
-// onJoin keeps a join request until a human approves it. Nothing is sent
-// back meanwhile.
+// onJoin keeps a join request until a human approves it. The Device that
+// asks is sent this Device's commit, the first step toward the code both
+// show; nothing of the set is sent meanwhile.
 func (n *Node) onJoin(c *conn, j wire.JoinRequest) {
 	d, err := j.Device()
 	if err != nil {
@@ -285,13 +289,90 @@ func (n *Node) onJoin(c *conn, j wire.JoinRequest) {
 	_, member := n.members[d.ID]
 	_, already := n.waiting[d.ID] // a replay on another connection does not take it over
 	added := !member && !already && d.ID != n.ID() && len(n.waiting) < maxWaiting
+	var commit wire.PairStep
 	if added {
-		n.waiting[d.ID] = &asking{req: j, info: d, c: c, at: now}
+		a := &asking{req: j, info: d, c: c, at: now}
+		a.answer, commit = wire.NewPairAnswer(n.members[n.ID()], d)
+		n.waiting[d.ID] = a
 	}
 	n.mu.Unlock()
 	if added {
+		n.sendPairStep(c, commit)
+	}
+}
+
+// sendPairStep sends a step on the connection it belongs to, or through the
+// carrier that brought the request.
+func (n *Node) sendPairStep(c *conn, s wire.PairStep) {
+	switch {
+	case c != nil:
+		c.send(frame{Pair: &s})
+	case n.carrier != nil:
+		n.carrier.PairStep(s)
+	}
+}
+
+// onPairStep takes one step of the exchange that makes a pairing code. As
+// the Device asked, it takes the nonce of a Device that asks, by the way its
+// request came. As the Device asking, it takes the commit and then the
+// reveal of the computer it dialled.
+func (n *Node) onPairStep(c *conn, s wire.PairStep) {
+	n.mu.Lock()
+	var out *wire.PairStep
+	changed := false
+	switch p := n.pairing; {
+	case s.Nonce != nil:
+		if a := n.waiting[s.From]; a != nil && a.c == c {
+			if reveal, ok := a.answer.Take(s); ok {
+				out, changed = &reveal, true
+			}
+		}
+	case p == nil || c == nil || p.c != c:
+	case s.Commit != nil:
+		// Only the first commit counts: one sent after this Device's value
+		// is out could be chosen to reach a code.
+		if d := s.Device; p.ask == nil && d != nil && d.ID == p.target.ID && bytes.Equal(d.SignKey, p.target.SignKey) {
+			if ask, nonce, err := wire.NewPairAsk(n.keys, s); err == nil {
+				p.ask, out = ask, &nonce
+			}
+		}
+	case s.Reveal != nil:
+		changed = p.ask != nil && p.ask.Take(s)
+	}
+	n.mu.Unlock()
+	if out != nil {
+		n.sendPairStep(c, *out)
+	}
+	if changed {
 		n.notify()
 	}
+}
+
+// Confirm takes the human's word, on this Device that asks to join, on
+// whether the computer asked shows the same code. Only then is that
+// computer's set taken; a mismatch ends the request.
+func (n *Node) Confirm(match bool) {
+	n.mu.Lock()
+	p := n.pairing
+	if p == nil || p.c == nil || p.joined || p.code() == "" {
+		n.mu.Unlock()
+		return
+	}
+	if !match {
+		n.pairing = nil
+		n.mu.Unlock()
+		p.c.close()
+		n.notify()
+		return
+	}
+	p.confirmed = true
+	held := p.held
+	p.held = nil
+	n.mu.Unlock()
+	if held != nil {
+		n.onEnvelope(p.c, held)
+	}
+	n.notify()
 }
 
 // joinFresh is how far a join request's time may be from this clock, and
@@ -312,6 +393,13 @@ func (n *Node) onEnvelope(c *conn, e *wire.Envelope) bool {
 	var target wire.DeviceInfo
 	if pairingHere {
 		target = p.target
+		if e.From == target.ID && !p.confirmed {
+			// The set may approve before the human here said the codes match:
+			// its chain waits for that.
+			p.held = e
+			n.mu.Unlock()
+			return false
+		}
 	}
 	set := n.members
 	n.mu.Unlock()
@@ -512,7 +600,8 @@ func (n *Node) Find() []Found {
 var ErrInASet = errors.New("this computer is already in a set with other Devices; remove it from that set first")
 
 // Pair asks the computer at addr to admit this Device and returns the code
-// both show. The set changes when a human approves it there.
+// both show, once the two have made it. The set changes when a human
+// approves it there and says here that the codes match (Confirm).
 func (n *Node) Pair(addr string) (code string, target wire.DeviceInfo, err error) {
 	n.mu.Lock()
 	alone := len(n.members) == 1
@@ -550,7 +639,8 @@ func (n *Node) Pair(addr string) (code string, target wire.DeviceInfo, err error
 	if n.pairing != nil && n.pairing.c != nil {
 		n.pairing.c.close()
 	}
-	n.pairing = &pairing{c: c, target: *f.Device, code: j.Code()}
+	p := &pairing{c: c, target: *f.Device}
+	n.pairing = p
 	n.dialing[addr] = true
 	c.addr = addr
 	n.mu.Unlock()
@@ -559,7 +649,19 @@ func (n *Node) Pair(addr string) (code string, target wire.DeviceInfo, err error
 		c.close()
 		return "", target, err
 	}
-	return j.Code(), *f.Device, nil
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		n.mu.Lock()
+		code, current := p.code(), n.pairing == p
+		n.mu.Unlock()
+		if code != "" {
+			return code, *f.Device, nil
+		}
+		if !current {
+			break
+		}
+	}
+	c.close()
+	return "", target, fmt.Errorf("%s did not answer the request to join: it may run an older Pong", f.Device.Name)
 }
 
 // ErrNotWaiting is returned when approving a Device that is not asking.
@@ -573,6 +675,10 @@ func (n *Node) Approve(id string) error {
 	if !ok {
 		n.mu.Unlock()
 		return ErrNotWaiting
+	}
+	if a.answer.Code() == "" {
+		n.mu.Unlock()
+		return ErrNotWaiting // no code to check yet
 	}
 	if len(a.req.Set) > 0 && !bytes.Equal(a.req.Set, n.chain[0].Hash()) {
 		n.mu.Unlock()
@@ -710,13 +816,3 @@ func (n *Node) Leave() (int, error) {
 // ErrOtherSet is returned when approving a request made for another set: the
 // relay showed the new Device a set that is not this one.
 var ErrOtherSet = errors.New("this Device asked to join a set that is not yours: Pong's server may have shown it another set; do not approve it")
-
-// askingCode is the code to show for a request: through the relay, computed
-// with this Device's own genesis, so a request made for another set shows a
-// code that differs from the new Device's.
-func (n *Node) askingCode(j wire.JoinRequest) string {
-	if len(j.Set) > 0 && len(n.chain) > 0 {
-		j.Set = n.chain[0].Hash()
-	}
-	return j.Code()
-}

@@ -264,11 +264,72 @@ func TestTheCarrierSeesNoContent(t *testing.T) {
 	}
 }
 
-func TestPairingCodeIsSixDigits(t *testing.T) {
-	d := newDev(t, "x", "mac")
-	code := wire.PairingCode(d.k.Public())
-	if len(code) != 6 || strings.Trim(code, "0123456789") != "" {
-		t.Fatalf("code %q", code)
+// pairUp runs the exchange between asking and answering and returns each side.
+func pairUp(t *testing.T, asking, answering dev) (*wire.PairAsk, *wire.PairAnswer, wire.PairStep) {
+	t.Helper()
+	answer, commit := wire.NewPairAnswer(answering.info, asking.info)
+	ask, nonce, err := wire.NewPairAsk(asking.k, commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reveal, ok := answer.Take(nonce)
+	if !ok || !ask.Take(reveal) {
+		t.Fatal("the exchange did not finish")
+	}
+	return ask, answer, nonce
+}
+
+func TestBothDevicesShowTheSameSixDigitCodeAndItDiffersEachTime(t *testing.T) {
+	a, b := newDev(t, "New", "mac"), newDev(t, "Desk", "mac")
+	ask, answer, _ := pairUp(t, a, b)
+	code := ask.Code()
+	if code != answer.Code() || len(code) != 6 || strings.Trim(code, "0123456789") != "" {
+		t.Fatalf("codes %q and %q", code, answer.Code())
+	}
+	same := 0
+	for range 20 {
+		if again, _, _ := pairUp(t, a, b); again.Code() == code {
+			same++
+		}
+	}
+	if same > 2 {
+		t.Fatalf("the same keys gave the same code %d times of 20: it must come from fresh values", same)
+	}
+}
+
+// Neither side can pick its value once it knows the other's: the answering
+// Device is held to its commit, and takes one nonce only.
+func TestNeitherSideOfAPairingCanChooseTheCode(t *testing.T) {
+	a, b := newDev(t, "New", "mac"), newDev(t, "Desk", "mac")
+	answer, commit := wire.NewPairAnswer(b.info, a.info)
+	ask, nonce, err := wire.NewPairAsk(a.k, commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reveal, _ := answer.Take(nonce)
+	other := append([]byte{}, reveal.Reveal...)
+	other[0] ^= 1
+	if ask.Take(wire.PairStep{From: b.info.ID, To: a.info.ID, Reveal: other}) || ask.Code() != "" {
+		t.Fatal("a value other than the committed one was taken")
+	}
+	second := nonce
+	second.Nonce = append([]byte{}, nonce.Nonce...)
+	second.Nonce[0] ^= 1
+	if _, ok := answer.Take(second); ok {
+		t.Fatal("a second nonce was taken once the answering value was out")
+	}
+	// A Device in the middle that answers under its own keys shows another code.
+	m := newDev(t, "Middle", "mac")
+	toNew, _, _ := pairUp(t, a, m)
+	_, toDesk, _ := pairUp(t, m, b)
+	if toNew.Code() == toDesk.Code() {
+		t.Log("one in a million: the two codes happened to match")
+	}
+	// A commit that names another Device than the one it is from is refused.
+	forged := commit
+	forged.Device = &m.info
+	if _, _, err := wire.NewPairAsk(a.k, forged); err == nil {
+		t.Fatal("a commit whose Device is not its sender was taken")
 	}
 }
 

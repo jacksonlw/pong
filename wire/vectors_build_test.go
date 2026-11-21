@@ -3,6 +3,7 @@ package wire
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"maps"
 	"slices"
 	"time"
@@ -19,7 +20,6 @@ type VectorDevice struct {
 	SealPublic  []byte `json:"seal_public"`
 	SignPublic  []byte `json:"sign_public"`
 	ID          string `json:"id"`
-	PairingCode string `json:"pairing_code"`
 }
 
 // Vectors are the shared test vectors (testdata/vectors/wire.json).
@@ -32,13 +32,24 @@ type Vectors struct {
 	InvalidChains []InvalidChain   `json:"invalid_chains"`
 	Envelopes     []VectorEnvelope `json:"envelopes"`
 	Join          VectorJoin       `json:"join"`
+	Pairing       VectorPairing    `json:"pairing"`
 }
 
-// VectorJoin is a join request with the identifier and code it yields.
+// VectorJoin is a join request with the identifier it yields.
 type VectorJoin struct {
 	Request JoinRequest `json:"request"`
 	ID      string      `json:"id"`
-	Code    string      `json:"code"`
+}
+
+// VectorPairing is the exchange that follows the join request: Laptop
+// answers Stranger, each with a fixed value, and both show Code.
+type VectorPairing struct {
+	AskValue    []byte   `json:"ask_value"`
+	AnswerValue []byte   `json:"answer_value"`
+	Commit      PairStep `json:"commit"`
+	Nonce       PairStep `json:"nonce"`
+	Reveal      PairStep `json:"reveal"`
+	Code        string   `json:"code"`
 }
 
 // InvalidChain is a chain every Device must refuse.
@@ -84,7 +95,7 @@ func BuildVectors() (*Vectors, error) {
 		info[d.name] = infoFor(k, d.name, d.platform, d.engine)
 		sp, ss := k.seeds()
 		p := k.Public()
-		v.Devices = append(v.Devices, VectorDevice{d.name, d.platform, d.engine, sp, ss, p.Seal, p.Sign, k.ID(), PairingCode(p)})
+		v.Devices = append(v.Devices, VectorDevice{d.name, d.platform, d.engine, sp, ss, p.Seal, p.Sign, k.ID()})
 	}
 	t0 := int64(1795000000000)
 	c := NewChain(keys["Laptop"], "Laptop", PlatformMac, true, t0)
@@ -164,7 +175,23 @@ func BuildVectors() (*Vectors, error) {
 		v.Envelopes = append(v.Envelopes, d)
 	}
 	j := NewJoinRequest(keys["Stranger"], "Stranger", PlatformMac, true, t0+20000)
-	v.Join = VectorJoin{Request: j, ID: keys["Stranger"].ID(), Code: j.Code()}
+	v.Join = VectorJoin{Request: j, ID: keys["Stranger"].ID()}
+	asking, err := j.Device()
+	if err != nil {
+		return nil, err
+	}
+	pv := VectorPairing{AskValue: vectorSeed("ask value"), AnswerValue: vectorSeed("answer value")}
+	answer, commit := newPairAnswer(info["Laptop"], asking, pv.AnswerValue)
+	ask, nonce, err := newPairAsk(keys["Stranger"], commit, pv.AskValue)
+	if err != nil {
+		return nil, err
+	}
+	reveal, ok := answer.Take(nonce)
+	if !ok || !ask.Take(reveal) || ask.Code() != answer.Code() {
+		return nil, errors.New("the pairing vector's two sides disagree")
+	}
+	pv.Commit, pv.Nonce, pv.Reveal, pv.Code = commit, nonce, reveal, ask.Code()
+	v.Pairing = pv
 	return v, nil
 }
 

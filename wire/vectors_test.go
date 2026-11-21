@@ -59,8 +59,8 @@ func TestVectorsCheck(t *testing.T) {
 			t.Fatal(err)
 		}
 		p := k.Public()
-		if !bytes.Equal(p.Seal, d.SealPublic) || !bytes.Equal(p.Sign, d.SignPublic) || DeviceID(d.SignPublic) != d.ID || PairingCode(p) != d.PairingCode {
-			t.Errorf("device %s: keys, identifier or pairing code differ", d.Name)
+		if !bytes.Equal(p.Seal, d.SealPublic) || !bytes.Equal(p.Sign, d.SignPublic) || DeviceID(d.SignPublic) != d.ID {
+			t.Errorf("device %s: keys or identifier differ", d.Name)
 		}
 		keys[d.Name] = k
 	}
@@ -110,7 +110,7 @@ func TestVectorJoin(t *testing.T) {
 	var v Vectors
 	json.Unmarshal(b, &v)
 	d, err := v.Join.Request.Device()
-	if err != nil || d.ID != v.Join.ID || v.Join.Request.Code() != v.Join.Code {
+	if err != nil || d.ID != v.Join.ID {
 		t.Fatalf("join vector: %v %+v", err, d)
 	}
 	bad := v.Join.Request

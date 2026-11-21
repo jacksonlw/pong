@@ -29,13 +29,21 @@ type Asking struct {
 	AskedAt  time.Time `json:"asked_at"`
 }
 
+// Offer is one Device that answered this Device's request to join, with the
+// code the two made together. That Device shows the same code.
+type Offer struct {
+	Device Device `json:"device"`
+	Code   string `json:"code"`
+}
+
 // Pairing is this Device's own request to join, while it lasts.
 type Pairing struct {
-	Code   string `json:"code"`
-	Target Device `json:"target"`
-	Joined bool   `json:"joined"`
-	// Confirm is set while asking through a carrier: the human must say on
-	// this Device that the code matches before it joins.
+	// Offers are the Devices that answered: one on Local, and through a
+	// carrier every Device of the set that is there to answer.
+	Offers []Offer `json:"offers"`
+	Joined bool    `json:"joined"`
+	// Confirm is set until the human said on this Device that the code of
+	// one offer matches. It joins no set before that.
 	Confirm bool `json:"confirm,omitempty"`
 }
 
@@ -68,11 +76,16 @@ func (n *Node) Set() Set {
 		return s.Devices[i].Name < s.Devices[j].Name
 	})
 	for id, a := range n.waiting {
-		s.Waiting = append(s.Waiting, Asking{ID: id, Name: a.info.Name, Platform: a.info.Platform, Code: n.askingCode(a.req), AskedAt: a.at})
+		if code := a.answer.Code(); code != "" { // nothing to check or approve before there is a code
+			s.Waiting = append(s.Waiting, Asking{ID: id, Name: a.info.Name, Platform: a.info.Platform, Code: code, AskedAt: a.at})
+		}
 	}
 	sort.Slice(s.Waiting, func(i, j int) bool { return s.Waiting[i].AskedAt.Before(s.Waiting[j].AskedAt) })
 	if p := n.pairing; p != nil {
-		s.Pairing = &Pairing{Code: p.code, Joined: p.joined, Target: deviceOf(p.target)}
+		s.Pairing = &Pairing{Offers: []Offer{}, Joined: p.joined, Confirm: !p.confirmed}
+		if code := p.code(); code != "" {
+			s.Pairing.Offers = append(s.Pairing.Offers, Offer{Device: deviceOf(p.target), Code: code})
+		}
 	}
 	if n.carrier != nil {
 		n.carrier.Status(&s) // the Node's lock is held: it must not call back
@@ -111,8 +124,16 @@ func (n *Node) Routes(mux *http.ServeMux) {
 		case err != nil:
 			writeError(w, http.StatusBadGateway, err.Error())
 		default:
-			writeJSON(w, http.StatusOK, Pairing{Code: code, Target: deviceOf(target)})
+			writeJSON(w, http.StatusOK, Pairing{Offers: []Offer{{Device: deviceOf(target), Code: code}}, Confirm: true})
 		}
+	})
+	mux.HandleFunc("POST /devices/pair/confirm", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Match bool `json:"match"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		n.Confirm(body.Match)
+		writeJSON(w, http.StatusOK, n.Set())
 	})
 	if n.carrier != nil {
 		n.carrier.Routes(mux)

@@ -71,12 +71,12 @@ func TestTheApprovalShowsTheAskingDeviceAndTheSameCode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.Code) != 6 || p.Target.Name != "Laptop" {
+	if len(p.Offers) != 1 || len(p.Offers[0].Code) != 6 || p.Offers[0].Device.Name != "Laptop" || !p.Confirm {
 		t.Fatalf("pairing %+v", p)
 	}
 	enginetest.Eventually(t, "the request to show", func() bool {
 		s, _ := a.C.Devices()
-		return len(s.Waiting) == 1 && s.Waiting[0].Name == "Box" && s.Waiting[0].Platform == "linux" && s.Waiting[0].Code == p.Code
+		return len(s.Waiting) == 1 && s.Waiting[0].Name == "Box" && s.Waiting[0].Platform == "linux" && s.Waiting[0].Code == p.Offers[0].Code
 	})
 }
 
@@ -102,6 +102,9 @@ func TestADeviceThatAsksWithoutApprovalReceivesNothing(t *testing.T) {
 		var s string
 		if websocket.Message.Receive(ws, &s) != nil {
 			break
+		}
+		if strings.HasPrefix(s, `{"pair"`) {
+			continue // the laptop's commit toward the code, which says nothing of the set
 		}
 		if !strings.HasPrefix(s, `{"device"`) {
 			t.Fatalf("an unapproved Device received %s", s)
@@ -260,6 +263,7 @@ func TestAReplayedJoinRequestDoesNotTakeOverTheWaitingOne(t *testing.T) {
 	asker := dialWire(t, a.NetAddr, "http://"+a.NetAddr)
 	defer asker.Close()
 	websocket.Message.Send(asker, frame)
+	makeCode(t, asker, k)
 	enginetest.Eventually(t, "Box to ask", func() bool { s, _ := a.C.Devices(); return len(s.Waiting) == 1 })
 	// An eavesdropper replays the same request from its own connection.
 	thief := dialWire(t, a.NetAddr, "http://"+a.NetAddr)
@@ -309,7 +313,11 @@ func phoneOf(t *testing.T, a *enginetest.Computer) (*wire.Keys, *websocket.Conn,
 	k, _ := wire.NewKeys()
 	ws, laptop := greeted(t, a.NetAddr)
 	websocket.Message.Send(ws, joinFrame(t, wire.NewJoinRequest(k, "Phone", "ios", false, time.Now().UnixMilli())))
-	enginetest.Eventually(t, "the phone to ask", func() bool { s, _ := a.C.Devices(); return len(s.Waiting) == 1 })
+	code := makeCode(t, ws, k)
+	enginetest.Eventually(t, "the phone to ask", func() bool {
+		s, _ := a.C.Devices()
+		return len(s.Waiting) == 1 && s.Waiting[0].Code == code
+	})
 	if _, err := a.C.ApproveDevice(k.ID()); err != nil {
 		t.Fatal(err)
 	}
@@ -317,6 +325,103 @@ func phoneOf(t *testing.T, a *enginetest.Computer) (*wire.Keys, *websocket.Conn,
 		t.Fatal("the phone was not sent the chain that admits it")
 	}
 	return k, ws, laptop
+}
+
+// makeCode plays the asking Device's part of the exchange after its join
+// request went out on ws: it answers the commit with a nonce, takes the
+// reveal, and returns the code.
+func makeCode(t *testing.T, ws *websocket.Conn, k *wire.Keys) string {
+	t.Helper()
+	ws.SetReadDeadline(time.Now().Add(3 * time.Second))
+	defer ws.SetReadDeadline(time.Time{})
+	var ask *wire.PairAsk
+	for {
+		var s string
+		if err := websocket.Message.Receive(ws, &s); err != nil {
+			t.Fatalf("no code was made: %v", err)
+		}
+		var f struct{ Pair *wire.PairStep }
+		if json.Unmarshal([]byte(s), &f) != nil || f.Pair == nil {
+			continue
+		}
+		if ask == nil {
+			a, nonce, err := wire.NewPairAsk(k, *f.Pair)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ask = a
+			b, _ := json.Marshal(map[string]any{"pair": nonce})
+			websocket.Message.Send(ws, string(b))
+			continue
+		}
+		if !ask.Take(*f.Pair) {
+			t.Fatal("the reveal is not what was committed to")
+		}
+		return ask.Code()
+	}
+}
+
+// A Device that asks to join gets a code only by giving its own value, and
+// no second value changes the code once the computer's is out.
+func TestTheCodeIsFixedOnceBothValuesAreOut(t *testing.T) {
+	a := enginetest.StartComputer(t, &enginetest.Book{}, "Laptop")
+	k, _ := wire.NewKeys()
+	ws, laptop := greeted(t, a.NetAddr)
+	websocket.Message.Send(ws, joinFrame(t, wire.NewJoinRequest(k, "Box", "linux", true, time.Now().UnixMilli())))
+	time.Sleep(200 * time.Millisecond)
+	if s, _ := a.C.Devices(); len(s.Waiting) != 0 {
+		t.Fatalf("a request with no code yet is shown: %+v", s.Waiting)
+	}
+	if _, err := a.C.ApproveDevice(k.ID()); err == nil {
+		t.Fatal("a request with no code yet was approved")
+	}
+	code := makeCode(t, ws, k)
+	again := make([]byte, 32)
+	b, _ := json.Marshal(map[string]any{"pair": wire.PairStep{From: k.ID(), To: laptop.ID, Nonce: again}})
+	websocket.Message.Send(ws, string(b))
+	time.Sleep(200 * time.Millisecond)
+	if s, _ := a.C.Devices(); len(s.Waiting) != 1 || s.Waiting[0].Code != code {
+		t.Fatalf("the code changed after a second nonce: %+v, want %s", s.Waiting, code)
+	}
+}
+
+// A computer that asks to join takes no set before its human said the codes
+// match, even when the set approves first; a mismatch ends the request.
+func TestAComputerJoinsOnlyAfterItsHumanSaysTheCodesMatch(t *testing.T) {
+	book := &enginetest.Book{}
+	a := enginetest.StartComputer(t, book, "Laptop")
+	b := enginetest.StartComputer(t, book, "Box")
+	p, err := b.C.Pair(a.NetAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id string
+	enginetest.Eventually(t, "Box to ask", func() bool {
+		s, _ := a.C.Devices()
+		if len(s.Waiting) == 1 && s.Waiting[0].Code == p.Offers[0].Code {
+			id = s.Waiting[0].ID
+		}
+		return id != ""
+	})
+	if _, err := a.C.ApproveDevice(id); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if s, _ := b.C.Devices(); len(s.Devices) != 1 || s.Pairing == nil || s.Pairing.Joined || !s.Pairing.Confirm {
+		t.Fatalf("Box took the set before its human confirmed: %+v", s)
+	}
+	if _, err := b.C.ConfirmPairing(true); err != nil {
+		t.Fatal(err)
+	}
+	enginetest.Eventually(t, "Box to join", func() bool { s, _ := b.C.Devices(); return len(s.Devices) == 2 })
+
+	c := enginetest.StartComputer(t, book, "Desk")
+	if _, err := c.C.Pair(a.NetAddr); err != nil {
+		t.Fatal(err)
+	}
+	if s, err := c.C.ConfirmPairing(false); err != nil || s.Pairing != nil {
+		t.Fatalf("after a mismatch the request still stands: %+v %v", s.Pairing, err)
+	}
 }
 
 // greeted connects to the listener at addr and returns the Device it greets as.

@@ -161,7 +161,7 @@ func setup(args []string, stdout, stderr io.Writer) int {
 	if c != nil && noScreen(c) {
 		// A computer with no interface answers nothing itself: its Pings
 		// reach a Device that has one once the two are paired.
-		left = append(left, "pair this computer with a Device that shows Pong's card: run pong devices pair, check the code on that Device and approve it there, then run pong setup again")
+		left = append(left, "pair this computer with a Device that shows Pong's card: run pong devices pair, check that the Device shows the same code, approve it there and run pong devices confirm here, then run pong setup again")
 		c = nil
 	}
 	if c != nil {

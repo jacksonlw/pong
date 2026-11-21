@@ -96,11 +96,22 @@ public enum MarkdownReader {
             case let e as Emphasis: append(e.children, to: &out, intent: intent.union(.emphasized), link: link)
             case let s as Strong: append(s.children, to: &out, intent: intent.union(.stronglyEmphasized), link: link)
             case let s as Strikethrough: append(s.children, to: &out, intent: intent.union(.strikethrough), link: link)
-            case let l as Link: append(l.children, to: &out, intent: intent, link: l.destination.flatMap(URL.init(string:)) ?? link)
+            case let l as Link: append(l.children, to: &out, intent: intent, link: destination(l.destination) ?? link)
             // An image in a document is shown as its words, linked to the picture.
-            case let i as Image: append(i.children, to: &out, intent: intent, link: i.source.flatMap(URL.init(string:)) ?? link)
+            case let i as Image: append(i.children, to: &out, intent: intent, link: destination(i.source) ?? link)
             default: append(child.children, to: &out, intent: intent, link: link)
             }
+        }
+    }
+
+    /// Where a link in a document may lead: a web address, or a place with no scheme. A click
+    /// on a link in text goes straight to the system, so a document's author must not get to
+    /// name a file, a script or another app; such a link is shown as its words alone.
+    static func destination(_ s: String?) -> URL? {
+        guard let url = s.flatMap(URL.init(string:)) else { return nil }
+        switch url.scheme?.lowercased() {
+        case nil, "http", "https": return url
+        default: return nil
         }
     }
 }

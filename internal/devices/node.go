@@ -79,17 +79,30 @@ type Node struct {
 type Handler func(from string, m wire.Message)
 
 type asking struct {
-	req  wire.JoinRequest
-	info wire.DeviceInfo
-	c    *conn
-	at   time.Time
+	req    wire.JoinRequest
+	info   wire.DeviceInfo
+	c      *conn
+	at     time.Time
+	answer *wire.PairAnswer // this Device's side of the code; it has one once the Device gave its value
 }
 
+// pairing is this Device's own request to join the set of target. Nothing of
+// that set is taken before the human said here that the codes match: a chain
+// that comes sooner is held.
 type pairing struct {
-	c      *conn
-	target wire.DeviceInfo
-	code   string
-	joined bool
+	c         *conn
+	target    wire.DeviceInfo
+	ask       *wire.PairAsk // nil until target committed to its value
+	confirmed bool
+	held      *wire.Envelope
+	joined    bool
+}
+
+func (p *pairing) code() string {
+	if p.ask == nil {
+		return ""
+	}
+	return p.ask.Code()
 }
 
 // Start loads or creates this Device's keys and chain, starts the network

@@ -21,6 +21,9 @@ type Carrier interface {
 	Reachable(id string) bool
 	// Send seals m to a Device and hands it on, reporting whether it went.
 	Send(to wire.DeviceInfo, m wire.Message) bool
+	// PairStep hands on a step of the pairing code's exchange to the Device
+	// it is for, and reports whether it went.
+	PairStep(s wire.PairStep) bool
 	// ChainChanged is told the chain after it changed.
 	ChainChanged(c wire.Chain)
 	// Leave hands on this Device's revoke of itself and returns how many
@@ -122,6 +125,10 @@ func (n *Node) Deliver(e *wire.Envelope) bool { return n.onEnvelope(nil, e) }
 
 // Asked takes a join request the carrier brought.
 func (n *Node) Asked(j wire.JoinRequest) { n.onJoin(nil, j) }
+
+// Stepped takes a step of the pairing code's exchange the carrier brought,
+// from a Device that asks to join.
+func (n *Node) Stepped(s wire.PairStep) { n.onPairStep(nil, s) }
 
 // Notify tells everything that waits on it that the set changed.
 func (n *Node) Notify() { n.notify() }

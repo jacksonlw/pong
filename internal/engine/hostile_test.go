@@ -135,13 +135,14 @@ func TestAHostilePeerOnTheNetworkChangesNothing(t *testing.T) {
 	enginetest.Eventually(t, "the request", func() bool {
 		s, _ := desk.C.Devices()
 		for _, w := range s.Waiting {
-			if w.Code == pr.Code {
+			if w.Code == pr.Offers[0].Code {
 				id = w.ID
 			}
 		}
 		return id != ""
 	})
 	desk.C.ApproveDevice(id)
+	laptop.C.ConfirmPairing(true)
 	enginetest.Eventually(t, "the laptop to join", func() bool { s, _ := laptop.C.Devices(); return s.Pairing != nil && s.Pairing.Joined })
 	p := exchange(t, desk, laptop)
 	noSecrets(t, "stand-in peer", peer.AllRecorded())

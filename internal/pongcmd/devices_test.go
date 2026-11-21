@@ -17,8 +17,9 @@ func TestPairingFromTheCommandLine(t *testing.T) {
 	box := enginetest.StartComputer(t, book, "Box")
 
 	var pairOut bytes.Buffer
-	done := make(chan int)
-	go func() { done <- run([]string{"devices", "pair", "-dir", box.Dir}, &pairOut, &pairOut) }()
+	if c := run([]string{"devices", "pair", "-dir", box.Dir}, &pairOut, &pairOut); c != 0 {
+		t.Fatalf("pair exited %d: %s", c, pairOut.String())
+	}
 
 	var list bytes.Buffer
 	var id string
@@ -38,11 +39,16 @@ func TestPairingFromTheCommandLine(t *testing.T) {
 	if c := run([]string{"devices", "approve", "-dir", laptop.Dir, id}, &out, &out); c != 0 {
 		t.Fatalf("approve exited %d: %s", c, out.String())
 	}
-	if c := <-done; c != 0 {
-		t.Fatalf("pair exited %d: %s", c, pairOut.String())
-	}
 	if !strings.Contains(pairOut.String(), "shows the code "+code) {
 		t.Errorf("the two computers showed different codes:\n%s\n%s", pairOut.String(), list.String())
+	}
+	// Box joins only once its human says there that the codes match.
+	if s, _ := box.C.Devices(); len(s.Devices) != 1 {
+		t.Fatalf("Box joined before its human confirmed: %+v", s.Devices)
+	}
+	out.Reset()
+	if c := run([]string{"devices", "confirm", "-dir", box.Dir}, &out, &out); c != 0 || !strings.Contains(out.String(), "now in your set") {
+		t.Fatalf("confirm exited %d: %s", c, out.String())
 	}
 	enginetest.Eventually(t, "both to list each other", func() bool {
 		out.Reset()

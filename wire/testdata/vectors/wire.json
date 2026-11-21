@@ -9,8 +9,7 @@
       "sign_seed": "ITKSTmJ3etbNoMHs1sCWfFQZ8Pd6HA3pM5sBHkzHryA=",
       "seal_public": "CKeqhXJ2MNUoXPqBrNIJIIUHiLGmpyYSNWd+CGOJbWc=",
       "sign_public": "VYuAwYZH2GqQzCIxc6ZCbG7kNYWlmB48ggpN1lXG1M8=",
-      "id": "2a3d90d34daa27c2ce62e3406486610e",
-      "pairing_code": "373488"
+      "id": "2a3d90d34daa27c2ce62e3406486610e"
     },
     {
       "name": "Box",
@@ -20,8 +19,7 @@
       "sign_seed": "sSkYDeKqjAv6Ttrcmju2Z/gEf0n1CCuwFLOrRQNjrTg=",
       "seal_public": "UXLfw9Vq03UGrbVm35WDYO3V2otrwNEZ47aWFnXwu1k=",
       "sign_public": "j3oaSx+JcvOImT+T8cbA3aD89vDyQ1mxOHyhAn+F7nw=",
-      "id": "da19b5ef8e807b015e9aa22b10731965",
-      "pairing_code": "216194"
+      "id": "da19b5ef8e807b015e9aa22b10731965"
     },
     {
       "name": "Phone",
@@ -31,8 +29,7 @@
       "sign_seed": "mycz5qPwZVn78hHPKtk/ApwlZxXnVN5plbubTZDNx4k=",
       "seal_public": "duvMrKb0xbiHDU0VFD2Wau6ouLmrYG9roObBjhAvR3c=",
       "sign_public": "I9f/4hP7BjjQGoFcFBM1Q+YTxA6lvtUCNhlel97p64U=",
-      "id": "bf657fa5932f92eede45c055d57a1f11",
-      "pairing_code": "047338"
+      "id": "bf657fa5932f92eede45c055d57a1f11"
     },
     {
       "name": "Stranger",
@@ -42,8 +39,7 @@
       "sign_seed": "3eav/L9mWDqDy75mesPSnwN0Ctk7JkQfS7xEscC2bYs=",
       "seal_public": "pLPcAAEBYGqH6q/n1x+lYEFnrTT4hVn1L5MoYeNzbk0=",
       "sign_public": "xXdx1swm3L7X1ifDp2gdm8x+1AVjz/UwN+NHeXC3QPM=",
-      "id": "f390e1679e8d46cb8461f920e6051fca",
-      "pairing_code": "073643"
+      "id": "f390e1679e8d46cb8461f920e6051fca"
     }
   ],
   "chain": [
@@ -503,7 +499,34 @@
       "time": 1795000020000,
       "sig": "9TeUrz4mQUkYE9YDKCWBhYIuFkU7m5l7Neg/1+6Pz6SbMeCA1Plv97+QYBseaFiKYJ6RnwTBjAN7EK+vnmGKCA=="
     },
-    "id": "f390e1679e8d46cb8461f920e6051fca",
-    "code": "073643"
+    "id": "f390e1679e8d46cb8461f920e6051fca"
+  },
+  "pairing": {
+    "ask_value": "4OZLJ3bHzSbuZofpHZwnZLNIrkzE8KagWXjpDfv5r6s=",
+    "answer_value": "mZPNMPPSc2Hsaw2VkqTsneIVJ3KSqeKPJPkGNlrf1Yk=",
+    "commit": {
+      "from": "2a3d90d34daa27c2ce62e3406486610e",
+      "to": "f390e1679e8d46cb8461f920e6051fca",
+      "device": {
+        "id": "2a3d90d34daa27c2ce62e3406486610e",
+        "name": "Laptop",
+        "platform": "mac",
+        "seal_key": "CKeqhXJ2MNUoXPqBrNIJIIUHiLGmpyYSNWd+CGOJbWc=",
+        "sign_key": "VYuAwYZH2GqQzCIxc6ZCbG7kNYWlmB48ggpN1lXG1M8=",
+        "engine": true
+      },
+      "commit": "i6nNY9XdK2uWsx/fVLrsfqk7F9dchuNodzCwdsjJrvw="
+    },
+    "nonce": {
+      "from": "f390e1679e8d46cb8461f920e6051fca",
+      "to": "2a3d90d34daa27c2ce62e3406486610e",
+      "nonce": "4OZLJ3bHzSbuZofpHZwnZLNIrkzE8KagWXjpDfv5r6s="
+    },
+    "reveal": {
+      "from": "2a3d90d34daa27c2ce62e3406486610e",
+      "to": "f390e1679e8d46cb8461f920e6051fca",
+      "reveal": "mZPNMPPSc2Hsaw2VkqTsneIVJ3KSqeKPJPkGNlrf1Yk="
+    },
+    "code": "423267"
   }
 }

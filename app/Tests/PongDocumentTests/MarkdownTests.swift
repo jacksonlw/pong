@@ -41,6 +41,18 @@ final class MarkdownTests: XCTestCase {
         XCTAssertEqual(p[p.range(of: "a link")!].runs.first?.link, URL(string: "https://example.com"))
     }
 
+    /// A click on a link in text goes straight to the system, so a document may link only to the
+    /// web: a link or picture that names a file, a script or another app is shown as its words.
+    func testOnlyWebLinksAreLinks() throws {
+        let src = "[web](https://example.com) [file](file:///tmp/x.command) [share](smb://host/share) [app](shortcuts://run-shortcut?name=x) [js](javascript:alert(1)) ![pic](file:///etc/passwd) [page](01.md)"
+        guard case let .paragraph(p) = MarkdownReader.blocks(src).first else { return XCTFail() }
+        XCTAssertEqual(plain(p), "web file share app js pic page")
+        func link(_ word: String) -> URL? { p[p.range(of: word)!].runs.first?.link }
+        XCTAssertEqual(link("web"), URL(string: "https://example.com"))
+        XCTAssertEqual(link("page"), URL(string: "01.md"))
+        for word in ["file", "share", "app", "js", "pic"] { XCTAssertNil(link(word), word) }
+    }
+
     /// A web address written bare, as in a setup guide's steps, is a link; one in code and a name
     /// without its scheme stay as they are.
     func testBareAddressIsALink() throws {

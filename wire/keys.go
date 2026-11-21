@@ -72,24 +72,6 @@ func DeviceID(signPub []byte) string {
 	return hex.EncodeToString(h[:16])
 }
 
-// PairingCode is the six-digit code both Devices show while one asks to
-// join: the SHA-256 of "pong-pair-v1\x00" || seal key || sign key, its first
-// four bytes as a big-endian integer, modulo one million, zero-padded.
-func PairingCode(p Public) string {
-	h := sha256.New()
-	h.Write([]byte("pong-pair-v1\x00"))
-	h.Write(p.Seal)
-	h.Write(p.Sign)
-	s := h.Sum(nil)
-	n := (uint32(s[0])<<24 | uint32(s[1])<<16 | uint32(s[2])<<8 | uint32(s[3])) % 1000000
-	b := []byte("000000")
-	for i := 5; i >= 0; i-- {
-		b[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(b)
-}
-
 // JoinRequest is what a new Device sends to ask to join a set, signed by its
 // new signing key. It is the only thing besides an envelope a network
 // listener accepts.
@@ -101,8 +83,8 @@ type JoinRequest struct {
 	SignKey  []byte `json:"sign_key"`
 	Time     int64  `json:"time"` // Unix milliseconds
 	// Set, when asking through the relay, is the hash of the genesis record
-	// of the set the new Device fetched from the relay: it goes into the
-	// code both Devices show, so a set the relay made up shows another code.
+	// of the set the new Device fetched from the relay: a Device of another
+	// set does not approve the request.
 	Set []byte `json:"set,omitempty"`
 	Sig []byte `json:"sig"`
 }
@@ -146,12 +128,4 @@ func (j *JoinRequest) Device() (DeviceInfo, error) {
 		return DeviceInfo{}, errors.New("wire: join request has an unknown platform")
 	}
 	return DeviceInfo{ID: DeviceID(j.SignKey), Name: j.Name, Platform: j.Platform, SealKey: j.SealKey, SignKey: j.SignKey, Engine: j.Engine}, nil
-}
-
-// Code is the six-digit code shown on both Devices for this request.
-func (j *JoinRequest) Code() string {
-	if len(j.Set) > 0 {
-		return PairingCode(Public{Seal: j.SealKey, Sign: append(append([]byte{}, j.SignKey...), j.Set...)})
-	}
-	return PairingCode(Public{Seal: j.SealKey, Sign: j.SignKey})
 }

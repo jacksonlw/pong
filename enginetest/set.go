@@ -103,14 +103,14 @@ func Eventually(t testing.TB, what string, f func() bool) {
 func Pair(t testing.TB, approver, joiner *Computer) {
 	t.Helper()
 	p, err := joiner.C.Pair(approver.NetAddr)
-	if err != nil {
-		t.Fatalf("pairing %s with %s: %v", joiner.Name, approver.Name, err)
+	if err != nil || len(p.Offers) != 1 {
+		t.Fatalf("pairing %s with %s: %v %+v", joiner.Name, approver.Name, err, p)
 	}
 	var id string
 	Eventually(t, approver.Name+" to see "+joiner.Name+" asking", func() bool {
 		s, _ := approver.C.Devices()
 		for _, w := range s.Waiting {
-			if w.Code == p.Code {
+			if w.Code == p.Offers[0].Code {
 				id = w.ID
 				return true
 			}
@@ -118,6 +118,9 @@ func Pair(t testing.TB, approver, joiner *Computer) {
 		return false
 	})
 	if _, err := approver.C.ApproveDevice(id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := joiner.C.ConfirmPairing(true); err != nil {
 		t.Fatal(err)
 	}
 	Eventually(t, joiner.Name+" to join", func() bool {
