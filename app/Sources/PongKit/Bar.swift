@@ -270,13 +270,7 @@ public struct BarView: View {
     }
 
     /// The right click on the row.
-    private func menu() -> NSMenu {
-        let menu = NSMenu()
-        menu.addItem(ActionMenuItem("Settings…", key: ",", action: actions.settings))
-        menu.addItem(.separator())
-        menu.addItem(ActionMenuItem("Quit Pong", key: "q") { NSApp.terminate(nil) })
-        return menu
-    }
+    private func menu() -> NSMenu { PongMenu.make(settings: actions.settings) }
 
     // MARK: What it opens into
 

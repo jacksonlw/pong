@@ -323,6 +323,26 @@ final class BarTests: XCTestCase {
         XCTAssertTrue(opened)
     }
 
+    /// A right click or Control-click anywhere in Pong's windows (here the card's question) opens
+    /// Pong's menu, unless what was clicked has a menu of its own: a Resource's, a text field's.
+    func testARightClickAnywhereOpensPongsMenu() throws {
+        func click(_ view: some View, type: NSEvent.EventType = .rightMouseDown, keys: NSEvent.ModifierFlags = []) throws -> NSView? {
+            let host = NSHostingView(rootView: view.frame(width: 200, height: 100))
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 100), styleMask: [.borderless], backing: .buffered, defer: false)
+            w.contentView = host
+            host.layoutSubtreeIfNeeded()
+            let e = try XCTUnwrap(NSEvent.mouseEvent(with: type, location: NSPoint(x: 100, y: 50), modifierFlags: keys, timestamp: 0,
+                                                     windowNumber: w.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+            return PongMenu.target(of: e)
+        }
+        XCTAssertNotNil(try click(Text("Which branch?")), "a right click on a question")
+        XCTAssertNotNil(try click(Text("Which branch?"), type: .leftMouseDown, keys: .control), "a Control-click")
+        XCTAssertNil(try click(Text("Which branch?"), type: .leftMouseDown), "a plain click")
+        XCTAssertNil(try click(Text("plan.md").contextMenu { Button("Open") {} }), "a Resource keeps its own menu")
+        XCTAssertNil(try click(TextEditor(text: .constant("an answer"))), "a text field keeps its own menu")
+        XCTAssertEqual(PongMenu.make(settings: {}).items.map(\.title), ["Settings…", "", "Quit Pong"])
+    }
+
     /// The card's top bar moves the window too: on the mark and on the progress bar.
     func testTheCardsTopBarMovesTheWindow() throws {
         let ping = try XCTUnwrap(CardSnapshotTests.pings().first { $0.isWaiting && $0.isNote != true })

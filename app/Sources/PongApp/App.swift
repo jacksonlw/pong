@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let dock = Dock()
     private var settings: SettingsWindowController!
     private var newSessionSignal: DispatchSourceSignal?
+    private var rightClicks: Any?
     private var threads: ThreadWindowController!
     private var joins: JoinWindowController!
     private let arrivals = PingArrivals()
@@ -55,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                             login: isReal ? MainAppLoginItem() : PretendLoginItem(), dock: dock)
         let settings = settings!
         NSApp.mainMenu = mainMenu(settings: { settings.show() })
+        // A right click anywhere in Pong's windows leads to Settings and Quit too.
+        rightClicks = PongMenu.watch(settings: { settings.show() })
         // The Bar is Pong's place on screen: it starts Sessions and leads to Settings and Quit.
         card = CardController(inbox: inbox, directory: CardContext.live.directory, client: { await engine.client() },
                               settings: { settings.show() }, openThread: { [weak self] in self?.threads.show($0) })
