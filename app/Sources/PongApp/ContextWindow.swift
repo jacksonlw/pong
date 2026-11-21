@@ -66,8 +66,11 @@ final class ContextWindowController {
         host.rootView = AnyView(content
             .background(HoverTracker(onChange: { hover.overPanel = $0 }))
             .environment(\.cardContext, ctx))
+        // The shown host takes the size it is given, so it reports none (0 by 0, an invisible
+        // window): the content is measured apart, by a host that sizes itself.
+        let fit = NSHostingView(rootView: content.environment(\.cardContext, ctx)).fittingSize
         let z = Zoom.shared.scale
-        let size = CGSize(width: (host.fittingSize.width * z).rounded(), height: (host.fittingSize.height * z).rounded())
+        let size = CGSize(width: (fit.width * z).rounded(), height: (fit.height * z).rounded())
         let screen = card.screen?.visibleFrame ?? card.frame
         var x = card.frame.minX - size.width - Self.gap
         if x < screen.minX { x = card.frame.maxX + Self.gap } // card at the left edge: show it on the right
