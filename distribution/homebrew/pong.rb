@@ -4,7 +4,7 @@ cask "pong" do
   version "0.0.0" # PLACEHOLDER: release version
   sha256 "0000000000000000000000000000000000000000000000000000000000000000" # PLACEHOLDER
 
-  url "https://github.com/jacksonlw/homebrew-pong/releases/download/v#{version}/Pong-#{version}.zip"
+  url "https://github.com/jacksonlw/pong/releases/download/v#{version}/Pong-#{version}.zip"
   name "Pong"
   desc "Answers questions from coding agents from one place on the Mac"
   homepage "https://pong.fly/"

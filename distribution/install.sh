@@ -1,7 +1,7 @@
 #!/bin/bash
 # Installs Pong from a downloaded release without Homebrew. Two separate steps, never piped:
 #
-#   curl -fLO https://github.com/jacksonlw/homebrew-pong/releases/latest/download/Pong-<version>.zip         # and the .sha256 and install.sh
+#   curl -fLO https://github.com/jacksonlw/pong/releases/latest/download/Pong-<version>.zip         # and the .sha256 and install.sh
 #   bash install.sh Pong-<version>.zip
 #
 # On the Mac: verifies the zip against Pong-<version>.zip.sha256 beside it, copies Pong.app into

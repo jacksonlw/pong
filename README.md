@@ -12,7 +12,7 @@ On a Mac with Homebrew:
 brew install --cask jacksonlw/pong/pong
 ```
 
-Without Homebrew, or on Linux, download a release from https://github.com/jacksonlw/homebrew-pong/releases and run its installer as a separate step:
+Without Homebrew, or on Linux, download a release from https://github.com/jacksonlw/pong/releases and run its installer as a separate step:
 
 ```bash
 bash install.sh Pong-VERSION.zip
