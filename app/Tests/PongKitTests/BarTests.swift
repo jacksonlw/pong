@@ -384,6 +384,21 @@ final class BarTests: XCTestCase {
         XCTAssertEqual(PongMenu.make(settings: {}).items.map(\.title), ["Settings…", "", "Quit Pong"])
     }
 
+    /// The menu bar item shows or hides Pong, mutes the Ping sound, and holds the right-click menu.
+    func testTheMenuBarMenu() throws {
+        var shown = 0, muted = 0
+        let menu = PongMenu.status(shown: true, muted: false, toggleShown: { shown += 1 }, toggleMuted: { muted += 1 }, settings: {})
+        XCTAssertEqual(menu.items.map(\.title), ["Hide Pong", "Mute Ping Sounds", "", "Settings…", "", "Quit Pong"])
+        XCTAssertEqual(menu.items[1].state, .off)
+        menu.performActionForItem(at: 0)
+        menu.performActionForItem(at: 1)
+        XCTAssertEqual([shown, muted], [1, 1])
+        let hidden = PongMenu.status(shown: false, muted: true, toggleShown: {}, toggleMuted: {}, settings: {})
+        XCTAssertEqual(hidden.items[0].title, "Show Pong")
+        XCTAssertEqual(hidden.items[1].state, .on)
+        XCTAssertNotNil(PongMenu.menuBarImage)
+    }
+
     /// The card's top bar moves the window too: on the mark and on the progress bar.
     func testTheCardsTopBarMovesTheWindow() throws {
         let ping = try XCTUnwrap(CardSnapshotTests.pings().first { $0.isWaiting && $0.isNote != true })

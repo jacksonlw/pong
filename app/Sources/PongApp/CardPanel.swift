@@ -402,8 +402,17 @@ final class CardController {
         }
     }
 
+    /// The human hid Pong from the menu bar: no window shows until they show it again.
+    private(set) var hidden = false
+
+    func set(hidden: Bool) {
+        self.hidden = hidden
+        print("pong \(hidden ? "hidden" : "shown") from the menu bar")
+        update()
+    }
+
     private func update() {
-        guard faces.face != .none else {
+        guard faces.face != .none, !hidden else {
             if panel.isVisible { print("card hidden") }
             panel.orderOut(nil)
             return

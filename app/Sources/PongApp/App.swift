@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settings: SettingsWindowController!
     private var newSessionSignal: DispatchSourceSignal?
     private var rightClicks: Any?
+    private var statusItem: StatusItem?
     private var zoomKeys: Any?
     private var threads: ThreadWindowController!
     private var joins: JoinWindowController!
@@ -68,6 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                               settings: { settings.show() }, openThread: { [weak self] in self?.threads.show($0) })
         let dock = dock
         card.dropped = { dock.cardDropped($0, settled: $1) }
+        statusItem = StatusItem(card: card, directory: CardContext.live.directory,
+                                client: { await engine.client() }, settings: { settings.show() })
         if !isReal { // live checks: SIGUSR1 presses the Bar's New Session button
             signal(SIGUSR1, SIG_IGN)
             let press = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)

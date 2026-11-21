@@ -12,6 +12,32 @@ public enum PongMenu {
         return menu
     }
 
+    /// The menu bar item's menu: showing or hiding Pong's windows, muting the Ping sound, then the
+    /// right-click menu's Settings and Quit.
+    public static func status(shown: Bool, muted: Bool, toggleShown: @escaping () -> Void,
+                              toggleMuted: @escaping () -> Void, settings: @escaping () -> Void) -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(ActionMenuItem(shown ? "Hide Pong" : "Show Pong", key: "", action: toggleShown))
+        let mute = ActionMenuItem("Mute Ping Sounds", key: "", action: toggleMuted)
+        mute.state = muted ? .on : .off
+        menu.addItem(mute)
+        menu.addItem(.separator())
+        for item in make(settings: settings).items {
+            item.menu?.removeItem(item)
+            menu.addItem(item)
+        }
+        return menu
+    }
+
+    /// The mark, drawn in the menu bar's own colour.
+    public static var menuBarImage: NSImage? {
+        guard let url = Bundle.module.url(forResource: "pong-mark-ink", withExtension: "svg"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
+        return image
+    }
+
     /// What a click opens Pong's menu on: the view under it, when the click is a right click or a
     /// Control-click and neither that view nor any view it sits in has a menu for it.
     public static func target(of e: NSEvent) -> NSView? {
