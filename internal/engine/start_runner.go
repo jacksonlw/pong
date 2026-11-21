@@ -103,11 +103,16 @@ func OpenLaunch(l Launch) error {
 	if err := os.Chmod(f.Name(), 0o755); err != nil {
 		return err
 	}
-	if out, err := exec.Command("/usr/bin/open", f.Name()).CombinedOutput(); err != nil {
+	if out, err := exec.Command("/usr/bin/open", openArgs(f.Name())...).CombinedOutput(); err != nil {
 		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
+
+// openArgs opens the .command file without bringing the terminal app forward:
+// the Session's window appears behind the app the human is using, so it never
+// takes the keyboard or a click meant for that app.
+func openArgs(command string) []string { return []string{"-g", command} }
 
 // openHidden runs l's command in the human's login shell in its own process
 // session, with no terminal and no input or output, so it keeps running if
