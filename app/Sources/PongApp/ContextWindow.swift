@@ -32,7 +32,7 @@ final class ContextWindowController {
         CardPanelConfiguration.apply(to: panel)
         host = FirstMouseHostingView(rootView: nil)
         host.sizingOptions = [] // sized here, from the content's size at Pong's zoom
-        panel.contentView = host
+        panel.contentView = ZoomBox(host)
         track()
     }
 

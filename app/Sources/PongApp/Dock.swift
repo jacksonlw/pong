@@ -37,9 +37,10 @@ final class DockPanel: NSPanel {
     /// Shows `content` filling the panel, under the edges that resize it, no smaller than `minimum`.
     func host(_ content: NSView, minimum: CGSize) {
         let box = NSView(frame: NSRect(origin: .zero, size: frame.size))
-        content.frame = box.bounds
-        content.autoresizingMask = [.width, .height]
-        box.addSubview(content)
+        let zoomed = ZoomBox(content)
+        zoomed.frame = box.bounds
+        zoomed.autoresizingMask = [.width, .height]
+        box.addSubview(zoomed)
         edges.frame = box.bounds
         edges.minimum = minimum
         edges.resizing = { [weak self] on in

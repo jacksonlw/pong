@@ -44,14 +44,26 @@ final class Zoom {
     }
 }
 
-/// Clicks on the card act at once, even though the card is never the key window. It draws its
-/// content at Pong's zoom: its bounds are its frame divided by the zoom, so everything inside,
-/// AppKit views too, is drawn that much larger.
+/// Clicks on the card act at once, even though the card is never the key window.
 final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+/// Draws `content` at Pong's zoom: the box's bounds are its frame divided by the zoom, and the
+/// content fills those bounds, so everything inside is drawn that much larger. The zoom lives
+/// here, not on the hosting view: SwiftUI places clicks by the hosting view's frame, so a hosting
+/// view whose bounds differ from its frame takes clicks away from where its controls are drawn.
+/// AppKit carries clicks through this box's scaled bounds to the right place.
+final class ZoomBox: NSView {
+    let content: NSView
     private var watching: NSObjectProtocol?
 
-    required init(rootView: Content) {
-        super.init(rootView: rootView)
+    init(_ content: NSView) {
+        self.content = content
+        super.init(frame: content.frame)
+        content.autoresizingMask = []
+        addSubview(content)
+        zoom()
         watching = NotificationCenter.default.addObserver(forName: Zoom.changed, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.zoom() }
         }
@@ -70,8 +82,7 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     private func zoom() {
         let z = Zoom.shared.scale
         let b = NSSize(width: frame.width / z, height: frame.height / z)
-        guard bounds.size != b else { return }
-        setBoundsSize(b)
-        needsLayout = true
+        if bounds.size != b { setBoundsSize(b) }
+        if content.frame != bounds { content.frame = bounds }
     }
 }

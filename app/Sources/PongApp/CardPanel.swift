@@ -281,7 +281,7 @@ final class CardController {
                             start: start, settings: settings)
         let host = FirstMouseHostingView(rootView: root)
         host.sizingOptions = [] // the panel's size is set here, from the card's
-        panel.contentView = host
+        panel.contentView = ZoomBox(host)
         track()
         trackStage()
         trackCorner()
