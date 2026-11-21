@@ -144,3 +144,33 @@ func TestRealCodexReadsTheInstalledConfiguration(t *testing.T) {
 		t.Fatalf("Status = %+v", s)
 	}
 }
+
+// Codex writes its own tables (trust state, tui, projects) at the end of
+// config.toml, after Pong's block. Pong still finds its block, removes only
+// what it added, and an older block that ended with a "# Pong: end" line,
+// with Codex's tables written inside it and its record lost, is replaced on
+// install rather than refused.
+func TestCodexTablesAfterTheBlock(t *testing.T) {
+	codexOwn := "\n[hooks.state]\n\n[tui]\nscreen_reader_detection_done = true\n"
+	home := codexHome(t, map[string]string{"config.toml": "model = \"o3\"\n"})
+	a := codex.Adapter{}
+	a.Install(home, pongPath)
+	cfg, _ := read(t, home, "config.toml")
+	os.WriteFile(filepath.Join(home, ".codex", "config.toml"), []byte(cfg+codexOwn), 0o600)
+	if err := a.Remove(home); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := read(t, home, "config.toml"); got != "model = \"o3\"\n"+codexOwn {
+		t.Fatalf("after remove = %q", got)
+	}
+
+	old := "model = \"o3\"\n" + codex.Block(pongPath) + codexOwn + "# Pong: end\n"
+	home = codexHome(t, map[string]string{"config.toml": old})
+	if err := a.Install(home, pongPath); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := read(t, home, "config.toml")
+	if want := "model = \"o3\"\n" + codexOwn + codex.Block(pongPath); got != want {
+		t.Fatalf("after install over the old block:\n%s\nwant:\n%s", got, want)
+	}
+}

@@ -96,8 +96,37 @@ func Block(pong string) string {
 	}{{"PermissionRequest", WaitTimeout}, {"Stop", WaitTimeout}, {"UserPromptSubmit", 30}} {
 		fmt.Fprintf(&b, "\n[[hooks.%s]]\n[[hooks.%s.hooks]]\ntype = \"command\"\ncommand = %s\ntimeout = %d\n", ev.name, ev.name, hook, ev.timeout)
 	}
-	b.WriteString("# Pong: end\n")
 	return b.String()
+}
+
+// endMarker closed the block once. Codex appends the tables it writes itself
+// (hooks.state, tui, projects) after the file's last table and before a
+// trailing comment, so they landed inside the markers and Pong no longer
+// found its own bytes. The block now ends with its last hook.
+const endMarker = "# Pong: end\n"
+
+// cut takes the last occurrence of an added text out of s. A text that ended
+// with the old end marker is also found with Codex's tables between its hooks
+// and the marker: the hooks part and the marker line come out, the tables stay.
+func cut(s, added string) (string, bool) {
+	if i := strings.LastIndex(s, added); i >= 0 {
+		return s[:i] + s[i+len(added):], true
+	}
+	core, ok := strings.CutSuffix(added, endMarker)
+	if !ok {
+		return s, false
+	}
+	i := strings.LastIndex(s, core)
+	if i < 0 {
+		return s, false
+	}
+	rest := s[i+len(core):]
+	if j := strings.Index(rest, "\n"+endMarker); j >= 0 {
+		rest = rest[:j+1] + rest[j+1+len(endMarker):]
+	} else if strings.HasPrefix(rest, endMarker) {
+		rest = rest[len(endMarker):]
+	}
+	return s[:i] + rest, true
 }
 
 var pongServer = regexp.MustCompile(`(?m)^[ \t]*\[[ \t]*mcp_servers[ \t]*\.[ \t]*"?pong"?[ \t]*\]`)
@@ -106,6 +135,10 @@ var pongServer = regexp.MustCompile(`(?m)^[ \t]*\[[ \t]*mcp_servers[ \t]*\.[ \t]
 // added. Hooks need no feature flag: codex-cli 0.170.0 lists the hooks
 // feature as stable and on.
 func addToConfig(cfg, pong string) (string, []string, error) {
+	// A block Pong wrote before, whose record is gone, is Pong's to replace.
+	if c, ok := cut(cfg, Block(pong)+endMarker); ok {
+		cfg = c
+	}
 	if pongServer.MatchString(cfg) {
 		return "", nil, errors.New(`already has an MCP server named "pong"`)
 	}
@@ -187,9 +220,7 @@ func takeOut(path string, added []string, created bool) error {
 	}
 	s := string(b)
 	for _, a := range added {
-		if i := strings.LastIndex(s, a); i >= 0 {
-			s = s[:i] + s[i+len(a):]
-		}
+		s, _ = cut(s, a)
 	}
 	if created && strings.TrimSpace(s) == "" {
 		return os.Remove(path)
@@ -235,7 +266,8 @@ func (a Adapter) Status(home string) harness.Status {
 		i, _ := os.ReadFile(filepath.Join(home, instructionFile))
 		s.Connected = strings.Contains(string(i), r.Instruction)
 		for _, t := range r.Config {
-			s.Connected = s.Connected && strings.Contains(string(c), t)
+			_, found := cut(string(c), t)
+			s.Connected = s.Connected && found
 		}
 	}
 	switch {
