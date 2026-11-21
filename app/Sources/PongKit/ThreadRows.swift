@@ -3,8 +3,12 @@ import SwiftUI
 
 /// The Threads, newest first, each opening its Thread: the list the Bar opens into.
 /// A row shows its status as an icon at the left, and its Project's tile and name at the right.
+/// A Thread open in a panel beside the card is drawn selected. Show more lists older Threads.
 struct ThreadRows: View {
     var threads: [ThreadRow]
+    var open: Set<SessionThread.SessionRef> = []
+    /// Lists more Threads; nil when every one is listed.
+    var more: (() -> Void)? = nil
     var openThread: (SessionThread.SessionRef) -> Void
 
     var body: some View {
@@ -15,7 +19,17 @@ struct ThreadRows: View {
                 .fixedSize(horizontal: false, vertical: true)
         } else {
             VStack(spacing: 0) {
-                ForEach(threads) { t in ThreadRowView(thread: t, openThread: openThread) }
+                ForEach(threads) { t in ThreadRowView(thread: t, isOpen: open.contains(t.ref), openThread: openThread) }
+                if let more {
+                    HoverButton(action: more) { hover in
+                        Text("Show more").brandStyle(.label).foregroundStyle(hover ? Brand.text : Brand.secondary)
+                            .padding(.horizontal, 10)
+                            .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                            .background(hover ? Brand.row : .clear, in: Rectangle())
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityHint("Lists older Threads")
+                }
             }
         }
     }
@@ -24,6 +38,8 @@ struct ThreadRows: View {
 /// One Thread row. Once the pointer has rested on it a moment, its details open beside it.
 private struct ThreadRowView: View {
     var thread: ThreadRow
+    /// Its Thread is open in a panel beside the card.
+    var isOpen = false
     var openThread: (SessionThread.SessionRef) -> Void
     @State private var resting = false
     @State private var showsDetails = false
@@ -36,17 +52,18 @@ private struct ThreadRowView: View {
         HoverButton { openThread(t.ref) } label: { hover in
             HStack(spacing: 8) {
                 ThreadStatusIcon(status: t.status)
-                Text(t.title).brandStyle(.label).lineLimit(1).truncationMode(.tail)
+                Text(t.title).brandStyle(.label).foregroundStyle(isOpen ? Brand.onSelected : Brand.text)
+                    .lineLimit(1).truncationMode(.tail)
                 Spacer(minLength: 8)
                 if let p = t.project {
                     ProjectTile(project: p, logo: t.logo, side: 18)
-                    Text(p.name).brandStyle(.secondary).foregroundStyle(Brand.secondary)
+                    Text(p.name).brandStyle(.secondary).foregroundStyle(isOpen ? Brand.onSelected : Brand.secondary)
                         .lineLimit(1).fixedSize()
                 }
             }
             .padding(.horizontal, 10)
             .frame(minHeight: 32)
-            .background(hover ? Brand.row : .clear, in: Rectangle())
+            .background(isOpen ? (hover ? Brand.selectedHover : Brand.selected) : hover ? Brand.row : .clear, in: Rectangle())
             .contentShape(Rectangle())
         }
         .background(HoverTracker { resting = $0 })
@@ -61,6 +78,7 @@ private struct ThreadRowView: View {
         }
         .accessibilityLabel([t.title, t.project?.name, t.status.label].compactMap { $0 }.joined(separator: ", "))
         .accessibilityValue(t.details?.summary ?? "")
+        .accessibilityValue(isOpen ? "Open" : "")
         .accessibilityHint("Opens the Thread")
     }
 

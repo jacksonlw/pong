@@ -56,8 +56,11 @@ extension ThreadRow {
     /// The Threads the Bar opens into: the Sessions that changed most recently, newest first, and
     /// every older one still Running, Waiting or in Error, so each figure has its Threads in the list.
     /// A Session without a title is named by its Project; its identifier shows only on hover.
+    /// How many more Threads Show more lists.
+    static let page = 8
+
     @MainActor
-    static func recent(_ directory: Directory, waiting: [Ping], count: Int = 8) -> [ThreadRow] {
+    static func recent(_ directory: Directory, waiting: [Ping], count: Int = page) -> [ThreadRow] {
         ThreadStatus.of(directory, waiting: waiting).enumerated()
             .filter { i, s in i < count || s.status != .done }
             .map { _, s in
@@ -81,6 +84,10 @@ public struct BarView: View {
 
     var figures: BarFigures
     var threads: [ThreadRow]
+    /// The Threads open in panels beside the card, drawn selected in the list.
+    var openThreads: Set<SessionThread.SessionRef>
+    /// Lists more Threads; nil when every one is listed.
+    var more: (() -> Void)?
     var open: Part?
     /// The start panel, shown while `open` is `.start`.
     var start: StartPanelView?
@@ -131,10 +138,13 @@ public struct BarView: View {
         }
     }
 
-    public init(figures: BarFigures, threads: [ThreadRow], open: Part? = nil, start: StartPanelView? = nil,
+    public init(figures: BarFigures, threads: [ThreadRow], openThreads: Set<SessionThread.SessionRef> = [], more: (() -> Void)? = nil,
+                open: Part? = nil, start: StartPanelView? = nil,
                 held: (question: String, from: String?)? = nil, anchorsBottom: Bool = false, actions: Actions = Actions()) {
         self.figures = figures
         self.threads = threads
+        self.openThreads = openThreads
+        self.more = more
         self.open = open
         self.start = start
         self.held = held
@@ -274,7 +284,7 @@ public struct BarView: View {
         if listed {
             VStack(alignment: .leading, spacing: 8) {
                 if !anchorsBottom, let held { heldButton(held) }
-                if part == .start, let start = start ?? kept { start } else { ThreadRows(threads: threads, openThread: actions.openThread) }
+                if part == .start, let start = start ?? kept { start } else { ThreadRows(threads: threads, open: openThreads, more: more, openThread: actions.openThread) }
                 if anchorsBottom, let held { heldButton(held) }
             }
             .opacity(visible ? 1 : 0)

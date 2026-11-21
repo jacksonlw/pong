@@ -55,6 +55,8 @@ public struct CardFaceStack<Edges: View>: View {
     }
 
     @State private var shown: CardFace = .none
+    /// How many of the newest Threads the list shows; Show more adds a page.
+    @State private var listed = ThreadRow.page
     @State private var visible = true
     /// The surface held under the faces while one becomes another; nil at rest.
     @State private var box: CGFloat?
@@ -128,7 +130,10 @@ public struct CardFaceStack<Edges: View>: View {
         .overlay { if shown == .card { edges } }
         .onChange(of: stage.height) { _, h in if let h, h > 0 { cardHeight = h } }
         .onChange(of: faces.held, initial: true) { _, now in if now { keepsHeld = true } else if faces.face != .card { keepsHeld = false } }
-        .onChange(of: faces.face, initial: true) { _, f in change(to: f) }
+        .onChange(of: faces.face, initial: true) { _, f in
+            if f == .bar { listed = ThreadRow.page } // the list opens again at its first page
+            change(to: f)
+        }
     }
 
     @ViewBuilder private var face: some View {
@@ -136,8 +141,10 @@ public struct CardFaceStack<Edges: View>: View {
         case .card:
             InboxCard(inbox: inbox, stage: stage, voice: voice, anchorsBottom: bottom, moved: moved, putBack: putBack)
         case .bar, .threads, .start:
+            let rows = ThreadRow.recent(directory, waiting: inbox.waiting, count: listed)
             BarView(figures: BarFigures(directory: directory, asking: inbox.waiting, waiting: inbox.hidden ? inbox.waitingCount : 0),
-                    threads: ThreadRow.recent(directory, waiting: inbox.waiting),
+                    threads: rows, openThreads: faces.openThreads,
+                    more: directory.sessions.count > rows.count ? { listed += ThreadRow.page } : nil,
                     open: shown == .threads ? .threads : shown == .start ? .start : nil, start: start,
                     held: held, anchorsBottom: bottom,
                     actions: .init(openThread: openThread, openHeld: { faces.openHeld() },

@@ -43,7 +43,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var soundIDs: [PingSound: SystemSoundID] = [:]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.mainMenu = editMenu()
         let (dir, isReal) = dataDirectory()
         engine = isReal
             ? EngineService(pong: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/pong"), dir: dir)
@@ -54,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings = SettingsWindowController(client: { await engine.client() },
                                             login: isReal ? MainAppLoginItem() : PretendLoginItem(), dock: dock)
         let settings = settings!
+        NSApp.mainMenu = mainMenu(settings: { settings.show() })
         // The Bar is Pong's place on screen: it starts Sessions and leads to Settings and Quit.
         card = CardController(inbox: inbox, directory: CardContext.live.directory, client: { await engine.client() },
                               settings: { settings.show() }, openThread: { [weak self] in self?.threads.show($0) })
@@ -75,7 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return VoiceModels.make(d.voiceModel, endpoint: d.voiceEndpoint, endpointModel: d.voiceEndpointModel, key: key ?? nil)
         }
-        threads = ThreadWindowController(client: { await engine.client() }, dock: dock, showInQueue: { [inbox] in inbox.show($0.id) })
+        threads = ThreadWindowController(client: { await engine.client() }, dock: dock, showInQueue: { [inbox] in inbox.show($0.id) },
+                                         changed: { [weak self] in self?.card.set(openThreads: $0) })
         previews = PreviewController(inbox: inbox, dock: dock, client: { await engine.client() })
         following = Task { await inbox.follow(clientProvider: { await engine.client() }) }
         ContextWindowController.start(clientProvider: { await engine.client() })

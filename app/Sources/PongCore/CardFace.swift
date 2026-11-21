@@ -13,12 +13,15 @@ public enum CardFace: Equatable, Sendable {
 /// from them: it waits as a button at the top, and becomes the card when the pointer leaves the
 /// list, the start panel closes, or the button is clicked. A card the human opened from the list
 /// or the panel goes back to it when they leave the card; the start panel stays open aside,
-/// with its draft, while the card shows.
+/// with its draft, while the card shows. While a Thread the human opened is open, the list stays
+/// open when the pointer leaves it, and opens again once the card goes.
 @MainActor @Observable
 public final class CardFaces {
     public private(set) var face: CardFace = .bar
     /// A Ping waits behind the open Threads list or start panel.
     public private(set) var held = false
+    /// The Threads open in panels beside the card.
+    public private(set) var openThreads: Set<SessionThread.SessionRef> = []
 
     private var scene = false
     private var pointing = false
@@ -36,6 +39,8 @@ public final class CardFaces {
     public func set(pointing: Bool) { self.pointing = pointing; decide() }
     /// The start panel is open in the Bar.
     public func set(starting: Bool) { self.starting = starting; decide() }
+    /// The Threads open in panels beside the card changed.
+    public func set(openThreads: Set<SessionThread.SessionRef>) { self.openThreads = openThreads; decide() }
 
     /// The human clicked the held Ping's button: the card shows it now.
     public func openHeld() {
@@ -67,11 +72,11 @@ public final class CardFaces {
             switch back {
             case .start? where starting: face = .start
             case .threads?: pointing = true; face = .threads
-            default: pointing = false; face = .bar
+            default: pointing = false; face = openThreads.isEmpty ? .bar : .threads
             }
             back = nil
         } else {
-            face = pointing ? .threads : .bar
+            face = pointing || !openThreads.isEmpty ? .threads : .bar
         }
         held = (face == .threads || face == .start) && scene
     }

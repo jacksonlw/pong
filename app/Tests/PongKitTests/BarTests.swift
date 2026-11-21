@@ -9,6 +9,23 @@ import XCTest
 final class BarTests: XCTestCase {
     // MARK: Faces
 
+    /// While a Thread is open beside the card, the list stays open when the pointer leaves it, a
+    /// Ping still shows on the card, and the list comes back once the card goes.
+    func testTheListStaysOpenWhileAThreadIsOpen() {
+        let f = CardFaces()
+        let ref = SessionThread.SessionRef(harness: "claude-code", id: "a")
+        f.set(pointing: true)
+        f.set(openThreads: [ref])
+        f.set(pointing: false)
+        XCTAssertEqual(f.face, .threads, "the pointer left, but a Thread is open")
+        f.set(scene: true)
+        XCTAssertEqual(f.face, .card, "a Ping still shows")
+        f.set(scene: false)
+        XCTAssertEqual(f.face, .threads, "the list comes back after the card")
+        f.set(openThreads: [])
+        XCTAssertEqual(f.face, .bar, "the last Thread closed with the pointer away")
+    }
+
     func testTheCardShowsWhileAPingWaitsAndTheBarOtherwise() {
         let f = CardFaces()
         XCTAssertEqual(f.face, .bar)
@@ -204,6 +221,18 @@ final class BarTests: XCTestCase {
         XCTAssertEqual(figures.working, rows.filter { $0.status == .running }.count)
         XCTAssertEqual(figures.failed, rows.filter { $0.status == .error }.count)
         XCTAssertEqual(figures.working, 1)
+    }
+
+    /// Show more lists older Threads a page at a time.
+    func testShowMoreListsOlderThreads() {
+        let d = directory()
+        for i in 0..<12 {
+            let at = "2026-11-19T15:00:\(String(format: "%02d", i))Z"
+            d.apply(#"data: {"seq": \#(10 + i), "kind": "session.changed", "at": "\#(at)", "data": {"harness": "claude-code", "id": "new\#(i)", "state": "idle", "updated_at": "\#(at)"}}"#)
+        }
+        XCTAssertEqual(ThreadRow.recent(d, waiting: []).count, 11, "the newest eight and three older ones not Done")
+        XCTAssertEqual(ThreadRow.recent(d, waiting: [], count: 2 * ThreadRow.page).count, 16)
+        XCTAssertEqual(ThreadRow.recent(d, waiting: [], count: 3 * ThreadRow.page).count, d.sessions.count, "every Thread")
     }
 
     func testThreadsAreTheNewestSessions() {

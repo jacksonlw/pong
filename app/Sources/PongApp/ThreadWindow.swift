@@ -14,14 +14,18 @@ final class ThreadWindowController {
 
     /// Brings the card to a Ping that waits.
     private let showInQueue: (Ping) -> Void
+    /// Told which Threads are open each time one opens or closes.
+    private let changed: (Set<SessionThread.SessionRef>) -> Void
 
     static let height: CGFloat = 640
     private static func key(_ ref: SessionThread.SessionRef) -> String { "thread:\(ref.harness)/\(ref.id)" }
 
-    init(client: @escaping @Sendable () async -> EngineClient?, dock: Dock, showInQueue: @escaping (Ping) -> Void) {
+    init(client: @escaping @Sendable () async -> EngineClient?, dock: Dock, showInQueue: @escaping (Ping) -> Void,
+         changed: @escaping (Set<SessionThread.SessionRef>) -> Void) {
         self.client = client
         self.dock = dock
         self.showInQueue = showInQueue
+        self.changed = changed
         ThreadOpening.open = { [weak self] ping in
             let harness = CardContext.live.directory.card(for: ping).session?.harness ?? ""
             self?.show(SessionThread.SessionRef(harness: harness, id: ping.session))
@@ -85,6 +89,7 @@ final class ThreadWindowController {
             }
         }
         threads[ref] = (p, live)
+        changed(Set(threads.keys))
         dock.show(key, p, replacing: beside ? { _ in false } : { $0.hasPrefix("thread:") },
                   closed: { [weak self] in self?.close(ref) })
         print("thread shown \(ref.id)")
@@ -93,6 +98,7 @@ final class ThreadWindowController {
     private func close(_ ref: SessionThread.SessionRef) {
         guard let (_, live) = threads.removeValue(forKey: ref) else { return }
         live.cancel()
+        changed(Set(threads.keys))
         dock.remove(Self.key(ref))
     }
 }

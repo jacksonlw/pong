@@ -297,6 +297,9 @@ final class CardController {
     /// The Bar opens into the start panel; live checks send SIGUSR1 to press it.
     func newSession() { start.toggle() }
 
+    /// The Threads open in panels beside the card: the list stays open while there are any.
+    func set(openThreads: Set<SessionThread.SessionRef>) { faces.set(openThreads: openThreads) }
+
     private func trackFace() {
         let was = faces.face
         withObservationTracking {
