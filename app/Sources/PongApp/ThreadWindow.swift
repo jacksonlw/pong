@@ -10,7 +10,7 @@ import SwiftUI
 final class ThreadWindowController {
     private let client: @Sendable () async -> EngineClient?
     private let dock: Dock
-    private var threads: [SessionThread.SessionRef: (DockPanel, Task<Void, Never>)] = [:]
+    private var threads: [SessionThread.SessionRef: (panel: DockPanel, live: Task<Void, Never>, previews: PreviewPanels)] = [:]
 
     /// Brings the card to a Ping that waits.
     private let showInQueue: (Ping) -> Void
@@ -42,8 +42,8 @@ final class ThreadWindowController {
     func show(_ ref: SessionThread.SessionRef) {
         let beside = opensBeside(NSApp.currentEvent?.modifierFlags ?? [])
         let key = Self.key(ref)
-        if let (p, _) = threads[ref] {
-            p.orderFrontRegardless()
+        if let open = threads[ref] {
+            open.panel.orderFrontRegardless()
             return
         }
         let client = self.client
@@ -77,12 +77,7 @@ final class ThreadWindowController {
             openSession: { [weak self] in self?.show($0) },
             showInQueue: showInQueue,
             stop: { Task { await model.stopTurn() } }),
-            moved: { dock.dropped(key) }, putBack: { dock.putBack(key) }, close: { [weak self] in self?.close(ref) },
-            widen: { [weak p] by in
-                guard let p else { return }
-                let f = p.frame, w = f.width + by * Zoom.shared.scale
-                p.setFrame(NSRect(x: f.minX, y: f.minY, width: w, height: f.height), display: true)
-            })
+            moved: { dock.dropped(key) }, putBack: { dock.putBack(key) }, close: { [weak self] in self?.close(ref) })
         let host = FirstMouseHostingView(rootView: root)
         host.sizingOptions = [] // the human sizes the panel by its edges
         p.host(host, minimum: CGSize(width: 360, height: 320))
@@ -95,7 +90,8 @@ final class ThreadWindowController {
                 try? await Task.sleep(for: .milliseconds(500))
             }
         }
-        threads[ref] = (p, live)
+        // Its attachments open in preview panels in the row, as the card's do.
+        threads[ref] = (p, live, PreviewPanels(store: store, dock: dock, prefix: "thread-resource:\(ref.harness)/\(ref.id):"))
         changed(Set(threads.keys))
         dock.show(key, p, replacing: beside ? { _ in false } : { $0.hasPrefix("thread:") },
                   closed: { [weak self] in self?.close(ref) })
@@ -103,15 +99,15 @@ final class ThreadWindowController {
     }
 
     private func close(_ ref: SessionThread.SessionRef) {
-        guard let (_, live) = threads.removeValue(forKey: ref) else { return }
-        live.cancel()
+        guard let open = threads.removeValue(forKey: ref) else { return }
+        open.live.cancel()
+        open.previews.closeAll() // its previews go with it
         changed(Set(threads.keys))
         dock.remove(Self.key(ref))
     }
 }
 
-/// The Thread under its title strip, with the opened Resource's preview beside it, filling the
-/// panel at whatever size the human gives it.
+/// The Thread under its title strip, filling the panel at whatever size the human gives it.
 private struct ThreadWindowContent: View {
     var model: ThreadModel
     var store: ResourceStore
@@ -120,29 +116,18 @@ private struct ThreadWindowContent: View {
     var moved: () -> Void
     var putBack: () -> Void
     var close: () -> Void
-    /// Makes the panel this much wider, or narrower, as a preview opens beside the Thread or closes.
-    var widen: (CGFloat) -> Void
-
-    private var previewing: Bool { !store.opened.isEmpty }
 
     var body: some View {
         let opensIn = opener.opensIn(model.thread?.session.openTarget)
         VStack(spacing: 0) {
             ThreadPanelTitle(thread: model.thread, opensIn: opensIn, stop: model.stop, actions: actions,
                              moved: moved, putBack: putBack, onClose: close)
-            HStack(alignment: .top, spacing: 8) {
-                ThreadPage(model: model, opensIn: opensIn, actions: actions)
-                    .frame(maxWidth: .infinity)
-                if let r = store.opened.last {
-                    ResourcePreview(resource: r, data: store.contents[r.id]) { store.close(r) }
-                        .frame(width: previewSize.width)
-                }
-            }
+            ThreadPage(model: model, opensIn: opensIn, actions: actions)
+                .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Brand.page)
         .environment(\.resourceStore, store)
         .environment(\.linkOpener, appLinkOpener)
-        .onChange(of: previewing) { _, now in widen(now ? previewSize.width + 8 : -(previewSize.width + 8)) }
     }
 }

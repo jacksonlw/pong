@@ -8,34 +8,24 @@ import PongKit
 @MainActor
 final class PreviewController {
     private let inbox: Inbox
-    private let dock: Dock
     private let store = ResourceStore.shared
-    private var panels: [String: (panel: DockPanel, host: FirstMouseHostingView<ResourcePreview?>)] = [:]
+    private let panels: PreviewPanels
     private var shownPing: String?
 
     init(inbox: Inbox, dock: Dock, client: @escaping @Sendable () async -> EngineClient?) {
         self.inbox = inbox
-        self.dock = dock
         store.fetch = { resourceID, pingID in
             guard let c = await client() else { throw CancellationError() }
             return try await c.resource(resourceID, of: pingID)
         }
-        store.onOpen = { [weak self] _, r in
-            self?.update()
-            self?.panels[r.id]?.panel.orderFrontRegardless() // already open: bring it forward
-        }
+        panels = PreviewPanels(store: store, dock: dock, prefix: "resource:")
         track()
     }
-
-    private static func key(_ id: String) -> String { "resource:\(id)" }
 
     private func track() {
         withObservationTracking {
             _ = inbox.current?.id
             _ = inbox.hidden
-            _ = store.opened
-            _ = store.detached
-            _ = store.opened.map { store.contents[$0.id] }
         } onChange: { [weak self] in
             DispatchQueue.main.async {
                 self?.update()
@@ -50,12 +40,58 @@ final class PreviewController {
             shownPing = inbox.current?.id
             store.closeDocked()
         }
+    }
+}
+
+/// Keeps one preview panel in the row for each Resource open in `store`, the card's or a
+/// Thread's alike, so an attachment opens the same way wherever it is clicked.
+@MainActor
+final class PreviewPanels {
+    private let store: ResourceStore
+    private let dock: Dock
+    /// Keeps these panels' places in the row apart from other stores' previews of the same Resource.
+    private let prefix: String
+    private var panels: [String: (panel: DockPanel, host: FirstMouseHostingView<ResourcePreview?>)] = [:]
+
+    init(store: ResourceStore, dock: Dock, prefix: String) {
+        self.store = store
+        self.dock = dock
+        self.prefix = prefix
+        store.onOpen = { [weak self] _, r in
+            self?.update()
+            self?.panels[r.id]?.panel.orderFrontRegardless() // already open: bring it forward
+        }
+        track()
+    }
+
+    /// Closes every preview at once, for a store that goes away with its Thread.
+    func closeAll() {
+        store.closeAll()
+        update()
+    }
+
+    private func key(_ id: String) -> String { prefix + id }
+
+    private func track() {
+        withObservationTracking {
+            _ = store.opened
+            _ = store.detached
+            _ = store.opened.map { store.contents[$0.id] }
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                self?.update()
+                self?.track()
+            }
+        }
+    }
+
+    private func update() {
         for id in panels.keys where !store.opened.contains(where: { $0.id == id }) {
             panels[id] = nil
-            dock.remove(Self.key(id))
+            dock.remove(key(id))
         }
         for r in store.opened {
-            let key = Self.key(r.id)
+            let key = key(r.id)
             let (p, host) = panels[r.id] ?? {
                 let p = DockPanel.make(size: previewSize)
                 let host = FirstMouseHostingView<ResourcePreview?>(rootView: nil)
