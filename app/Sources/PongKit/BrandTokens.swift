@@ -23,6 +23,8 @@ public enum Brand {
     public static let track = Color(brandLight: 0xd6d4cd, dark: 0x3a3a36)
     public static let fixedInk = Color(brandLight: 0x141414, dark: 0x141414)
     public static let fixedWhite = Color(brandLight: 0xffffff, dark: 0xffffff)
+    public static let notice = Color(brandLight: 0xffdf6b, dark: 0xffdf6b)
+    public static let noticeHover = Color(brandLight: 0xf5d04a, dark: 0xf5d04a)
     public static let statusRunning = Color(brandLight: 0x2f4f9e, dark: 0xc9d8ff)
     public static let statusWaiting = Color(brandLight: 0x8a4b00, dark: 0xffb35c)
     public static let statusDone = Color(brandLight: 0x1f6b35, dark: 0x6fd38a)
@@ -144,6 +146,8 @@ public enum Brand {
 
         /// The body role's face for AppKit, which lays out a field's text; for measuring that text.
         public static var bodyNSFont: NSFont { NSFont(name: "Inter", size: body.size) ?? .systemFont(ofSize: body.size) }
+        /// The monospace role's face for AppKit, semibold as code is drawn; for measuring a line of code.
+        public static var monospaceNSFont: NSFont { .monospacedSystemFont(ofSize: monospace.size, weight: .semibold) }
     }
 }
 

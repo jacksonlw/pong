@@ -20,6 +20,8 @@
   --pong-track: #d6d4cd;
   --pong-fixed-ink: #141414;
   --pong-fixed-white: #ffffff;
+  --pong-notice: #ffdf6b;
+  --pong-notice-hover: #f5d04a;
   --pong-status-running: #2f4f9e;
   --pong-status-waiting: #8a4b00;
   --pong-status-done: #1f6b35;
@@ -91,6 +93,8 @@
     --pong-track: #3a3a36;
     --pong-fixed-ink: #141414;
     --pong-fixed-white: #ffffff;
+    --pong-notice: #ffdf6b;
+    --pong-notice-hover: #f5d04a;
     --pong-status-running: #c9d8ff;
     --pong-status-waiting: #ffb35c;
     --pong-status-done: #6fd38a;

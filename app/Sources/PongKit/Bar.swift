@@ -53,17 +53,20 @@ extension ThreadStatus {
 }
 
 extension ThreadRow {
-    /// The Threads the Bar opens into: the Sessions that changed most recently, newest first, and
-    /// every older one still Running, Waiting or in Error, so each figure has its Threads in the list.
-    /// A Session without a title is named by its Project; its identifier shows only on hover.
+    /// The Threads the Bar opens into: at most `count`, newest first, those still Running, Waiting
+    /// or in Error before the Done ones, so each figure has its Threads in the list without it
+    /// ever growing past a page; Show more lists the rest. A Session without a title is named by
+    /// its Project; its identifier shows only on hover.
     /// How many more Threads Show more lists.
     static let page = 8
 
     @MainActor
     static func recent(_ directory: Directory, waiting: [Ping], count: Int = page) -> [ThreadRow] {
-        ThreadStatus.of(directory, waiting: waiting).enumerated()
-            .filter { i, s in i < count || s.status != .done }
-            .map { _, s in
+        let all = ThreadStatus.of(directory, waiting: waiting)
+        let busy = all.filter { $0.status != .done }
+        let shown = Set(busy.prefix(count).map(\.session.id) + all.filter { $0.status == .done }.prefix(max(0, count - busy.count)).map(\.session.id))
+        return all.filter { shown.contains($0.session.id) }
+            .map { s in
                 let title = s.session.title.flatMap { $0.isEmpty ? nil : $0 }
                     ?? directory.project(s.session.project).map { "Session in \($0.0.name)" } ?? "Untitled Session"
                 let project = directory.project(s.session.project)
@@ -292,20 +295,22 @@ public struct BarView: View {
     /// panel closes.
     private func heldButton(_ held: (question: String, from: String?)) -> some View {
         HoverButton(action: actions.openHeld) { hover in
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.bubble").imageScale(.large).font(Brand.Style.label.font).brandIcon().foregroundStyle(Brand.onSelected)
-                VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.bubble").imageScale(.large).font(Brand.Style.answer.font).brandIcon()
+                VStack(alignment: .leading, spacing: 2) {
                     if let from = held.from {
-                        Text(from).brandStyle(.secondary).foregroundStyle(Brand.onSelected).lineLimit(1)
+                        Text(from).brandStyle(.secondary).lineLimit(1)
                     }
-                    Text(held.question).brandStyle(.label).foregroundStyle(Brand.onSelected).lineLimit(1).truncationMode(.tail)
+                    Text(held.question).brandStyle(.label).lineLimit(1).truncationMode(.tail)
                 }
                 Spacer(minLength: 8)
-                Image(systemName: "arrow.right").imageScale(.large).font(Brand.Style.label.font).brandIcon().foregroundStyle(Brand.onSelected)
+                Image(systemName: "arrow.right").imageScale(.large).font(Brand.Style.label.font).brandIcon()
             }
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
-            .background(hover ? Brand.selectedHover : Brand.selected, in: Rectangle())
+            .foregroundStyle(Brand.fixedInk)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .background(hover ? Brand.noticeHover : Brand.notice, in: Rectangle())
             .contentShape(Rectangle())
         }
         .accessibilityLabel("New question: \(held.question)")

@@ -262,11 +262,24 @@ final class BarTests: XCTestCase {
         XCTAssertEqual(rows.first { $0.ref.id == "a" }?.status, .waiting, "asking a Ping: Waiting, not Running")
         XCTAssertEqual(rows.first { $0.ref.id == "b" }?.status, .running, "an older working Session is still listed")
         XCTAssertEqual(rows.first { $0.ref.id == "c" }?.status, .error, "an older failed one too")
-        XCTAssertEqual(rows.count, 11, "the newest eight, and the three older ones not Done")
+        XCTAssertEqual(rows.count, ThreadRow.page, "one page: the three older ones not Done, then the newest Done")
         XCTAssertNil(rows.first { $0.ref.id == "d" }, "an older idle one is not")
         XCTAssertEqual(figures.working, rows.filter { $0.status == .running }.count)
         XCTAssertEqual(figures.failed, rows.filter { $0.status == .error }.count)
         XCTAssertEqual(figures.working, 1)
+    }
+
+    /// However many Sessions say they are working, the list stays one page long until Show more.
+    func testManyWorkingSessionsStillListOnePage() {
+        let d = directory()
+        for i in 0..<24 {
+            let at = "2026-11-19T15:00:\(String(format: "%02d", i))Z"
+            d.apply(#"data: {"seq": \#(10 + i), "kind": "session.changed", "at": "\#(at)", "data": {"harness": "claude-code", "id": "w\#(i)", "state": "working", "updated_at": "\#(at)"}}"#)
+        }
+        let rows = ThreadRow.recent(d, waiting: [])
+        XCTAssertEqual(rows.count, ThreadRow.page)
+        XCTAssertEqual(rows.first?.ref.id, "w23", "newest first")
+        XCTAssertTrue(rows.allSatisfy { $0.status == .running })
     }
 
     /// Show more lists older Threads a page at a time.
@@ -276,8 +289,8 @@ final class BarTests: XCTestCase {
             let at = "2026-11-19T15:00:\(String(format: "%02d", i))Z"
             d.apply(#"data: {"seq": \#(10 + i), "kind": "session.changed", "at": "\#(at)", "data": {"harness": "claude-code", "id": "new\#(i)", "state": "idle", "updated_at": "\#(at)"}}"#)
         }
-        XCTAssertEqual(ThreadRow.recent(d, waiting: []).count, 11, "the newest eight and three older ones not Done")
-        XCTAssertEqual(ThreadRow.recent(d, waiting: [], count: 2 * ThreadRow.page).count, 16)
+        XCTAssertEqual(ThreadRow.recent(d, waiting: []).count, ThreadRow.page, "one page, whatever is not Done")
+        XCTAssertEqual(ThreadRow.recent(d, waiting: [], count: 2 * ThreadRow.page).count, 2 * ThreadRow.page)
         XCTAssertEqual(ThreadRow.recent(d, waiting: [], count: 3 * ThreadRow.page).count, d.sessions.count, "every Thread")
     }
 
