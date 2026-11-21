@@ -175,10 +175,8 @@ type pings struct {
 	// then stands. May be nil.
 	onPong func(Ping, SendPong) (undo func(), after func(Ping) Ping, err error)
 	now    func() time.Time // the clock; tests may set it
-	// holders counts the open waits holding each Ping's prompt; wasHeld
-	// marks the Pings one ever held. See held.
+	// holders counts the open waits holding each Ping's prompt. See held.
 	holders map[string]int
-	wasHeld map[string]bool
 	grace   time.Duration // see DefaultDeliveryGrace
 	// onUnheld decides what becomes of a sent Pong once grace passed with
 	// nothing holding it. May be nil: it is then undelivered.
@@ -277,7 +275,7 @@ func newPings(db *sql.DB) (*pings, error) {
 		return nil, err
 	}
 	ps := &pings{db: db, waiters: map[string]chan struct{}{}, events: make(chan struct{}), closing: make(chan struct{}),
-		holders: map[string]int{}, wasHeld: map[string]bool{}, grace: DefaultDeliveryGrace}
+		holders: map[string]int{}, grace: DefaultDeliveryGrace}
 	var n sql.NullInt64
 	if err := db.QueryRow(`SELECT MAX(seq) FROM events`).Scan(&n); err != nil {
 		return nil, err

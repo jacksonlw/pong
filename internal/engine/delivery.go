@@ -29,9 +29,8 @@ const (
 	EventPongUndelivered = "ping.undelivered"
 )
 
-// DefaultDeliveryGrace is how long a sent Pong whose prompt was held waits
-// for a hold to come back, when none holds it, before the Engine stops
-// waiting for one.
+// DefaultDeliveryGrace is how long a sent Pong waits for a hold, when none
+// holds it, before the Engine stops waiting for one.
 const DefaultDeliveryGrace = 30 * time.Second
 
 // Reasons a Pong was not delivered, in words the card shows.
@@ -77,12 +76,11 @@ func (s *pings) deliver(id string, from []string, to, why string) (Ping, bool, e
 }
 
 // held marks the start of a wait that holds Ping id's prompt, and returns
-// its end. While none holds a sent Pong whose prompt was held, the Engine
-// waits grace for a hold to come back, then calls onUnheld.
+// its end. While none holds a sent Pong, the Engine waits grace for a hold,
+// then calls onUnheld.
 func (s *pings) held(id string) (release func()) {
 	s.mu.Lock()
 	s.holders[id]++
-	s.wasHeld[id] = true
 	s.mu.Unlock()
 	return func() {
 		s.mu.Lock()
@@ -118,11 +116,13 @@ func (s *pings) watch(id string) {
 	})
 }
 
-// sent is called once a Pong on p is recorded: if its prompt was held and
-// nothing holds it now, the grace period starts.
+// sent is called once a Pong on p is recorded: if nothing holds its prompt
+// now, the grace period starts. Whether anything held it before is not asked:
+// the Engine forgets that when it restarts, and a Pong nothing will hold must
+// still come back to the human.
 func (s *pings) sent(p Ping) {
 	s.mu.Lock()
-	watch := s.wasHeld[p.ID] && s.holders[p.ID] == 0
+	watch := s.holders[p.ID] == 0
 	s.mu.Unlock()
 	if watch {
 		s.watch(p.ID)
@@ -164,12 +164,21 @@ type SendAgain struct {
 	NewSession bool `json:"new_session,omitempty"`
 }
 
-// onUnheld settles a sent Pong whose prompt nobody holds any more: it is
-// undelivered and back with the human. Pong does not open a Session by
-// itself once a wait has run out, and never sends the Pong to another one.
+// onUnheld settles a sent Pong whose prompt nobody holds: it is undelivered
+// and back with the human. A Session a Harness named that is still at work
+// is left to take it at its turn's end (the hooks wait on a Pong still on
+// its way), and is looked at again after another grace. One no Harness named
+// has no hooks to end its turn, so it is never left. Pong does not open a
+// Session by itself once a wait has run out, and never sends the Pong to
+// another one.
 func (s *starter) onUnheld(p Ping) {
 	why := whyNotHeld
-	if sess, err := s.sessionOf(p); err == nil && sess.State == SessionEnded {
+	sess, err := s.sessionOf(p)
+	switch {
+	case err == nil && sess.Harness != "" && (sess.State == SessionWorking || sess.State == SessionWaiting):
+		s.ps.watch(p.ID)
+		return
+	case err == nil && sess.State == SessionEnded:
 		why = whyEnded
 	}
 	s.ps.deliver(p.ID, []string{DeliverySent}, DeliveryUndelivered, why)

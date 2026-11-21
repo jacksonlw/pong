@@ -273,6 +273,50 @@ func TestPongIsUndeliveredWhenItsHeldPromptHasGone(t *testing.T) {
 	}
 }
 
+// A Pong nothing holds and no hook will take, such as one for a Session
+// Pong does not know, comes back to the human instead of waiting forever.
+func TestPongIsUndeliveredWhenNothingEverHeldItsPrompt(t *testing.T) {
+	c := enginetest.StartWith(t, engine.Config{DeliveryGrace: 100 * time.Millisecond})
+	p, _ := c.CreatePing(engine.NewPing{Session: "unknown", Question: "Fixed it. What next?", Finished: true,
+		Answers: []engine.Answer{{Label: "Add a test"}}})
+	if got, err := c.Pong(p.ID, engine.SendPong{Answer: "Add a test"}); err != nil || got.Pong.Delivery != engine.DeliverySent {
+		t.Fatalf("pong: %+v %v", got.Pong, err)
+	}
+	if got := delivery(t, c, p.ID, engine.DeliveryUndelivered); got.Pong.NotDelivered == "" {
+		t.Error("no reason given")
+	}
+}
+
+// The Engine forgets across a restart which prompts were held, so a hold
+// dropped before it restarted still lets the Pong come back to the human.
+func TestPongAfterARestartIsUndeliveredWhenItsHoldHasGone(t *testing.T) {
+	cfg := engine.Config{DeliveryGrace: 100 * time.Millisecond}
+	c, dir := enginetest.StartWithDir(t, cfg)
+	p, _ := c.CreatePing(engine.NewPing{Session: "s", Question: "Run the migration?", BlocksAgent: true, Captured: true,
+		Answers: []engine.Answer{{Label: "Yes"}, {Label: "No"}}})
+	holdPrompt(t, c, p.ID)()
+	c = enginetest.RestartWith(t, dir, cfg)
+	c.Pong(p.ID, engine.SendPong{Answer: "Yes"})
+	delivery(t, c, p.ID, engine.DeliveryUndelivered)
+}
+
+// A Pong for a Session still at work is its turn's end to take: it stays
+// sent however long the turn runs, and comes back only once the Session is
+// idle with nothing holding it.
+func TestPongForAWorkingSessionWaitsForItsTurnToEnd(t *testing.T) {
+	r := newRunner()
+	c := enginetest.StartWith(t, engine.Config{Runners: []engine.Runner{r}, Launch: r.open, DeliveryGrace: 50 * time.Millisecond})
+	s, _ := c.RegisterSession(engine.RegisterSession{Harness: "fake", ID: "busy", Folder: t.TempDir(), State: engine.SessionWorking})
+	p := finishedPing(t, c, s.ID, "fake")
+	c.Pong(p.ID, engine.SendPong{Answer: "Add a test"})
+	time.Sleep(300 * time.Millisecond)
+	if got, _ := c.Ping(p.ID); got.Pong.Delivery != engine.DeliverySent {
+		t.Fatalf("while working: %+v", got.Pong)
+	}
+	c.RegisterSession(engine.RegisterSession{Harness: "fake", ID: "busy", State: engine.SessionIdle})
+	delivery(t, c, p.ID, engine.DeliveryUndelivered)
+}
+
 func TestHeldPromptThatComesBackInTimeIsDelivered(t *testing.T) {
 	c := enginetest.StartWith(t, engine.Config{DeliveryGrace: 2 * time.Second})
 	p, _ := c.CreatePing(engine.NewPing{Session: "s", Question: "Run the migration?", BlocksAgent: true, Captured: true,
