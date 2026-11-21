@@ -66,6 +66,32 @@ final class SendTests: XCTestCase {
         XCTAssertNil(inbox.refusals[p.id])
     }
 
+    /// Withdrawing a Pong gives its text back as the draft, on disk, so it outlives the app;
+    /// a draft typed since is not overwritten.
+    func testAWithdrawnPongsTextComesBackAsTheDraft() async throws {
+        var p = try ping("s-migrate")
+        p.pong = Ping.Pong(text: "Only the users table")
+        let engine = try FakePongEngine(pings: pings)
+        defer { engine.stop() }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("drafts-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let inbox = Inbox()
+        inbox.drafts = Drafts(file: file)
+        let task = Task { await inbox.follow(clientProvider: { engine.client }, retry: .milliseconds(20)) }
+        defer { task.cancel() }
+        try await until { inbox.deck.contains { $0.id == p.id } }
+
+        inbox.withdraw(p)
+        try await until { inbox.drafts.text(.ping(p.id)) == "Only the users table" }
+        XCTAssertEqual(Drafts(file: file).text(.ping(p.id)), "Only the users table", "a new store reads it")
+
+        inbox.drafts.set("Something newer", .ping(p.id))
+        inbox.withdraw(p)
+        try await until { engine.requests.filter { $0.hasSuffix("/withdraw-pong") }.count == 2 }
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(inbox.drafts.text(.ping(p.id)), "Something newer")
+    }
+
     // MARK: How it looks
 
     func testGroupCaretDisabled() throws {

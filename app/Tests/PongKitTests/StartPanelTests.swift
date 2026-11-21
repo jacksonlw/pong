@@ -63,8 +63,13 @@ actor FakeStarter: StartAPI {
     func cannotStart(_ id: String) {
         for i in harnessList.indices where harnessList[i].status.id == id { harnessList[i].canStart = false }
     }
+    /// Runs while a Session starts, as the human might type then.
+    var whileStarting: (@Sendable () async -> Void)?
+    func onStart(_ f: @escaping @Sendable () async -> Void) { whileStarting = f }
+
     func startSession(harness: String, at place: StartPlace, prompt: String) async throws {
         started.append("\(harness) \(place) \(prompt)")
+        await whileStarting?()
         if harness == "codex" { throw StartRefused(message: refusal) }
     }
 }
@@ -127,6 +132,16 @@ final class StartPanelTests: XCTestCase {
         XCTAssertFalse(ok)
         XCTAssertEqual(model.text, "Fix the cart total")
         XCTAssertEqual(model.problem, #"Pong cannot start Sessions in the Harness "codex""#)
+    }
+
+    func testTextTypedWhileStartingStaysInTheDraft() async throws {
+        let (model, engine) = try await loaded()
+        model.choose(project: id(model, "billing-api"))
+        model.text = "Add invoices"
+        await engine.onStart { await MainActor.run { model.text = "Then the refunds" } }
+        let ok = await model.start()
+        XCTAssertTrue(ok)
+        XCTAssertEqual(model.text, "Then the refunds", "not what went, so it is kept")
     }
 
     func testAnotherFolder() async throws {

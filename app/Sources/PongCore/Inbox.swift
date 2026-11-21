@@ -153,7 +153,13 @@ public final class Inbox {
     /// Withdraws a Pong still waiting to be delivered. A refusal is kept for the card to show.
     public func withdraw(_ ping: Ping) {
         refusals[ping.id] = nil
-        act(refused: { [weak self] in self?.refusals[ping.id] = $0 }) { try await $0.withdraw(ping.id) }
+        // The withdrawn Pong's text comes back as the draft, unless something new was typed since.
+        let text = ping.pong?.text ?? ""
+        act(refused: { [weak self] in self?.refusals[ping.id] = $0 },
+            taken: { [weak self] in
+                guard let self, !text.isEmpty, self.drafts.text(.ping(ping.id)).isEmpty else { return }
+                self.drafts.set(text, .ping(ping.id))
+            }) { try await $0.withdraw(ping.id) }
     }
 
     /// Keeps an undelivered or unconfirmed Pong without sending it again.

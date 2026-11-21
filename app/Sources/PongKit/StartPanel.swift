@@ -331,10 +331,12 @@ public final class StartPanelModel {
         guard canStart, let place, let harness else { return false }
         starting = true
         defer { starting = false }
+        let sent = text
         do {
-            try await api.startSession(harness: harness, at: place, prompt: Self.prompt(text: text, files: files), computer: computer)
+            try await api.startSession(harness: harness, at: place, prompt: Self.prompt(text: sent, files: files), computer: computer)
             problem = nil
-            text = ""
+            // Text typed while the Session was starting is not what went, so it stays.
+            if text == sent { text = "" }
             files = []
             self.place = nil
             return true

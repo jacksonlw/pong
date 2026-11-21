@@ -61,10 +61,16 @@ public struct ThreadView: View {
             if let t = thread {
                 header(t)
                 VStack(alignment: .leading, spacing: 18) {
-                    if t.pings.isEmpty {
+                    if let prompt = Self.firstPrompt(t) { FirstPrompt(text: prompt) }
+                    if t.pings.isEmpty && Self.firstPrompt(t) == nil && !t.isRunning {
                         Text("No Pings yet").brandStyle(.body).foregroundStyle(Brand.secondary)
                     }
                     ForEach(t.pings) { ping in entry(ping, context: t.contexts[ping.id]) }
+                    if t.isRunning {
+                        TypingDots()
+                            .accessibilityElement()
+                            .accessibilityLabel("The agent is working")
+                    }
                 }
                 .padding(20)
             } else {
@@ -257,6 +263,12 @@ public struct ThreadView: View {
         }
     }
 
+    /// The prompt the Session began on, which opens its Thread; nil when the Engine has none.
+    static func firstPrompt(_ t: SessionThread) -> String? {
+        guard let p = t.session.firstPrompt?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty else { return nil }
+        return p
+    }
+
     /// Text written in the Thread while no Ping waited has no question to show.
     static func showsQuestion(_ ping: Ping) -> Bool { ping.unasked != true }
 
@@ -280,6 +292,48 @@ public struct ThreadView: View {
         case .withdrawn: "Withdrawn"
         case .answered, .dismissed, .other: nil
         }
+    }
+}
+
+/// The prompt the Session began on, at the top of its Thread on the human's side, as their Pongs
+/// are. A long one shows its first lines until the human opens it.
+struct FirstPrompt: View {
+    var text: String
+    @State private var whole = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// How many lines a long prompt shows before it is opened.
+    static let lines = 6
+    /// A prompt longer than this, or with more lines than `lines`, opens.
+    static let long = 360
+
+    var opens: Bool { text.count > Self.long || text.split(separator: "\n", omittingEmptySubsequences: false).count > Self.lines }
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 60)
+            VStack(alignment: .trailing, spacing: 6) {
+                Text(text).brandStyle(.body).foregroundStyle(Brand.onSelected)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(whole || !opens ? nil : Self.lines)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                if opens {
+                    HoverButton {
+                        withAnimation(reduceMotion ? nil : hoverEase) { whole.toggle() }
+                    } label: { hover in
+                        Text(whole ? "Show less" : "Show all").brandStyle(.label)
+                            .foregroundStyle(Brand.onSelected).opacity(hover ? 1 : 0.8)
+                            .underline()
+                    }
+                    .accessibilityHint(whole ? "Shows the prompt's first lines" : "Shows the whole prompt")
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(Brand.selected, in: Rectangle())
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("The prompt this Session began on")
     }
 }
 
@@ -346,8 +400,9 @@ public struct ThreadReply: View {
 
     private func submit() {
         guard canSend, let typed else { return }
-        // The draft goes only once it is sent; refused, it stays in the box.
-        Task { if await send(typed) { keep("") } }
+        // The draft goes only once it is sent; refused, it stays in the box. Text typed while it
+        // was sending is not what went, so it stays too.
+        Task { if await send(typed), self.typed == typed { keep("") } }
     }
 
     public var body: some View {
