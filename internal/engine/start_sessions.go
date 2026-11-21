@@ -56,6 +56,12 @@ func newStarter(pr *projects, ps *pings, dir string, env []string, runners []Run
 	}
 	pr.dir = dir
 	pr.stopsTurns = func(x Session) bool { return s.stopsTurns(x.Harness) }
+	pr.turnOver = func(x Session) (bool, time.Time, bool) {
+		if r, ok := s.runners[x.Harness].(TurnReader); ok {
+			return r.TurnOver(x.Transcript)
+		}
+		return false, time.Time{}, false
+	}
 	ps.onPong = s.onPong
 	ps.onUnheld = s.onUnheld
 	ps.again = s.sendAgain

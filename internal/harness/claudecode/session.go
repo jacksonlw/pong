@@ -34,7 +34,9 @@ func sessionStart(c *client.Client, e Event) (any, error) {
 		Harness: HarnessName, ID: e.SessionID, Folder: e.Cwd, State: state,
 		ResumeCommand: Runner{}.ResumeCommand(e.Cwd, e.SessionID),
 		AppCommand:    app, AppName: name,
-		PID: attended.HarnessPID(), // the Engine ends the Session if it dies unseen
+		PID:         attended.HarnessPID(), // the Engine ends the Session if it dies unseen
+		Transcript:  e.TranscriptPath,      // and makes it idle if a turn ends unseen
+		FirstPrompt: readFirstPrompt(e.TranscriptPath),
 	}); err != nil {
 		return nil, err
 	}

@@ -61,6 +61,8 @@ type Project struct {
 type projects struct {
 	takesText  func(Session) bool // set by the starter; may be nil
 	stopsTurns func(Session) bool // set by the starter; may be nil
+	// turnOver reads a Session's transcript (TurnReader); set by the starter, may be nil.
+	turnOver func(Session) (ended bool, written time.Time, ok bool)
 	dir        string             // data directory, set by the starter; where a stop is marked
 	db         *sql.DB
 	pings      *pings     // for the event log

@@ -46,6 +46,32 @@ func TestASessionWhoseHarnessProcessIsGoneEnds(t *testing.T) {
 	}
 }
 
+// A Session with no Harness process of its own to watch (none given, or one
+// shared with other Sessions, as Codex's app-server is) ends once it has been
+// quiet for SessionQuietFor; one with its own live process never does.
+func TestAQuietSessionWithNoProcessOfItsOwnEnds(t *testing.T) {
+	c := enginetest.StartWith(t, engine.Config{SessionCheckEvery: 20 * time.Millisecond, SessionQuietFor: 100 * time.Millisecond})
+	folder := repo(t, "shop")
+	shared := os.Getppid()
+	c.RegisterSession(engine.RegisterSession{Harness: "claude-code", ID: "no-pid", Folder: folder})
+	c.RegisterSession(engine.RegisterSession{Harness: "codex", ID: "thread-1", Folder: folder, PID: shared, State: engine.SessionIdle})
+	c.RegisterSession(engine.RegisterSession{Harness: "codex", ID: "thread-2", Folder: folder, PID: shared, State: engine.SessionIdle})
+	c.RegisterSession(engine.RegisterSession{Harness: "claude-code", ID: "own", Folder: folder, PID: os.Getpid(), State: engine.SessionIdle})
+	for _, s := range []struct{ h, id string }{{"claude-code", "no-pid"}, {"codex", "thread-1"}, {"codex", "thread-2"}} {
+		eventually(t, s.id+" to end", func() bool {
+			x, err := c.Session(s.h, s.id)
+			return err == nil && x.State == engine.SessionEnded
+		})
+	}
+	if s, _ := c.Session("claude-code", "own"); s.State != engine.SessionIdle {
+		t.Errorf("a Session with its own live process became %s", s.State)
+	}
+	// Its next hook brings an ended one back.
+	if s, _ := c.RegisterSession(engine.RegisterSession{Harness: "claude-code", ID: "no-pid", State: engine.SessionWorking}); s.State != engine.SessionWorking {
+		t.Errorf("a hook after the end left it %s", s.State)
+	}
+}
+
 // The Engine also checks when it starts, so Sessions whose processes died
 // while it was down end at once.
 func TestTheEngineEndsGoneSessionsWhenItStarts(t *testing.T) {
@@ -79,5 +105,40 @@ func TestAPingWithNoHarnessJoinsTheSessionKnownByItsID(t *testing.T) {
 		if s.ID == "s1" && s.Harness != "claude-code" {
 			t.Fatalf("a second Session %+v", s)
 		}
+	}
+}
+
+// A Harness process that has exited but not been reaped by its parent (a
+// zombie) is gone: it does no more work, and its Session ends.
+func TestASessionWhoseHarnessProcessIsAZombieEnds(t *testing.T) {
+	cmd := exec.Command("true")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cmd.Wait() })
+	eventually(t, "the child to exit unreaped", func() bool { return isZombie(cmd.Process.Pid) })
+	c := enginetest.StartWith(t, engine.Config{SessionCheckEvery: 20 * time.Millisecond})
+	c.RegisterSession(engine.RegisterSession{Harness: "codex", ID: "zombie", Folder: repo(t, "api"), PID: cmd.Process.Pid})
+	eventually(t, "the zombie's Session to end", func() bool {
+		s, err := c.Session("codex", "zombie")
+		return err == nil && s.State == engine.SessionEnded
+	})
+}
+
+// A Session Pong learns of only from a Ping, with no hook to say when it
+// ends, takes the Harness process the Ping names and ends once it is gone.
+func TestASessionKnownOnlyFromPingsEndsWhenItsHarnessProcessIsGone(t *testing.T) {
+	c := enginetest.StartWith(t, engine.Config{SessionCheckEvery: 20 * time.Millisecond})
+	folder := repo(t, "shop")
+	if _, err := c.CreatePing(client.NewPing{Session: "mcp-1", Folder: folder, Question: "Tests pass.", IsNote: true, PID: gonePID(t)}); err != nil {
+		t.Fatal(err)
+	}
+	c.CreatePing(client.NewPing{Session: "mcp-2", Folder: folder, Question: "Still going.", IsNote: true, PID: os.Getpid()})
+	eventually(t, "the Session whose process is gone to end", func() bool {
+		s, err := c.Session("", "mcp-1")
+		return err == nil && s.State == engine.SessionEnded
+	})
+	if s, _ := c.Session("", "mcp-2"); s.State != engine.SessionWorking {
+		t.Errorf("mcp-2 became %s", s.State)
 	}
 }

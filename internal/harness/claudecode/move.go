@@ -79,11 +79,18 @@ func moved(script, id, prompt string) string {
 // turn has ended. The mark holds the Session's title as Claude Code named
 // it, for the wrapper to give the app: the app does not read a moved
 // Session's title from its transcript, and names it after the folder.
-func markTurnEnded(e Event) {
+//
+// Before the mark, the Session is given the command that opens it in the
+// app, which it had none of while it ran hidden: so a click in Pong reaches
+// it there even when the app has not started its copy yet. Once the app
+// does, its hooks give the app's own link, which replaces this one.
+func markTurnEnded(c *client.Client, e Event) {
 	mark := os.Getenv(MoveMarkEnv)
 	if mark == "" {
 		return
 	}
+	c.RegisterSession(engine.RegisterSession{Harness: HarnessName, ID: e.SessionID,
+		AppCommand: DesktopResumeCommand(e.Cwd, e.SessionID), AppName: DesktopAppName})
 	_, title := readTranscript(e.TranscriptPath)
 	title = strings.Join(strings.Fields(title), " ")
 	os.WriteFile(mark, []byte(title), 0o600)

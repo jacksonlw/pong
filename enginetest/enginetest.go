@@ -79,7 +79,7 @@ func startCfg(t testing.TB, dir string, cfg engine.Config) *client.Client {
 		// A test never opens a terminal or an app on the machine it runs on.
 		cfg.Launch = func(engine.Launch) error { return nil }
 	}
-	e, err := engine.Start(engine.Config{Launch: cfg.Launch, Dir: dir, Port: 0, WaitHold: WaitHold, Retention: cfg.Retention, SweepEvery: cfg.SweepEvery, Env: cfg.Env, Runners: cfg.Runners, Harnesses: cfg.Harnesses, Now: cfg.Now, Keychain: cfg.Keychain, DeliveryGrace: cfg.DeliveryGrace, Devices: cfg.Devices, Diagnostics: cfg.Diagnostics, SessionCheckEvery: cfg.SessionCheckEvery})
+	e, err := engine.Start(engine.Config{Launch: cfg.Launch, Dir: dir, Port: 0, WaitHold: WaitHold, Retention: cfg.Retention, SweepEvery: cfg.SweepEvery, Env: cfg.Env, Runners: cfg.Runners, Harnesses: cfg.Harnesses, Now: cfg.Now, Keychain: cfg.Keychain, DeliveryGrace: cfg.DeliveryGrace, Devices: cfg.Devices, Diagnostics: cfg.Diagnostics, SessionCheckEvery: cfg.SessionCheckEvery, SessionQuietFor: cfg.SessionQuietFor})
 	if err != nil {
 		t.Fatalf("starting engine: %v", err)
 	}

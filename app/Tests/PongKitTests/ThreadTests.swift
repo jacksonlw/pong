@@ -132,6 +132,20 @@ final class ThreadTests: XCTestCase {
         XCTAssertTrue(m2.notice?.contains("copied") == true)
     }
 
+    /// An ended Session, whoever started it, has no copy running anywhere, so it opens in a
+    /// terminal: a Session Pong started that never reached the Claude app is one.
+    func testEndedSessionOpensATerminal() throws {
+        var t = try Self.fixture("s-new")
+        t.session.state = "ended"
+        t.session.resumeCommand = "cd /Users/me/shop && claude --resume s-new"
+        XCTAssertEqual(t.session.openTarget, .terminal)
+        let opener = FakeOpener(), m = model(t)
+        m.openInHarness(with: opener)
+        XCTAssertEqual(opener.opened, ["cd /Users/me/shop && claude --resume s-new"])
+        XCTAssertEqual(opener.copied, [])
+        XCTAssertNil(m.notice)
+    }
+
     /// The open button names what opening tries first, and nothing when Pong cannot say.
     func testOpenTargetIsWhatOpeningTriesFirst() throws {
         var s = try Self.fixture("s-new").session
@@ -236,6 +250,35 @@ final class ThreadTests: XCTestCase {
     func testAWaitingQuestionOpensInTheQueue() throws {
         let t = try Self.fixture("s-new")
         XCTAssertEqual(t.pings.filter(ThreadView.opensInQueue).map(\.id), ["529a1973e6ec6c06"])
+    }
+
+    /// A Thread opens with the prompt its Session began on, and shows the agent writing while it
+    /// works with nothing waiting for a Pong, instead of only a Ping to wait for.
+    func testThreadShowsTheFirstPromptAndTheAgentWriting() throws {
+        let json = #"{"session": {"id": "s", "state": "working", "first_prompt": "Fix the checkout totals"}, "pings": []}"#
+        var t = try SessionThread.decode(Data(json.utf8))
+        XCTAssertEqual(ThreadView.firstPrompt(t), "Fix the checkout totals")
+        XCTAssertTrue(t.isRunning)
+        t.session.firstPrompt = "  \n"
+        XCTAssertNil(ThreadView.firstPrompt(t), "a blank prompt is none")
+
+        var waits = try Self.fixture("s-new")
+        waits.session.state = "working"
+        XCTAssertFalse(waits.isRunning, "a question that waits is answered, not shown as writing")
+        waits.pings = waits.pings.map { var p = $0; if p.isWaiting { p.state = .answered }; return p }
+        XCTAssertTrue(waits.isRunning)
+        waits.session.state = "idle"
+        XCTAssertFalse(waits.isRunning)
+    }
+
+    func testSnapshotFirstPromptAndWriting() throws {
+        var t = try Self.fixture("s-new")
+        t.session.state = "working"
+        t.session.firstPrompt = "The checkout totals round wrong for baskets over 100 items. Find out why and fix it, with a test."
+        t.pings = t.pings.map { var p = $0; if p.isWaiting { p.state = .answered }; return p }
+        try assertSnapshot(ThreadView(thread: t).environment(\.resourceStore, ResourceStore()), named: "thread-first-prompt-writing")
+        t.session.firstPrompt = (1...12).map { "Line \($0) of a long prompt the human pasted in." }.joined(separator: "\n")
+        try assertSnapshot(ThreadView(thread: t).environment(\.resourceStore, ResourceStore()), named: "thread-first-prompt-long")
     }
 
     func testSnapshotReply() throws {

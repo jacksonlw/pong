@@ -53,7 +53,7 @@ func stop(c *client.Client, e Event) (any, error) {
 	if nudge {
 		return nil, Wake{turn.Nudge}
 	}
-	markTurnEnded(e) // move.go
+	markTurnEnded(c, e) // move.go
 	if len(waits) > 0 {
 		as, err := turn.WaitAll(c, waits)
 		if err != nil {

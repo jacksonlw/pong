@@ -77,6 +77,13 @@ func (Runner) ResumeCommand(folder, id string) string {
 	return "cd " + shellQuote(folder) + " && claude --resume " + shellQuote(id)
 }
 
+// DesktopResumeCommand opens the Session in the Claude desktop app, which
+// takes it up under the same id. Checked on Claude Code 2.1.330: it exits 0
+// once the app has it, and 1 for an id it does not know.
+func DesktopResumeCommand(folder, id string) string {
+	return "cd " + shellQuote(folder) + " && claude --desktop --resume " + shellQuote(id)
+}
+
 // DesktopAppName is what the Claude desktop app is called.
 const DesktopAppName = "Claude"
 

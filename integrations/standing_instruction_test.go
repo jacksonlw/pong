@@ -21,7 +21,7 @@ func TestStandingInstructionKeepsAskingAndAnsweringInTheTranscript(t *testing.T)
 // Thoughts are taught in the standing instruction, with the rule that keeps
 // them rare and concrete.
 func TestStandingInstructionTeachesThoughts(t *testing.T) {
-	want := "As you work, send a Thought with send_thought when you find, decide or change something, in one sentence your human understands without the code open: never what you are running, never output. Most turns need one to three."
+	want := "As you work, send a Thought with send_thought each time you find, decide or change something, so your human can follow the Session without opening it: the cause you found, the approach you chose and why, what now works or still fails. One sentence they understand without the code open: never what you are running, never output, never the same news twice. Most turns need three to six, and a long one one every few minutes."
 	if !strings.Contains(StandingInstruction, want) {
 		t.Errorf("the standing instruction lacks %q", want)
 	}

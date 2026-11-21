@@ -72,11 +72,13 @@ When nothing is being asked, send a Note with `send_note`: news the human should
 
 ## Thoughts
 
-As you work, send a Thought with `send_thought` each time you find, decide or change something: one plain sentence, at most 140 characters, that your human understands without the code open. It shows only in the Session's Thread, between your Pings, so that a question arrives with the context that makes it quick to answer. It never asks anything, never notifies and returns at once. Give it a `summary` when where the Session stands has changed.
+As you work, send a Thought with `send_thought` each time you find, decide or change something, so your human can follow the Session without opening it: one plain sentence, at most 140 characters, that your human understands without the code open. It shows only in the Session's Thread, between your Pings, so that a question arrives with the context that makes it quick to answer. It never asks anything, never notifies and returns at once. Give it a `summary` when where the Session stands has changed.
 
-A Thought states a fact. It is never what you are running, never output, and never a plan you have not started. Most turns need one to three.
+A Thought states a fact: the cause you found, the approach you chose and why, what now works or still fails. It is never what you are running, never output, never a plan you have not started, and never the same news twice. Most turns need three to six, and a long one one every few minutes.
 
 - Good: "The duplicate Pongs come from Inbox dropping the Session id on retry."
+- Good: "Keeping the retry but giving it the Session id, so nothing else changes."
+- Good: "Pongs no longer arrive twice; the old retry test still fails on timing."
 - Bad: "Running the tests in internal/engine." That is what you are running.
 - Bad: "Next I'll look at how Inbox retries." That is a plan not yet started.
 

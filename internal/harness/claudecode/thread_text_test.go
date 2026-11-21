@@ -191,4 +191,12 @@ func TestTheEndOfATurnMarksTheSessionReadyToMove(t *testing.T) {
 	if b, err := os.ReadFile(mark); err != nil || len(b) != 0 {
 		t.Fatalf("not marked ready to move, or with a title from nowhere: %q %v", b, err)
 	}
+	// And Pong can open it in the app from now, before the app starts its copy.
+	s, err := c.Session(claudecode.HarnessName, "a92d08b1-87b5-464a-a646-94ec7ea932d8") // stop/woken.json's
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.AppCommand != claudecode.DesktopResumeCommand(s.Folder, s.ID) || s.AppName != claudecode.DesktopAppName {
+		t.Errorf("app command %q in %q", s.AppCommand, s.AppName)
+	}
 }

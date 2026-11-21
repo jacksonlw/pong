@@ -33,16 +33,24 @@ func init() { on("UserPromptSubmit", prompted) }
 var framed = regexp.MustCompile(`^\s*<[a-z][a-z-]*[\s>]`)
 
 func prompted(c *client.Client, e Event) (any, error) {
-	// The Claude Code process too, so a Session that started before Pong
-	// recorded it is still ended if that process dies unseen.
-	if _, err := c.RegisterSession(engine.RegisterSession{Harness: HarnessName, ID: e.SessionID, Folder: e.Cwd,
-		PermissionMode: e.PermissionMode, PID: attended.HarnessPID()}); err != nil {
-		return nil, err
-	}
 	var p struct {
 		Prompt string `json:"prompt"`
 	}
 	if err := json.Unmarshal(e.Raw, &p); err != nil {
+		return nil, err
+	}
+	// The prompt the Session began on, which its Thread opens with: the
+	// transcript's first, else this one when the human typed it, as in a
+	// Session's first turn, which the transcript does not hold yet. The
+	// Engine keeps the first it is given.
+	first := readFirstPrompt(e.TranscriptPath)
+	if first == "" {
+		first = typed(p.Prompt)
+	}
+	// The Claude Code process too, so a Session that started before Pong
+	// recorded it is still ended if that process dies unseen.
+	if _, err := c.RegisterSession(engine.RegisterSession{Harness: HarnessName, ID: e.SessionID, Folder: e.Cwd,
+		PermissionMode: e.PermissionMode, PID: attended.HarnessPID(), FirstPrompt: first, Transcript: e.TranscriptPath}); err != nil {
 		return nil, err
 	}
 	if framed.MatchString(p.Prompt) {

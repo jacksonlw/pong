@@ -77,6 +77,9 @@ type Config struct {
 	// SessionCheckEvery is how often Sessions whose Harness process is gone
 	// are ended; 0 means DefaultSessionCheckEvery.
 	SessionCheckEvery time.Duration
+	// SessionQuietFor is how long a Session with no Harness process of its
+	// own may go unchanged before it is ended; 0 means DefaultSessionQuietFor.
+	SessionQuietFor time.Duration
 	// Diagnostics, when set, is the folder where every event is also
 	// appended to a dated journal that retention never sweeps, so real use
 	// can be studied later. Only the real Engine sets it; "" keeps none.
@@ -256,7 +259,11 @@ func Start(cfg Config) (*Engine, error) {
 	if check == 0 {
 		check = DefaultSessionCheckEvery
 	}
-	go pr.endGoneEvery(check, ps.closing)
+	quiet := cfg.SessionQuietFor
+	if quiet == 0 {
+		quiet = DefaultSessionQuietFor
+	}
+	go pr.endGoneEvery(check, quiet, ps.closing)
 	go func() { e.done <- e.server.Serve(ln) }()
 	return e, nil
 }

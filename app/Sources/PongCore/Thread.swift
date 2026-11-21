@@ -22,6 +22,8 @@ public struct SessionThread: Decodable, Equatable, Sendable {
         /// The Project's id.
         public var project: String?
         public var title: String?
+        /// The prompt the Session began on, from Pong or typed in the Harness.
+        public var firstPrompt: String?
         /// "human" | "engine"
         public var startedBy: String?
         public var state: String?
@@ -149,11 +151,11 @@ public protocol HarnessOpener {
 
 extension HarnessOpener {
     /// Opens a Session in its Harness: in the Harness's own app when the Engine gives a command
-    /// for that, else in a terminal when the Engine started it (resuming one the human has open
-    /// elsewhere would start a second copy). False when Pong could do neither.
-    public func open(app: String?, resume: String?, startedBy: String?) -> Bool {
+    /// for that, else in a terminal when the Session has ended or the Engine started it (resuming
+    /// one the human has open elsewhere would start a second copy). False when Pong could do neither.
+    public func open(app: String?, resume: String?, startedBy: String?, ended: Bool = false) -> Bool {
         if let app, (try? openApp(running: app)) != nil { return true }
-        if startedBy == "engine", let resume, (try? openTerminal(running: resume)) != nil { return true }
+        if startedBy == "engine" || ended, let resume, (try? openTerminal(running: resume)) != nil { return true }
         return false
     }
 }
@@ -166,11 +168,11 @@ public enum OpenTarget: Equatable, Sendable {
 
     /// What `HarnessOpener.open` tries first, or nil when Pong cannot name it: the Engine names
     /// no app for the app command, or there is nothing to open and the resume command is copied.
-    public init?(app: String?, name: String?, resume: String?, startedBy: String?) {
+    public init?(app: String?, name: String?, resume: String?, startedBy: String?, ended: Bool = false) {
         if app != nil {
             guard let name else { return nil }
             self = .app(name)
-        } else if startedBy == "engine", resume != nil {
+        } else if startedBy == "engine" || ended, resume != nil {
             self = .terminal
         } else {
             return nil
@@ -180,7 +182,7 @@ public enum OpenTarget: Equatable, Sendable {
 
 extension SessionThread.Session {
     public var openTarget: OpenTarget? {
-        OpenTarget(app: appCommand, name: appName, resume: resumeCommand, startedBy: startedBy)
+        OpenTarget(app: appCommand, name: appName, resume: resumeCommand, startedBy: startedBy, ended: state == "ended")
     }
 }
 
@@ -203,6 +205,14 @@ extension SessionThread {
     }
 }
 
+extension SessionThread {
+    /// The agent is at work and nothing of its own waits for a Pong, as the Threads list's Running
+    /// says: the Thread shows it writing.
+    public var isRunning: Bool {
+        session.state == "working" && !pings.contains(where: { $0.isWaiting && $0.isNote != true })
+    }
+}
+
 /// What a Thread's bar shows for stopping the Session's turn.
 public enum ThreadStop: Equatable, Sendable {
     /// The Stop button: the Session is Running and its Harness can stop a turn.
@@ -217,8 +227,7 @@ extension SessionThread {
     public var stop: ThreadStop? {
         guard session.state == "working" else { return nil }
         if session.stop?.state == "sent" { return .stopping }
-        guard stopsTurns == true, session.stop == nil,
-              !pings.contains(where: { $0.isWaiting && $0.isNote != true }) else { return nil }
+        guard stopsTurns == true, session.stop == nil, isRunning else { return nil }
         return .offered
     }
 }
@@ -324,7 +333,7 @@ public final class ThreadModel {
 
     public func openInHarness(with opener: HarnessOpener) {
         guard let s = thread?.session else { return }
-        if opener.open(app: s.appCommand, resume: s.resumeCommand, startedBy: s.startedBy) {
+        if opener.open(app: s.appCommand, resume: s.resumeCommand, startedBy: s.startedBy, ended: s.state == "ended") {
             notice = nil
             return
         }
@@ -333,7 +342,7 @@ public final class ThreadModel {
             return
         }
         opener.copy(command)
-        notice = s.startedBy == "engine"
+        notice = s.startedBy == "engine" || s.state == "ended"
             ? "Pong could not open a terminal. The resume command is copied: \(command)"
             : "Pong cannot tell which app this Session runs in. The resume command is copied: \(command)"
     }

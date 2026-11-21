@@ -42,7 +42,10 @@ type Session struct {
 	Title   string `json:"title,omitempty"`
 	// Summary is the agent's latest line or two on where the Session stands,
 	// from its last Ping or Note that gave one.
-	Summary       string      `json:"summary,omitempty"`
+	Summary string `json:"summary,omitempty"`
+	// FirstPrompt is the prompt the Session began on, from Pong or from the
+	// human in the Harness: the first one recorded is kept.
+	FirstPrompt   string      `json:"first_prompt,omitempty"`
 	StartedBy     string      `json:"started_by"`
 	State         string      `json:"state"`
 	ContinuedFrom *SessionRef `json:"continued_from,omitempty"`
@@ -61,6 +64,9 @@ type Session struct {
 	// PID is the Harness process the Session runs in, when its hooks say;
 	// the Engine ends the Session once that process is gone (sessions_gone.go).
 	PID int `json:"pid,omitempty"`
+	// Transcript is the file where the Harness writes the Session, when its
+	// hooks say; it tells a turn that ended unseen (sessions_gone.go).
+	Transcript string `json:"transcript,omitempty"`
 	// Stop is the stop asked for the turn it is in or was last in (stop.go).
 	Stop      *Stop     `json:"stop,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
@@ -85,6 +91,7 @@ type RegisterSession struct {
 	AppCommand     string      `json:"app_command,omitempty"`
 	AppName        string      `json:"app_name,omitempty"`
 	PID            int         `json:"pid,omitempty"` // the Harness process it runs in
+	Transcript     string      `json:"transcript,omitempty"`
 	// NewTurn begins a turn now even when the Session is working already,
 	// as when a Pong wakes it. Otherwise a turn begins only when it becomes
 	// working, and a prompt folded into a running turn leaves its start.
@@ -198,6 +205,12 @@ func (s *projects) registerLocked(n RegisterSession) (Session, error) {
 	if s := strings.TrimSpace(n.Summary); s != "" {
 		sess.Summary = s
 	}
+	if p := strings.TrimSpace(n.FirstPrompt); p != "" && sess.FirstPrompt == "" {
+		sess.FirstPrompt = p
+	}
+	if n.Transcript != "" {
+		sess.Transcript = n.Transcript
+	}
 	if n.StartedBy != "" {
 		sess.StartedBy = n.StartedBy
 	}
@@ -272,14 +285,20 @@ func (s *projects) put(sess *Session) error {
 }
 
 // sessionForPing returns the Ping's Session, registering it if unknown and
-// taking the Ping's summary as the Session's.
+// taking the Ping's summary as the Session's, and the Ping's Harness process
+// when the Session has none.
 func (s *projects) sessionForPing(p Ping) (Session, error) {
 	s.smu.Lock()
 	defer s.smu.Unlock()
 	sess, err := s.session(p.Harness, p.Session)
 	if errors.Is(err, errNotFound) || (err == nil && sess.Folder == "" && p.Folder != "") ||
-		(err == nil && p.Summary != "" && p.Summary != sess.Summary) {
-		return s.registerLocked(RegisterSession{Harness: p.Harness, ID: p.Session, Folder: p.Folder, Summary: p.Summary})
+		(err == nil && p.Summary != "" && p.Summary != sess.Summary) ||
+		(err == nil && p.PID > 0 && sess.PID == 0) {
+		n := RegisterSession{Harness: p.Harness, ID: p.Session, Folder: p.Folder, Summary: p.Summary}
+		if sess.PID == 0 {
+			n.PID = p.PID // a hook's own word on the process wins
+		}
+		return s.registerLocked(n)
 	}
 	return sess, err
 }

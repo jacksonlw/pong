@@ -33,7 +33,8 @@ final class ThreadWindowController {
         // The Session opens in its Harness; where Pong has no way in, its Thread says so.
         SessionOpening.open = { ping in
             let s = CardContext.live.directory.card(for: ping).session
-            if SystemHarnessOpener().open(app: s?.appCommand, resume: s?.resumeCommand, startedBy: s?.startedBy) { return }
+            if SystemHarnessOpener().open(app: s?.appCommand, resume: s?.resumeCommand, startedBy: s?.startedBy,
+                                         ended: s?.state == "ended") { return }
             ThreadOpening.open?(ping)
         }
     }
