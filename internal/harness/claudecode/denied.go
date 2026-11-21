@@ -88,6 +88,7 @@ func askAfterRefusal(c *client.Client, e Event) (any, error) {
 // Thread is handed to the agent (text.go). It looks at two files and calls
 // the Engine only when text is kept, so it costs any other call nothing.
 func otherToolCall(c *client.Client, e Event) (any, error) {
+	noteTranscript(c, e) // context.go
 	d := preToolUseDecision{HookEventName: "PreToolUse", AdditionalContext: markedText(c, e)}
 	if allowed(c, e, "check") {
 		d.PermissionDecision, d.PermissionDecisionReason = "ask", "The human allowed this call in Pong."

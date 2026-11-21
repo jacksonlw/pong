@@ -97,3 +97,33 @@ func TestAPromptRecordsTheFirstPromptAndTheTranscript(t *testing.T) {
 		t.Errorf("first prompt %q", s.FirstPrompt)
 	}
 }
+
+// A Session already running when Pong learned to read transcripts gives its
+// transcript and first prompt at its first tool call, and leaves a mark so
+// later calls do not ask the Engine again.
+func TestTheFirstToolCallRecordsARunningSessionsTranscript(t *testing.T) {
+	c, dir := enginetest.Start(t)
+	path := transcript(t, reminded, toolUse)
+	call := func() {
+		in, _ := json.Marshal(map[string]any{"session_id": "running-1", "transcript_path": path, "cwd": t.TempDir(),
+			"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": map[string]string{"command": "ls"}})
+		hook(t, dir, in)
+	}
+	call()
+	s, err := c.Session(claudecode.HarnessName, "running-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Transcript != path || s.FirstPrompt != "Fix the checkout totals" {
+		t.Fatalf("transcript %q, first prompt %q", s.Transcript, s.FirstPrompt)
+	}
+	if _, err := os.Stat(filepath.Join(dir, claudecode.TranscriptsNoted, "running-1")); err != nil {
+		t.Fatalf("no mark: %v", err)
+	}
+	// Marked, a later call leaves the Session as it is.
+	os.WriteFile(path, []byte(endTurn+"\n"), 0o600)
+	call()
+	if s2, _ := c.Session(claudecode.HarnessName, "running-1"); !s2.UpdatedAt.Equal(s.UpdatedAt) {
+		t.Error("a later tool call changed the Session")
+	}
+}

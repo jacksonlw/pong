@@ -54,15 +54,16 @@ func TestATurnThatEndedUnseenLeavesItsSessionIdle(t *testing.T) {
 	c := enginetest.StartWith(t, engine.Config{Runners: []engine.Runner{r},
 		SessionCheckEvery: 20 * time.Millisecond, SessionQuietFor: time.Hour})
 	folder := repo(t, "shop")
+	// The question comes first, so no check runs while "asking" has a transcript and no question.
+	if _, err := c.CreatePing(client.NewPing{Harness: "claude-code", Session: "asking", Folder: folder,
+		Question: "Run this shell command?", Answers: []engine.Answer{{Label: "Allow"}}, BlocksAgent: true}); err != nil {
+		t.Fatal(err)
+	}
 	for _, id := range []string{"ended", "quiet", "asking", "writing", "settles"} {
 		if _, err := c.RegisterSession(engine.RegisterSession{Harness: "claude-code", ID: id, Folder: folder,
 			PID: os.Getpid(), Transcript: "/t/" + id, State: engine.SessionWorking}); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if _, err := c.CreatePing(client.NewPing{Harness: "claude-code", Session: "asking", Folder: folder,
-		Question: "Run this shell command?", Answers: []engine.Answer{{Label: "Allow"}}, BlocksAgent: true}); err != nil {
-		t.Fatal(err)
 	}
 	for _, id := range []string{"ended", "quiet"} {
 		eventually(t, id+" to become idle", func() bool {

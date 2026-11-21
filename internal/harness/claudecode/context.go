@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -118,6 +119,37 @@ func readTranscript(path string) (*engine.Context, string) {
 			return last, custom
 		}
 	}
+}
+
+// A Session already running when Pong learned to read transcripts has given
+// neither its transcript nor its first prompt, and gives them on its own only
+// at its next prompt. So the first tool call of each Session gives them, and
+// leaves a mark in the data folder so that later calls cost one look at a
+// file and no call to the Engine.
+
+// seenSession matches a Session id that is safe as a file name.
+var seenSession = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
+
+// TranscriptsNoted is the folder, in the Engine's data folder, of the marks
+// of Sessions whose transcript the Engine has.
+const TranscriptsNoted = "transcripts-noted"
+
+// noteTranscript gives the Engine e's transcript and first prompt, once per
+// Session.
+func noteTranscript(c *client.Client, e Event) {
+	if e.TranscriptPath == "" || e.Dir == "" || !seenSession.MatchString(e.SessionID) {
+		return
+	}
+	mark := filepath.Join(e.Dir, TranscriptsNoted, e.SessionID)
+	if _, err := os.Stat(mark); err == nil {
+		return
+	}
+	if _, err := c.RegisterSession(engine.RegisterSession{Harness: HarnessName, ID: e.SessionID,
+		Transcript: e.TranscriptPath, FirstPrompt: readFirstPrompt(e.TranscriptPath)}); err != nil {
+		return
+	}
+	os.MkdirAll(filepath.Dir(mark), 0o700)
+	os.WriteFile(mark, nil, 0o600)
 }
 
 // promptEntry is the parts of a transcript line that tell the prompt a turn
