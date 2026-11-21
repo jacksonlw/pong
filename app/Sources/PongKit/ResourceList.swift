@@ -73,8 +73,9 @@ struct ResourceRow: View {
                     if let thumbnail {
                         Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fill)
                     } else {
-                        Image(systemName: symbol(forKind: resource.kind)).fontWeight(Brand.iconWeight).imageScale(.large)
+                        Image(systemName: symbol(forKind: resource.kind)).imageScale(.large)
                             .font(Brand.Style.body.font)
+                            .brandIcon()
                             .foregroundStyle(Brand.secondary)
                     }
                 }
@@ -92,7 +93,7 @@ struct ResourceRow: View {
                 }
                 Spacer(minLength: 0)
                 if resource.isLink {
-                    Image(systemName: "arrow.up.right").fontWeight(Brand.iconWeight).imageScale(.medium).foregroundStyle(Brand.secondary)
+                    Image(systemName: "arrow.up.right").imageScale(.medium).brandIcon().foregroundStyle(Brand.secondary)
                 }
             }
             .padding(.vertical, 7)

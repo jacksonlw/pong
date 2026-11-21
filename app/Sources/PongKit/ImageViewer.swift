@@ -76,15 +76,7 @@ struct ImageViewerView: View {
                 .padding(48)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityLabel(title)
-            HoverButton(action: close) { hover in
-                Image(systemName: "xmark").fontWeight(Brand.iconWeight).imageScale(.large).font(Brand.Style.label.font)
-                    .foregroundStyle(Brand.fixedWhite)
-                    .opacity(hover ? 1 : 0.7)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
-            }
-            .help("Close (Esc)")
-            .accessibilityLabel("Close image")
+            IconButton(symbol: "xmark", label: "Close image", help: "Close (Esc)", colour: Brand.fixedWhite, action: close)
             .padding(16)
         }
         .contentShape(Rectangle())

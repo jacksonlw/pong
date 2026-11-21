@@ -46,11 +46,8 @@ public enum Brand {
     public static let shadowRadius: CGFloat = 12
     public static let shadowY: CGFloat = 4
 
-    /// The weight every icon is drawn at, so its stroke is as heavy as a Running Thread's ring: `.fontWeight(Brand.iconWeight)` on the symbol.
-    public static let iconWeight: Font.Weight = .bold
-
-    /// The stroke of every icon Pong draws (`BrandIcon`), in points at any size: as heavy as a Running Thread's ring.
-    public static let iconStroke: CGFloat = 2
+    /// How much larger than its text an icon is drawn: apply `.brandIcon()` to an SF Symbol.
+    public static let iconScale: CGFloat = 1.15
 
     /// Tags: the icon vocabulary an agent may use, and the outline and tint of each pastel a Tag may take.
     /// Tag text is `Brand.tagText` on a coloured Tag, and `Brand.secondary` on a neutral one.
@@ -167,6 +164,9 @@ extension View {
     public func brandShadow() -> some View {
         shadow(color: Brand.fixedInk.opacity(Brand.shadowOpacity), radius: Brand.shadowRadius, y: Brand.shadowY)
     }
+
+    /// Draws an SF Symbol `Brand.iconScale` times its natural size, without changing the space it takes in layout.
+    public func brandIcon() -> some View { scaleEffect(Brand.iconScale) }
 }
 
 extension Color {

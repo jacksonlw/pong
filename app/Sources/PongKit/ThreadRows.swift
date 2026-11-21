@@ -98,7 +98,7 @@ struct ThreadStatusIcon: View {
             if status == .running {
                 Spinner()
             } else {
-                Image(systemName: status.symbol).fontWeight(Brand.iconWeight).imageScale(.large).font(Brand.Style.label.font).foregroundStyle(status.colour)
+                Image(systemName: status.symbol).imageScale(.large).font(Brand.Style.label.font).brandIcon().foregroundStyle(status.colour)
             }
         }
         .frame(width: 18, height: 18)

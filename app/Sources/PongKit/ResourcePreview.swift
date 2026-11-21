@@ -101,8 +101,9 @@ struct Mono: View {
     var body: some View {
         let lines = HStack(alignment: .firstTextBaseline, spacing: 8) {
             if error {
-                Image(systemName: "exclamationmark.triangle.fill").fontWeight(Brand.iconWeight).imageScale(.large)
+                Image(systemName: "exclamationmark.triangle.fill").imageScale(.large)
                     .font(Brand.Style.monospace.font)
+                    .brandIcon()
                     .foregroundStyle(Brand.warning)
                     .accessibilityLabel("Error")
             }

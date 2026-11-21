@@ -56,7 +56,7 @@ public struct StartPanelView: View {
                     }
                 }
                 tile(selected: model.folderName != nil, action: actions.chooseFolder) {
-                    Image(systemName: "folder").fontWeight(Brand.iconWeight).imageScale(.large).frame(width: 22, height: 22)
+                    Image(systemName: "folder").imageScale(.large).brandIcon().frame(width: 22, height: 22)
                     Text(model.folderName ?? "Other folder…").allowsTightening(true)
                 }
             }
@@ -105,8 +105,9 @@ public struct StartPanelView: View {
 
             HStack(spacing: 8) {
                 HoverButton(action: actions.chooseFiles) { hover in
-                    Image(systemName: "plus").fontWeight(Brand.iconWeight).imageScale(.large)
-                        .font(Brand.Style.answer.font)
+                    Image(systemName: "plus").imageScale(.large)
+                        .font(Brand.Style.label.font)
+                        .brandIcon()
                         .frame(width: 40, height: 40)
                         .background(hover ? Brand.rowHover : Brand.row, in: Rectangle())
                         .contentShape(Rectangle())
@@ -203,15 +204,10 @@ public struct StartPanelView: View {
             .accessibilityAction(named: "Project menu") { model.menuOpen = project.id }
             .overlay(alignment: .trailing) {
                 if hover || focused || open {
-                    HoverButton { model.menuOpen = project.id } label: { gearHover in
-                        Image(systemName: "gearshape").fontWeight(Brand.iconWeight).imageScale(.large)
-                            .foregroundStyle(selected ? Brand.onSelected : gearHover ? Brand.text : Brand.secondary)
-                            .frame(width: 26, height: 40)
-                            .background(gearHover ? (selected ? Brand.selectedHover : Brand.rowHover) : .clear, in: Rectangle())
-                            .contentShape(Rectangle())
-                    }
+                    IconButton(symbol: "gearshape", label: "Project menu for \(project.name)",
+                               colour: selected ? Brand.onSelected : nil,
+                               hoverFill: selected ? Brand.selectedHover : Brand.rowHover) { model.menuOpen = project.id }
                     .focusable(false)
-                    .accessibilityLabel("Project menu for \(project.name)")
                 }
             }
             .hoverHighlight($hover)
@@ -257,18 +253,10 @@ public struct StartPanelView: View {
         var body: some View {
             let name = URL(fileURLWithPath: path).lastPathComponent
             HStack(spacing: 8) {
-                Image(systemName: "doc").fontWeight(Brand.iconWeight).imageScale(.large).font(Brand.Style.label.font).foregroundStyle(Brand.secondary)
+                Image(systemName: "doc").imageScale(.large).font(Brand.Style.label.font).brandIcon().foregroundStyle(Brand.secondary)
                 Text(name).brandStyle(.label).lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 0)
-                HoverButton(action: remove) { hover in
-                    Image(systemName: "xmark").fontWeight(Brand.iconWeight).imageScale(.large)
-                        .font(Brand.Style.label.font)
-                        .foregroundStyle(hover ? Brand.text : Brand.secondary)
-                        .frame(width: 26, height: 26)
-                        .background(hover ? Brand.rowHover : .clear, in: Rectangle())
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("Remove \(name)")
+                IconButton(symbol: "xmark", label: "Remove \(name)", help: path, hoverFill: Brand.rowHover, action: remove)
             }
             .padding(.leading, 10)
             .frame(minHeight: 26)

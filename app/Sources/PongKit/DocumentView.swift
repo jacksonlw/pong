@@ -83,7 +83,8 @@ private struct ListBlock: View {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Group {
                         if let checked = item.checked {
-                            Image(systemName: checked ? "checkmark.square.fill" : "square").fontWeight(Brand.iconWeight).imageScale(.large)
+                            Image(systemName: checked ? "checkmark.square.fill" : "square").imageScale(.large)
+                                .brandIcon()
                                 // Drawn larger than the text, in a box no taller than it.
                                 .frame(height: Brand.Style.body.size)
                                 .accessibilityLabel(checked ? "Done" : "Not done")

@@ -16,8 +16,9 @@ struct SendGroup: View {
     var body: some View {
         HStack(spacing: 2) {
             HoverButton(action: send) { hover in
-                Image(systemName: "arrow.up").fontWeight(Brand.iconWeight).imageScale(.large)
+                Image(systemName: "arrow.up").imageScale(.large)
                     .font(Brand.Style.answer.font)
+                    .brandIcon()
                     .foregroundStyle(canSend ? Brand.onSelected : Brand.secondary)
                     .frame(width: 40, height: 40)
                     .background(canSend ? (hover ? Brand.selectedHover : Brand.selected) : Brand.row)
@@ -27,8 +28,9 @@ struct SendGroup: View {
             .accessibilityLabel("Send")
             if let caret {
                 HoverButton(action: caret) { hover in
-                    Image(systemName: "chevron.down").fontWeight(Brand.iconWeight).imageScale(.large)
+                    Image(systemName: "chevron.down").imageScale(.large)
                         .font(Brand.Style.label.font)
+                        .brandIcon()
                         .foregroundStyle(typed ? Brand.onSelected : canOpen ? Brand.text : Brand.secondary)
                         .frame(width: 26, height: 40)
                         .background(typed ? (hover ? Brand.selectedHover : Brand.selected) : hover && canOpen ? Brand.rowHover : Brand.row)

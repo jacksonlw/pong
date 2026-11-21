@@ -207,8 +207,9 @@ public struct ThreadView: View {
             ForEach(d.answers, id: \.label) { a in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     // The chosen answers are ticked; the others stay in the secondary colour.
-                    Image(systemName: "checkmark").fontWeight(Brand.iconWeight).imageScale(.large)
+                    Image(systemName: "checkmark").imageScale(.large)
                         .font(Brand.Style.label.font)
+                        .brandIcon()
                         .frame(width: 12)
                         .foregroundStyle(Brand.text)
                         .opacity(a.chosen ? 1 : 0)

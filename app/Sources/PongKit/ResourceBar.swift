@@ -90,8 +90,9 @@ struct ResourceTile: View {
                     if let thumbnail {
                         Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fill)
                     } else {
-                        Image(systemName: symbol(forKind: resource.kind)).fontWeight(Brand.iconWeight).imageScale(.large)
+                        Image(systemName: symbol(forKind: resource.kind)).imageScale(.large)
                             .font(Brand.Style.question.font)
+                            .brandIcon()
                             .foregroundStyle(opened ? Brand.onSelected : Brand.secondary)
                     }
                 }

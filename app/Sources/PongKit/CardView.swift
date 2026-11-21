@@ -561,8 +561,9 @@ struct OptionRow: View {
                 switch mark {
                 case .none: EmptyView()
                 case .box(let on):
-                    Image(systemName: "checkmark").fontWeight(Brand.iconWeight).imageScale(.large)
+                    Image(systemName: "checkmark").imageScale(.large)
                         .font(Brand.Style.label.font)
+                        .brandIcon()
                         .foregroundStyle(Brand.onSelected)
                         .opacity(on ? 1 : 0)
                         .frame(width: 20, height: 20)
@@ -589,22 +590,36 @@ struct OptionRow: View {
     private var isBox: Bool { if case .box = mark { true } else { false } }
 }
 
-/// A top-bar button with an icon and no words.
+/// A button with an icon and no words, the one every such button in Pong uses: the same size,
+/// hit area, hover and icon everywhere.
 struct IconButton: View {
     var symbol: String
     var label: String
     var help: String?
-    var enabled: Bool
+    var enabled = true
+    /// The icon's colour where the button sits on something other than Pong's surface.
+    var colour: Color?
+    /// What fills the square at rest, and on hover.
+    var fill: Color = .clear
+    var hoverFill: Color = Brand.row
+    /// Drawn as if hovered, as while what it opens is open.
+    var held = false
+    /// A turn of the icon, in degrees.
+    var turn: Double = 0
     var action: () -> Void
     @State private var hover = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol).fontWeight(Brand.iconWeight).imageScale(.large)
+            Image(systemName: symbol).imageScale(.large)
                 .font(Brand.Style.label.font)
-                .foregroundStyle(enabled ? Brand.text : Brand.secondary)
+                .brandIcon()
+                .rotationEffect(.degrees(turn))
+                .animation(reduceMotion ? nil : CardMotion.box, value: turn)
+                .foregroundStyle(colour ?? (hover && enabled ? Brand.text : Brand.secondary))
                 .frame(width: 30, height: 30)
-                .background(hover && enabled ? Brand.row : .clear, in: Rectangle())
+                .background((hover || held) && enabled ? hoverFill : fill, in: Rectangle())
                 .contentShape(Rectangle())
         }
         .buttonStyle(FocusedPlain())

@@ -25,8 +25,8 @@ struct InfoButton: View {
         HoverButton { shown.toggle() } label: { hover in
             Image(systemName: "info.circle")
                 .resizable()
-                .fontWeight(Brand.iconWeight)
                 .scaledToFit()
+                .brandIcon()
                 .frame(width: Self.size, height: Self.size)
                 .foregroundStyle(hover ? Brand.text : Brand.secondary)
                 .contentShape(Rectangle())

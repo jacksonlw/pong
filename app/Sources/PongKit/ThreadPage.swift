@@ -148,16 +148,7 @@ struct ScrollToLatest: View {
     var action: () -> Void
 
     var body: some View {
-        HoverButton(action: action) { hover in
-            Image(systemName: "arrow.down").fontWeight(Brand.iconWeight).imageScale(.large)
-                .font(Brand.Style.label.font)
-                .foregroundStyle(Brand.text)
-                .frame(width: 32, height: 32)
-                .background(hover ? Brand.rowHover : Brand.surface, in: Rectangle())
-                .brandShadow()
-                .contentShape(Rectangle())
-        }
-        .help("Go to the latest Ping")
-        .accessibilityLabel("Go to the latest Ping")
+        IconButton(symbol: "arrow.down", label: "Go to the latest Ping", fill: Brand.surface, hoverFill: Brand.rowHover, action: action)
+            .brandShadow()
     }
 }

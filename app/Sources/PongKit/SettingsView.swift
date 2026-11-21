@@ -98,7 +98,7 @@ public struct SettingsView: View {
             }
             .toggleStyle(BrandToggleStyle())
             if let problem = model.voiceProblem {
-                Label { Text(problem).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: "exclamationmark.triangle.fill").fontWeight(Brand.iconWeight) }
+                Label { Text(problem).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: "exclamationmark.triangle.fill") }
                 .inlineIcon(.secondary)
                 .brandStyle(.secondary)
                 .foregroundStyle(Brand.warning)
@@ -164,7 +164,7 @@ struct HarnessRow: View {
                 .padding(.top, 4)
             }
             if let w = harness.warning {
-                Label { Text(w.replacingOccurrences(of: "/", with: "/\u{2060}")).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: "exclamationmark.triangle.fill").fontWeight(Brand.iconWeight) }
+                Label { Text(w.replacingOccurrences(of: "/", with: "/\u{2060}")).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: "exclamationmark.triangle.fill") }
                 .inlineIcon(.body)
                 .foregroundStyle(Brand.warning)
             }
