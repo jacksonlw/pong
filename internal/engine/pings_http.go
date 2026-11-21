@@ -24,7 +24,8 @@ type NewPing struct {
 	Approves     string   `json:"approves,omitempty"`
 	Context      string   `json:"context,omitempty"`
 	Why          string   `json:"why,omitempty"`
-	Summary      string   `json:"summary,omitempty"` // where the Session stands now; becomes the Session's summary
+	NotVerified  string   `json:"not_verified,omitempty"` // on finished work: what the agent did not check
+	Summary      string   `json:"summary,omitempty"`      // where the Session stands now; becomes the Session's summary
 	MoreComing   bool     `json:"more_coming,omitempty"`
 	BlocksAgent  bool     `json:"blocks_agent,omitempty"`
 	// Finished marks a Ping handing over finished work: it gets the Finished
@@ -101,6 +102,9 @@ func (n NewPing) validate() string {
 	}
 	if n.Finished && n.BlocksAgent {
 		return "this Ping is both finished and blocks you, but finished work does not hold you: drop blocks_agent for finished work, or drop finished for a question"
+	}
+	if !n.Finished && n.NotVerified != "" {
+		return "not_verified is only for finished work: drop it, or set finished"
 	}
 	if !n.Captured && !n.IsNote && !n.BlocksAgent && !n.Finished {
 		return "this Ping neither blocks you, nor is finished, nor is a Note: set blocks_agent for a question, finished for finished work, or use send_note for news"
@@ -192,7 +196,7 @@ func (n NewPing) ping() Ping {
 			Summary: strings.TrimSpace(n.Summary), IsNote: true, Thought: true}
 	}
 	p := Ping{Session: n.Session, Harness: n.Harness, Folder: n.Folder, Question: n.Question, AllowSeveral: n.AllowSeveral,
-		Approves: n.Approves, Context: n.Context, Why: n.Why, Summary: strings.TrimSpace(n.Summary), MoreComing: n.MoreComing,
+		Approves: n.Approves, Context: n.Context, Why: n.Why, NotVerified: strings.TrimSpace(n.NotVerified), Summary: strings.TrimSpace(n.Summary), MoreComing: n.MoreComing,
 		BlocksAgent: n.BlocksAgent, Finished: n.Finished, IsNote: n.IsNote, Tags: n.Tags}
 	if n.Captured {
 		p.Tags = goodTags(n.Tags)

@@ -129,13 +129,19 @@ var mcpTools = []mcpTool{
 				"allow_several": boolean("the human may tick several answers"),
 				"approves": map[string]any{"type": "string", "enum": []string{ApprovesPlan, ApprovesAction},
 					"description": "set when asking to approve a plan or an action; attach a plan as a document Resource"},
-				"context":      str("a short paragraph of background; put anything longer in a document Resource"),
+				"context": str("a short paragraph of background, in the Ping itself: what you found and why it matters, " +
+					"or on finished work what changed and why it works. Your human reads this, never your Session's closing text. " +
+					"Say it rather than pointing to a Thought, a file or your Session; put anything longer in a document Resource"),
+				"not_verified": str("on finished work, always: what you did not check, such as tests not run, a fix not tried " +
+					"in the app or a case you assumed; \"nothing\" only if you checked it all. Never say you checked what you did not"),
 				"why":          str("why you are asking now"),
 				"summary":      summarySchema,
 				"more_coming":  boolean("you will send another Ping after this one"),
 				"blocks_agent": boolean("you cannot continue until the Pong arrives; set it on every question and approval"),
 				"finished": boolean("this Ping hands over finished work: Pong draws the Finished mark on it and adds " +
-					NothingMore + " as the last answer, so give it no Tag saying it is finished; never set it with blocks_agent"),
+					NothingMore + " as the last answer, so give it no Tag saying it is finished; never set it with blocks_agent. " +
+					"Say in context what changed and why, set not_verified, and attach the test output when you ran tests; " +
+					"Pong attaches the uncommitted diff itself"),
 				"resources": resourcesSchema,
 				"tags":      tagsSchema,
 			}),

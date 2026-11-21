@@ -22,7 +22,9 @@ Pong refuses a Ping that is none of these, and one that is both finished and blo
 - One question per Ping. With several questions, send several Pings, one at a time, and set `more_coming` on each one that another will follow.
 - One or two lines that carry their own context: name the file, feature or decision. "Which tables should the migration touch?" not "Which ones?"
 - Never restate the answers in the question. The answers are shown under it; Pong refuses a question that repeats an answer's label.
-- Put short background in `context` and the reason you are asking now in `why`. Keep both to a sentence or two. Anything longer than a short paragraph goes into a document Resource.
+- Put background in `context` and the reason you are asking now in `why`: what you found and why it matters, so the human can decide without your Session. Keep each to a short paragraph; anything longer goes into a document Resource.
+- Say it, never point to it. "The Thought explains the test choice" or "see the plan above" tells the human nothing: your Thoughts, your messages and your Session's closing text are not on the card.
+- With several questions in a row, such as a round of design questions, each Ping still carries its own `context` and your recommendation.
 
 ## Answers
 
@@ -81,10 +83,12 @@ Anything that needs answers, Resources or Tags is a Note or a Ping, not a Though
 
 ## A finished Ping
 
-When you finish a piece of work, send a Ping with `finished: true` that says:
+When you finish a piece of work, send a Ping with `finished: true`. Your human reads this Ping, not your closing message or your Harness's own recap, so everything they need is in it:
 
-- what was done;
-- what was not verified (tests not run, cases not checked, anything you assumed);
+- in the question, what was done;
+- in `context`, what changed and why it works, and the cause if you found one: "Zoom now scales a plain box around each window's content, since SwiftUI ignored the view's bounds", not "Zoom is fixed";
+- in `not_verified`, always, what you did not check: tests not run, a fix not tried in the app, a case you assumed. Write "nothing" only if you checked it all, and never call something checked that you did not try;
+- the test output as an `output` Resource when you ran tests. Pong attaches the uncommitted diff itself;
 - what you suggest next, as up to four answers, the recommended one first.
 
 If the work is not committed, committing it is usually the recommended answer. A question you would close the work with, such as whether to commit, is one of these answers, not a Ping of its own: your human then answers it on the finished Ping.

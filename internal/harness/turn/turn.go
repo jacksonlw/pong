@@ -18,7 +18,7 @@ import (
 // as a subagent or a background command, answers with a Note instead: told
 // only to send a finished Ping, such agents refused and wrote why, and that
 // message came to the human as a plain Ping that asked nothing.
-const Nudge = "Before you stop, send a finished Ping with Pong's send_ping tool, with finished: true and what you suggest next as its answers, the recommended one first. If your work is not finished because you are waiting on work you started, such as a subagent or a background command, send a Note with send_note saying what you are waiting on instead. Then stop."
+const Nudge = "Before you stop, send a finished Ping with Pong's send_ping tool, with finished: true and what you suggest next as its answers, the recommended one first. Your human reads the Ping, not your closing message: say in it what changed and why, and in not_verified what you did not check. If your work is not finished because you are waiting on work you started, such as a subagent or a background command, send a Note with send_note saying what you are waiting on instead. Then stop."
 
 // Turn is one ended turn of a Session.
 type Turn struct {

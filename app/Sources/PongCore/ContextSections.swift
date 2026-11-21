@@ -46,6 +46,7 @@ extension Directory.Card {
         case .question:
             var s: [ContextSection] = []
             if let c = ping?.context, !c.isEmpty { s.append(.init(label: "Context", body: .text(c))) }
+            if let n = ping?.notVerified, !n.isEmpty { s.append(.init(label: "Not checked", body: .text(n))) }
             if let w = ping?.why, !w.isEmpty { s.append(.init(label: "Why it is asking", body: .text(w))) }
             let explained = (ping?.answers ?? []).filter { !($0.leadsTo ?? "").isEmpty }
             if !explained.isEmpty { s.append(.init(label: "What each answer leads to", body: .answers(explained))) }

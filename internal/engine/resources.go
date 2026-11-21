@@ -270,6 +270,11 @@ func (s *pings) sweepEvery(retention, every time.Duration) {
 // createWithResources creates the Ping for a validated n, first copying its
 // Resources into the data directory.
 func (s *pings) createWithResources(n NewPing) (Ping, error) {
+	if n.Finished && !n.Captured && !hasKind(n.Resources, KindChange) {
+		if d := uncommittedDiff(n.Folder); d != "" {
+			n.Resources = append(n.Resources, NewResource{Title: "Uncommitted changes", Kind: KindChange, Content: d})
+		}
+	}
 	res, err := s.storeResources(n.Resources, n.Folder)
 	if err != nil {
 		return Ping{}, err

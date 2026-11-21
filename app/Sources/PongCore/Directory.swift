@@ -80,6 +80,8 @@ public struct PingContext: Decodable, Equatable, Sendable {
     public var project: String?
     public var context: String?
     public var why: String?
+    /// On finished work, what the agent says it did not check.
+    public var notVerified: String?
     public var answers: [Answer]?
     public var state: PingState
 }

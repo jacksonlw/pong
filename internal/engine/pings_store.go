@@ -73,6 +73,9 @@ type Ping struct {
 	Approves     string   `json:"approves,omitempty"`
 	Context      string   `json:"context,omitempty"`
 	Why          string   `json:"why,omitempty"`
+	// NotVerified is what the agent says it did not check in the finished
+	// work it hands over.
+	NotVerified string `json:"not_verified,omitempty"`
 	// Summary is the agent's line on where its Session stands as it sends
 	// this Ping; it becomes the Session's summary.
 	Summary     string `json:"summary,omitempty"`
