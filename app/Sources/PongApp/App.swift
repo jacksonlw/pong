@@ -54,8 +54,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine.start()
 
         let engine = engine!
+        let shortcuts = ShortcutStore()
         settings = SettingsWindowController(client: { await engine.client() },
-                                            login: isReal ? MainAppLoginItem() : PretendLoginItem(), dock: dock)
+                                            login: isReal ? MainAppLoginItem() : PretendLoginItem(), dock: dock,
+                                            shortcuts: shortcuts)
         let settings = settings!
         NSApp.mainMenu = mainMenu(settings: { settings.show() })
         // A right click anywhere in Pong's windows leads to Settings and Quit too.
@@ -70,7 +72,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dock = dock
         card.dropped = { dock.cardDropped($0, settled: $1) }
         statusItem = StatusItem(card: card, directory: CardContext.live.directory,
-                                client: { await engine.client() }, settings: { settings.show() })
+                                client: { await engine.client() }, settings: { settings.show() },
+                                shortcuts: shortcuts)
         if !isReal { // live checks: SIGUSR1 presses the Bar's New Session button
             signal(SIGUSR1, SIG_IGN)
             let press = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)

@@ -5,12 +5,14 @@ import SwiftUI
 public struct SettingsView: View {
     @Bindable var model: SettingsModel
     var devices: DevicesModel?
+    var shortcuts: ShortcutStore?
 
     public static let width: CGFloat = 560
 
-    public init(model: SettingsModel, devices: DevicesModel? = nil) {
+    public init(model: SettingsModel, devices: DevicesModel? = nil, shortcuts: ShortcutStore? = nil) {
         self.model = model
         self.devices = devices
+        self.shortcuts = shortcuts
     }
 
     public var body: some View {
@@ -38,6 +40,14 @@ public struct SettingsView: View {
             }
             pingSoundSection
             voiceSection
+            if let shortcuts {
+                section("Shortcuts") {
+                    ForEach(ShortcutAction.allCases, id: \.self) { ShortcutRecorder(action: $0, store: shortcuts) }
+                    Text("These work from any app.")
+                        .brandStyle(.secondary)
+                        .foregroundStyle(Brand.secondary)
+                }
+            }
             section("Start at login") {
                 Toggle(isOn: Binding(get: { model.startsAtLogin }, set: { model.setStartsAtLogin($0) })) {
                     Text("Start Pong when you log in")

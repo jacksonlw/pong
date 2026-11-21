@@ -10,16 +10,23 @@ final class StatusItem: NSObject, NSMenuDelegate {
     private let directory: Directory
     private let client: @Sendable () async -> EngineClient?
     private let settings: () -> Void
+    private let shortcuts: ShortcutStore
+    private var hotKeys: HotKeys?
     /// The Ping sound to go back to when the human unmutes.
     private static let unmutedKey = "pingSoundBeforeMute"
 
     init(card: CardController, directory: Directory, client: @escaping @Sendable () async -> EngineClient?,
-         settings: @escaping () -> Void) {
+         settings: @escaping () -> Void, shortcuts: ShortcutStore) {
         self.card = card
         self.directory = directory
         self.client = client
         self.settings = settings
+        self.shortcuts = shortcuts
         super.init()
+        let keys = HotKeys { [weak self] in self?.perform($0) }
+        keys.register(shortcuts.shortcuts)
+        shortcuts.changed = { [weak keys, shortcuts] in keys?.register(shortcuts.shortcuts) }
+        hotKeys = keys
         item.button?.image = PongMenu.menuBarImage
         item.button?.toolTip = "Pong"
         item.menu = NSMenu()
@@ -31,11 +38,18 @@ final class StatusItem: NSObject, NSMenuDelegate {
         let fresh = PongMenu.status(shown: !card.hidden, muted: directory.pingSound == .off,
                                     toggleShown: { [card] in card.set(hidden: !card.hidden) },
                                     toggleMuted: { [weak self] in self?.toggleMute() },
-                                    settings: settings)
+                                    settings: settings, shortcuts: shortcuts.shortcuts)
         menu.removeAllItems()
         for i in fresh.items {
             fresh.removeItem(i)
             menu.addItem(i)
+        }
+    }
+
+    private func perform(_ a: ShortcutAction) {
+        switch a {
+        case .toggleShown: card.set(hidden: !card.hidden)
+        case .toggleMuted: toggleMute()
         }
     }
 

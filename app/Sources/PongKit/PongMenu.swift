@@ -15,12 +15,20 @@ public enum PongMenu {
     /// The menu bar item's menu: showing or hiding Pong's windows, muting the Ping sound, then the
     /// right-click menu's Settings and Quit.
     public static func status(shown: Bool, muted: Bool, toggleShown: @escaping () -> Void,
-                              toggleMuted: @escaping () -> Void, settings: @escaping () -> Void) -> NSMenu {
+                              toggleMuted: @escaping () -> Void, settings: @escaping () -> Void,
+                              shortcuts: [ShortcutAction: Shortcut] = [:]) -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(ActionMenuItem(shown ? "Hide Pong" : "Show Pong", key: "", action: toggleShown))
+        let show = ActionMenuItem(shown ? "Hide Pong" : "Show Pong", key: "", action: toggleShown)
         let mute = ActionMenuItem("Mute Ping Sounds", key: "", action: toggleMuted)
         mute.state = muted ? .on : .off
-        menu.addItem(mute)
+        // The menu shows each shortcut set in Settings beside what it does.
+        for (item, action) in [(show, ShortcutAction.toggleShown), (mute, .toggleMuted)] {
+            if let s = shortcuts[action], s.key.count == 1 {
+                item.keyEquivalent = s.key.lowercased()
+                item.keyEquivalentModifierMask = s.flags
+            }
+            menu.addItem(item)
+        }
         menu.addItem(.separator())
         for item in make(settings: settings).items {
             item.menu?.removeItem(item)

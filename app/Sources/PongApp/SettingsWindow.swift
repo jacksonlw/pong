@@ -9,11 +9,13 @@ final class SettingsWindowController {
     private let client: @Sendable () async -> EngineClient?
     private let login: LoginItem
     private let dock: Dock
+    private let shortcuts: ShortcutStore
     private var panel: DockPanel?
     private static let key = "settings"
     static let height: CGFloat = 640
 
-    init(client: @escaping @Sendable () async -> EngineClient?, login: LoginItem, dock: Dock) {
+    init(client: @escaping @Sendable () async -> EngineClient?, login: LoginItem, dock: Dock, shortcuts: ShortcutStore) {
+        self.shortcuts = shortcuts
         self.client = client
         self.login = login
         self.dock = dock
@@ -33,7 +35,7 @@ final class SettingsWindowController {
                        moved: { dock.dropped(Self.key) }, putBack: { dock.putBack(Self.key) },
                        onClose: { [weak self] in self?.close() })
             ScrollView {
-                SettingsView(model: model, devices: DevicesModel(api: c))
+                SettingsView(model: model, devices: DevicesModel(api: c), shortcuts: shortcuts)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
