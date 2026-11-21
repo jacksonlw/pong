@@ -36,11 +36,13 @@ final class SettingsWindowController {
                 SettingsView(model: model, devices: DevicesModel(api: c))
             }
         }
-        .frame(width: SettingsView.width, height: Self.height)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Brand.page)
         .task { await model.load() }
         let p = DockPanel.make(size: CGSize(width: SettingsView.width, height: Self.height))
-        p.contentView = FirstMouseHostingView(rootView: view)
+        let host = FirstMouseHostingView(rootView: view)
+        host.sizingOptions = [] // the human sizes the panel by its edges
+        p.host(host, minimum: CGSize(width: 360, height: 320))
         panel = p
         dock.show(Self.key, p, closed: { [weak self] in self?.close() })
         print("settings shown")

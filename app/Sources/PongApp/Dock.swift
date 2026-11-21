@@ -2,7 +2,7 @@ import AppKit
 import PongKit
 
 /// Every window setting for a panel beside the card: the card's own floating panel, which never
-/// activates Pong, but one that a click makes key, so ⌘W and Escape reach it.
+/// activates Pong, but one that a click makes key, so ⌘W reaches it.
 enum DockPanelConfiguration {
     static func apply(to p: NSPanel) {
         CardPanelConfiguration.apply(to: p)
@@ -11,12 +11,19 @@ enum DockPanelConfiguration {
 }
 
 /// A Thread, Settings or Resource preview's window. Not a CardPanel, so the card is the only one
-/// of those. ⌘W, ⌃W and Escape close it, as a browser closes a tab.
+/// of those. ⌘W, ⌃W and its close control close it, as a browser closes a tab; Escape does not.
+/// Its edges and corners resize it.
 final class DockPanel: NSPanel {
     var onClose: () -> Void = {}
+    /// Told when the human starts (true) and stops (false) resizing it by an edge.
+    var onResizing: (Bool) -> Void = { _ in }
+    private(set) var isResizing = false
+    private let edges = PanelEdges()
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
-    override func cancelOperation(_ sender: Any?) { onClose() }
+    /// Escape belongs to what has focus inside the panel, never to closing it.
+    override func cancelOperation(_ sender: Any?) {}
 
     override func performKeyEquivalent(with e: NSEvent) -> Bool {
         let keys = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -27,9 +34,27 @@ final class DockPanel: NSPanel {
         return super.performKeyEquivalent(with: e)
     }
 
+    /// Shows `content` filling the panel, under the edges that resize it, no smaller than `minimum`.
+    func host(_ content: NSView, minimum: CGSize) {
+        let box = NSView(frame: NSRect(origin: .zero, size: frame.size))
+        content.frame = box.bounds
+        content.autoresizingMask = [.width, .height]
+        box.addSubview(content)
+        edges.frame = box.bounds
+        edges.minimum = minimum
+        edges.resizing = { [weak self] on in
+            guard let self else { return }
+            self.isResizing = on
+            self.onResizing(on)
+        }
+        box.addSubview(edges)
+        contentView = box
+    }
+
     static func make(size: CGSize) -> DockPanel {
-        let p = DockPanel(contentRect: NSRect(origin: .zero, size: size), styleMask: CardPanelConfiguration.style,
-                          backing: .buffered, defer: false)
+        let z = Zoom.shared.scale
+        let p = DockPanel(contentRect: NSRect(origin: .zero, size: CGSize(width: size.width * z, height: size.height * z)),
+                          styleMask: CardPanelConfiguration.style, backing: .buffered, defer: false)
         DockPanelConfiguration.apply(to: p)
         return p
     }
@@ -63,6 +88,20 @@ final class Dock {
                 MainActor.assumeIsolated { self?.windowChanged(n.object as? NSWindow, resized: name == NSWindow.didResizeNotification) }
             }
         }
+        NotificationCenter.default.addObserver(forName: Zoom.changed, object: nil, queue: .main) { [weak self] n in
+            let was = n.userInfo?["was"] as? CGFloat ?? 1
+            MainActor.assumeIsolated { self?.zoomed(by: Zoom.shared.scale / was) }
+        }
+    }
+
+    /// Pong zoomed in or out: each panel grows or shrinks with it, keeping its top-left corner.
+    private func zoomed(by ratio: CGFloat) {
+        for p in panels.values {
+            let f = p.frame
+            let s = CGSize(width: (f.width * ratio).rounded(), height: (f.height * ratio).rounded())
+            p.setFrame(NSRect(x: f.minX, y: f.maxY - s.height, width: s.width, height: s.height), display: true)
+        }
+        layout(eased: true)
     }
 
     private var card: NSWindow? { NSApp.windows.first { $0 is CardPanel && $0.isVisible } }
@@ -83,6 +122,8 @@ final class Dock {
         closers[key] = closed
         detaching[key] = detached
         panel.onClose = { [weak self] in self?.close(key) }
+        // Let go of an edge, a docked panel takes its place in the row again at its new size.
+        panel.onResizing = { [weak self] on in if !on, self?.row.docked.contains(key) == true { self?.layout(eased: true) } }
         for g in gone { close(g) }
         if apart { placeApart(panel) }
         layout(eased: true, arriving: apart ? nil : key)
@@ -94,6 +135,7 @@ final class Dock {
         guard let p = panels.removeValue(forKey: key) else { return }
         let hadKey = p.isKeyWindow
         row.close(key)
+        unattach(key)
         closers[key] = nil
         detaching[key] = nil
         laidOut[key] = nil
@@ -110,12 +152,79 @@ final class Dock {
         remove(key)
     }
 
-    /// Lays the row out again for the card moving or changing size, or a docked panel changing size.
+    /// The card's frame when it last moved or changed size.
+    private var cardFrame: CGRect?
+
+    /// Lays the row out again for the card moving or changing size, or a docked panel changing
+    /// size. While the human drags a docked panel's edge, the others make room for it at once.
     private func windowChanged(_ w: NSWindow?, resized: Bool) {
-        if w is CardPanel { return layout() }
+        if let w, w is CardPanel {
+            carryAttached(card: w.frame)
+            return layout()
+        }
         guard resized, let key = panels.first(where: { $0.value === w })?.key, row.docked.contains(key),
               laidOut[key] != w?.frame.size else { return }
+        if (w as? DockPanel)?.isResizing == true { return layout(except: key) }
         layout(eased: true)
+    }
+
+    /// The detached panels joined to the card: each snapped into place against it, the docked
+    /// panels or another joined panel. They move with the card as one body.
+    private var attached: Set<String> = []
+
+    /// The card moved without changing size, as when the human drags it: the panels joined to it
+    /// move with it. Panels it passes on the way are left where they are.
+    private func carryAttached(card now: CGRect) {
+        defer { cardFrame = now }
+        guard let was = cardFrame, was.size == now.size, was.origin != now.origin else { return }
+        let dx = now.minX - was.minX, dy = now.minY - was.minY
+        for k in attached {
+            guard let p = panels[k] else { continue }
+            p.setFrameOrigin(NSPoint(x: p.frame.minX + dx, y: p.frame.minY + dy))
+        }
+    }
+
+    /// The card's body: the card and its docked row.
+    private func body(_ card: NSWindow) -> [CGRect] { [card.frame] + row.docked.compactMap { panels[$0]?.frame } }
+
+    /// Joins `key` to the card when it rests against the body, and keeps only the joined panels
+    /// still reached from the body, so one moved away no longer holds others on.
+    private func rejoin(_ key: String?, at f: CGRect? = nil) {
+        guard let card else { return attached = [] }
+        var frames = Dictionary(uniqueKeysWithValues: attached.compactMap { k in panels[k].map { (k, $0.frame) } })
+        if let key { frames[key] = f ?? panels[key]?.frame }
+        let now = PreviewSnap.attached(frames.compactMapValues { $0 }, to: body(card), gap: Self.gap)
+        if now != attached { print("dock attached \(now.sorted())") }
+        attached = now
+    }
+
+    private func unattach(_ key: String) {
+        guard attached.remove(key) != nil else { return }
+        rejoin(nil)
+    }
+
+    /// The human let go of the card after dragging it. Near a detached panel, it eases into place
+    /// against it, and the panels it then rests against join it.
+    func cardDropped(_ card: NSWindow, settled: @escaping () -> Void) {
+        let loose = row.detached.subtracting(attached).compactMap { panels[$0]?.frame }
+        let at = PreviewSnap.rest(card.frame, beside: loose, gap: Self.gap)
+        let join = { [weak self] in
+            guard let self else { return settled() }
+            for k in self.row.detached where !self.attached.contains(k) {
+                if let f = self.panels[k]?.frame, PreviewSnap.touching(f, card.frame, gap: Self.gap) { self.rejoin(k) }
+            }
+            settled()
+        }
+        guard at != card.frame else { return join() }
+        guard !reduceMotion else {
+            card.setFrame(at, display: true)
+            return join()
+        }
+        NSAnimationContext.runAnimationGroup({ c in
+            c.duration = Self.ease
+            c.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            card.animator().setFrame(at, display: true)
+        }, completionHandler: { MainActor.assumeIsolated { join() } })
     }
 
     private func frames(_ keys: [String], beside card: NSWindow) -> [CGRect] {
@@ -133,13 +242,13 @@ final class Dock {
     }
 
     /// Puts the docked panels in their row beside the card and shows every panel.
-    private func layout(eased: Bool = false, arriving: String? = nil) {
+    private func layout(eased: Bool = false, arriving: String? = nil, except: String? = nil) {
         let keys = row.docked
         guard let card else {
             for k in keys { panels[k]?.orderOut(nil) }
             return
         }
-        for (k, f) in zip(keys, frames(keys, beside: card)) {
+        for (k, f) in zip(keys, frames(keys, beside: card)) where k != except {
             guard let p = panels[k] else { continue }
             laidOut[k] = f.size
             if k == arriving {
@@ -189,10 +298,14 @@ final class Dock {
         // Barely moved from its place in the row: it goes back.
         if let card, let i = row.docked.firstIndex(of: key) {
             let home = frames(row.docked, beside: card)[i]
-            if abs(p.frame.minX - home.minX) <= reach, abs(p.frame.minY - home.minY) <= reach { return layout(eased: true) }
+            if abs(p.frame.minX - home.minX) <= reach, abs(p.frame.minY - home.minY) <= reach {
+                unattach(key)
+                return layout(eased: true)
+            }
         }
         // The other docked panels close up the row, and this one rests against what is near.
         let rest = row.docked.filter { $0 != key }
+        attached.remove(key)
         var others = row.detached.filter { $0 != key }.compactMap { panels[$0]?.frame }
         var end: CGRect?
         if let card {
@@ -203,12 +316,15 @@ final class Dock {
         let at = PreviewSnap.rest(p.frame, beside: others, gap: Self.gap)
         if let end, abs(at.minX - end.minX) < 1, abs(at.minY - end.minY) < 1 {
             row.dockAtEnd(key)
+            rejoin(nil)
             detaching[key]?(false)
             print("dock docked \(key)")
         } else {
             row.detach(key)
             detaching[key]?(true)
             move(p, to: at, eased: true)
+            // Snapped into place against the card's body, it joins it; let go apart, it stands alone.
+            rejoin(key, at: at)
             print("dock detached \(key)")
         }
         layout(eased: true)
@@ -218,6 +334,7 @@ final class Dock {
     func putBack(_ key: String) {
         guard row.contains(key) else { return }
         row.dockAtEnd(key)
+        unattach(key)
         detaching[key]?(false)
         layout(eased: true)
     }

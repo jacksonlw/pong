@@ -2,7 +2,7 @@ import AppKit
 import PDFKit
 import SwiftUI
 
-/// The size of the preview window beside the card.
+/// The size a preview window beside the card opens at.
 public let previewSize = CGSize(width: 520, height: 560)
 
 /// One Resource previewed: its title and kind, then its content as befits the kind.
@@ -41,7 +41,7 @@ public struct ResourcePreview: View {
                 }
             }
         }
-        .frame(width: previewSize.width, height: previewSize.height)
+        .frame(idealWidth: previewSize.width, maxWidth: .infinity, idealHeight: previewSize.height, maxHeight: .infinity)
         .background(Brand.surface, in: Rectangle())
     }
 
@@ -55,6 +55,11 @@ public struct ResourcePreview: View {
                 if let img = NSImage(data: data!) {
                     Image(nsImage: img).resizable().aspectRatio(contentMode: .fit)
                         .clipShape(Rectangle())
+                        .contentShape(Rectangle())
+                        .onTapGesture { ImageViewer.show(img, title: resource.title) }
+                        .help("Click to see it full screen")
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityHint("Shows the image full screen")
                 } else {
                     Text("This image cannot be shown.").brandStyle(.body).foregroundStyle(Brand.secondary)
                 }

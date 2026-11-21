@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settings: SettingsWindowController!
     private var newSessionSignal: DispatchSourceSignal?
     private var rightClicks: Any?
+    private var zoomKeys: Any?
     private var threads: ThreadWindowController!
     private var joins: JoinWindowController!
     private let arrivals = PingArrivals()
@@ -58,9 +59,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = mainMenu(settings: { settings.show() })
         // A right click anywhere in Pong's windows leads to Settings and Quit too.
         rightClicks = PongMenu.watch(settings: { settings.show() })
+        // ⌘+ and ⌘− (or ⌃) zoom everything in Pong's windows, from whichever of them has focus.
+        zoomKeys = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+            MainActor.assumeIsolated { Zoom.shared.handle(e) } ? nil : e
+        }
         // The Bar is Pong's place on screen: it starts Sessions and leads to Settings and Quit.
         card = CardController(inbox: inbox, directory: CardContext.live.directory, client: { await engine.client() },
                               settings: { settings.show() }, openThread: { [weak self] in self?.threads.show($0) })
+        let dock = dock
+        card.dropped = { dock.cardDropped($0, settled: $1) }
         if !isReal { // live checks: SIGUSR1 presses the Bar's New Session button
             signal(SIGUSR1, SIG_IGN)
             let press = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)

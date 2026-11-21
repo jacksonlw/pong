@@ -226,11 +226,6 @@ final class CardPanel: NSPanel {
     override func cancelOperation(_ sender: Any?) { cancel() }
 }
 
-/// Clicks on the card act at once, even though the card is never the key window.
-final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-}
-
 /// Shows the Inbox's card in a screen corner while any Ping waits, and the Bar while none does,
 /// keeping the panel the size of what it shows as that changes (answers, a growing reply box,
 /// the typing badge below it, the Threads list, the start panel).
@@ -292,6 +287,22 @@ final class CardController {
         trackCorner()
         trackFace()
         update()
+        zooming = NotificationCenter.default.addObserver(forName: Zoom.changed, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.panel.isVisible else { return }
+                self.shrink?.cancel()
+                self.shrink = nil
+                self.place(self.size)
+            }
+        }
+    }
+
+    private var zooming: NSObjectProtocol?
+
+    /// The window's size for content of size `s`, drawn at Pong's zoom.
+    private func zoomed(_ s: CGSize) -> CGSize {
+        let z = Zoom.shared.scale
+        return CGSize(width: (s.width * z).rounded(), height: (s.height * z).rounded())
     }
 
     /// The Bar opens into the start panel; live checks send SIGUSR1 to press it.
@@ -394,19 +405,23 @@ final class CardController {
 
     /// The size to place the panel at now. While a shrink waits for the box's ease, that is
     /// the size the panel already has: the shorter one would cut the box off as it eases.
-    private var standing: CGSize { panel.isVisible && shrink != nil ? panel.frame.size : size }
+    private var standing: CGSize {
+        let z = Zoom.shared.scale
+        return panel.isVisible && shrink != nil ? CGSize(width: panel.frame.width / z, height: panel.frame.height / z) : size
+    }
 
     private func resize(_ s: CGSize) {
         guard s.height > 0 else { return }
         size = s
         shrink?.cancel()
         shrink = nil
-        if s.height >= panel.frame.height || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+        let window = zoomed(s)
+        if window.height >= panel.frame.height || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             place(s)
             return
         }
         // A new width shows at once; only the height waits for the box.
-        if s.width != panel.frame.width { place(CGSize(width: s.width, height: panel.frame.height)) }
+        if window.width != panel.frame.width { place(CGSize(width: s.width, height: standing.height)) }
         let later = DispatchWorkItem { [weak self] in
             self?.shrink = nil
             self?.place(s)
@@ -416,9 +431,15 @@ final class CardController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: later) // after the box's 220 ms ease
     }
 
+    /// Where the human let go of the card: Pong's other windows may pull it into place.
+    var dropped: (NSWindow, @escaping () -> Void) -> Void = { _, settled in settled() }
+
     private func moved() {
-        dragged = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
-        print("card moved to \(Int(panel.frame.minX)), \(Int(panel.frame.maxY))")
+        dropped(panel) { [weak self] in
+            guard let self else { return }
+            self.dragged = NSPoint(x: self.panel.frame.minX, y: self.panel.frame.maxY)
+            print("card moved to \(Int(self.panel.frame.minX)), \(Int(self.panel.frame.maxY))")
+        }
     }
 
     /// The human is dragging a side of the card. In its corner the card stays there; dragged
@@ -426,8 +447,9 @@ final class CardController {
     private func widen(_ edge: CardEdge, by distance: CGFloat) {
         let from = widening ?? (anchor.width, panel.frame.maxX)
         widening = from
-        let w = min(max(from.width + distance, cardWidths.lowerBound), cardWidths.upperBound).rounded()
-        if edge == .left, let d = dragged { dragged = NSPoint(x: from.maxX - w, y: d.y) }
+        let z = Zoom.shared.scale
+        let w = min(max(from.width + distance / z, cardWidths.lowerBound), cardWidths.upperBound).rounded()
+        if edge == .left, let d = dragged { dragged = NSPoint(x: from.maxX - w * z, y: d.y) }
         anchor.width = w
     }
 
@@ -454,8 +476,9 @@ final class CardController {
     /// in the chosen corner of the main display (the one with the menu bar),
     /// or of the display with the focused window when Settings say the card follows it.
     /// In a bottom corner the bottom edge is the fixed one, and the card is pinned to it.
-    private func place(_ s: CGSize) {
-        guard s.height > 0 else { return }
+    private func place(_ content: CGSize) {
+        guard content.height > 0 else { return }
+        let s = zoomed(content)
         let bottom = dragged == nil && !directory.corner.isTop
         if anchor.bottom != bottom { anchor.bottom = bottom }
         let trailing = dragged == nil && directory.corner.isRight

@@ -296,15 +296,10 @@ final class ThreadTests: XCTestCase {
         XCTAssertEqual(ThreadView.Details(t.pings[2], nil).answers.filter(\.chosen).map(\.label), ["lint", "unit"])
     }
 
-    /// The bar shows once the header's title has gone up under it; the button while the latest
-    /// Ping is out of view.
-    func testScrollingCollapsesTheHeaderAndOffersTheLatest() {
-        let top = ThreadScroll(offset: 0, visible: 500, content: 1200)
-        XCTAssertFalse(top.collapsed)
-        XCTAssertFalse(top.atBottom)
-        let down = ThreadScroll(offset: 300, visible: 500, content: 1200)
-        XCTAssertTrue(down.collapsed)
-        XCTAssertFalse(down.atBottom)
+    /// The button back to the latest Ping shows while the latest Ping is out of view.
+    func testScrollingAwayOffersTheLatest() {
+        XCTAssertFalse(ThreadScroll(offset: 0, visible: 500, content: 1200).atBottom)
+        XCTAssertFalse(ThreadScroll(offset: 300, visible: 500, content: 1200).atBottom)
         XCTAssertTrue(ThreadScroll(offset: 695, visible: 500, content: 1200).atBottom)
         XCTAssertTrue(ThreadScroll(offset: 0, visible: 500, content: 400).atBottom, "a short Thread is all in view")
     }
@@ -313,7 +308,8 @@ final class ThreadTests: XCTestCase {
         var t = try Self.fixture("s-new")
         t.contexts[t.pings[0].id]?.context = "The checkout total is a cent off on carts with three or more items."
         t.contexts[t.pings[0].id]?.why = "Both places can round; only one should."
-        try assertSnapshot(ThreadBar(thread: t, opensIn: "Claude"), named: "thread-bar")
+        try assertSnapshot(ThreadPanelTitle(thread: t, opensIn: "Claude", stop: nil, actions: .init(),
+                                            moved: {}, putBack: {}, onClose: {}).frame(width: ThreadView.width), named: "thread-title")
         try assertSnapshot(ThreadView(thread: t, opened: [t.pings[0].id, t.pings[2].id])
             .environment(\.resourceStore, ResourceStore()), named: "thread-opened")
     }
@@ -322,9 +318,6 @@ final class ThreadTests: XCTestCase {
         let t = try Self.fixture("s-new")
         let notice = "Pong cannot tell which app this Session runs in. The Engine has no command to resume it."
         try assertSnapshot(ThreadView(thread: t, notice: notice).environment(\.resourceStore, ResourceStore()), named: "thread")
-        var claude = t
-        claude.session.harness = "claude-code"
-        try assertSnapshot(ThreadView(thread: claude, opensIn: "Claude").environment(\.resourceStore, ResourceStore()), named: "thread-opens-in")
     }
 
     // Stopping a turn.
@@ -401,6 +394,22 @@ final class ThreadTests: XCTestCase {
         XCTAssertEqual(again, ["s-new"], "a stop that is sent is not asked for twice")
     }
 
+    /// The title strip's ⋮ menu holds Stop while the Session is Running, "Stopping…" once it
+    /// is pressed, and Open in the Harness, which another computer's Session has not.
+    @MainActor
+    func testThePanelMenuHoldsStopAndOpen() throws {
+        var t = try Self.running()
+        func titles(_ stop: ThreadStop?) -> [String] {
+            ThreadPanelTitle.menu(t, opensIn: "Claude", stop: stop, actions: .init()).map(\.title)
+        }
+        XCTAssertEqual(titles(.offered), ["Stop", "Open in Claude"])
+        XCTAssertEqual(titles(.stopping), ["Stopping…", "Open in Claude"])
+        XCTAssertEqual(ThreadPanelTitle.menu(t, opensIn: "Claude", stop: .stopping, actions: .init()).map(\.enabled), [false, true])
+        XCTAssertEqual(titles(nil), ["Open in Claude"])
+        t.remote = true
+        XCTAssertEqual(titles(nil), [])
+    }
+
     func testStopDecodesFromTheThread() throws {
         let json = #"{"session": {"id": "s", "state": "working", "stop": {"state": "sent", "asked_at": "2026-11-20T10:00:00Z", "device": "Jackson's iPhone"}}, "stops_turns": true, "pings": [{"id": "l1", "session": "s", "question": "You stopped this turn from Jackson's iPhone.", "state": "dismissed", "is_note": true, "line": true, "answers": []}]}"#
         let t = try SessionThread.decode(Data(json.utf8))
@@ -411,14 +420,10 @@ final class ThreadTests: XCTestCase {
 
     func testSnapshotStop() throws {
         var t = try Self.running()
-        try assertSnapshot(ThreadBar(thread: t, opensIn: "Claude", stop: .offered), named: "thread-bar-stop")
-        try assertSnapshot(ThreadBar(thread: t, opensIn: "Claude", stop: .stopping), named: "thread-bar-stopping")
-        try assertSnapshot(ThreadBar(thread: t, opensIn: "Claude", stop: .offered, cannotReach: "Can't reach the MacBook."),
-                           named: "thread-bar-cannot-reach")
         let line = #"{"session": {"id": "s"}, "pings": [{"id": "l1", "session": "s-new", "question": "You stopped this turn from Jackson's iPhone.", "state": "dismissed", "is_note": true, "line": true, "answers": []}]}"#
         t.pings.append(try SessionThread.decode(Data(line.utf8)).pings[0])
         t.session.state = "idle"
-        try assertSnapshot(ThreadView(thread: t, opensIn: "Claude").environment(\.resourceStore, ResourceStore()), named: "thread-stopped")
+        try assertSnapshot(ThreadView(thread: t).environment(\.resourceStore, ResourceStore()), named: "thread-stopped")
     }
 
     /// Thoughts are kept in the Thread in order among the Pings, wait for nothing and leave the
@@ -433,12 +438,12 @@ final class ThreadTests: XCTestCase {
 
     func testSnapshotThoughts() throws {
         var t = try Self.fixture("s-thoughts")
-        try assertSnapshot(ThreadView(thread: t, opensIn: "Claude").environment(\.resourceStore, ResourceStore()), named: "thread-thoughts")
+        try assertSnapshot(ThreadView(thread: t).environment(\.resourceStore, ResourceStore()), named: "thread-thoughts")
         // A Thought beside one of Pong's own lines: the turn was stopped after it.
         t.pings.removeLast()
         let line = #"{"session": {"id": "s"}, "pings": [{"id": "l1", "session": "s-thoughts", "question": "You stopped this turn from Jackson's iPhone.", "state": "dismissed", "is_note": true, "line": true, "answers": []}]}"#
         t.pings.append(try SessionThread.decode(Data(line.utf8)).pings[0])
         t.session.state = "idle"
-        try assertSnapshot(ThreadView(thread: t, opensIn: "Claude").environment(\.resourceStore, ResourceStore()), named: "thread-thought-line")
+        try assertSnapshot(ThreadView(thread: t).environment(\.resourceStore, ResourceStore()), named: "thread-thought-line")
     }
 }

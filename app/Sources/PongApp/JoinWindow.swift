@@ -53,10 +53,12 @@ final class JoinWindowController {
             JoinRequestView(model: model)
             Spacer(minLength: 0)
         }
-        .frame(width: JoinRequestView.width, height: JoinRequestView.height)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Brand.page)
         let p = DockPanel.make(size: CGSize(width: JoinRequestView.width, height: JoinRequestView.height))
-        p.contentView = FirstMouseHostingView(rootView: view)
+        let host = FirstMouseHostingView(rootView: view)
+        host.sizingOptions = [] // the human sizes the panel by its edges
+        p.host(host, minimum: CGSize(width: JoinRequestView.width, height: JoinRequestView.height))
         panel = p
         dock.show(Self.key, p, closed: { model.close() })
         print("join request shown")

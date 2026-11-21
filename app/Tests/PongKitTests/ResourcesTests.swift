@@ -103,6 +103,17 @@ final class ResourcesTests: XCTestCase {
         XCTAssertEqual(PreviewSnap.rest(far, beside: [card], gap: 10), far)
     }
 
+    /// Panels resting against the card, or against a panel that rests against it, move with the
+    /// card; one standing apart does not.
+    func testPanelsRestingOnTheCardMoveWithIt() {
+        let card = CGRect(x: 1000, y: 400, width: 380, height: 300)
+        let below = CGRect(x: 1000, y: 30, width: 380, height: 360) // under the card, the gap between
+        let beside = CGRect(x: 1390, y: 30, width: 300, height: 200) // beside the one below
+        let apart = CGRect(x: 100, y: 100, width: 300, height: 200)
+        let moved = PreviewSnap.attached(["below": below, "beside": beside, "apart": apart], to: [card], gap: 10)
+        XCTAssertEqual(moved, ["below", "beside"])
+    }
+
     func testDocumentIsRenderedNotRaw() throws {
         let ping = try recordedPing()
         let doc = try XCTUnwrap(ping.resources?.first { $0.kind == "document" })

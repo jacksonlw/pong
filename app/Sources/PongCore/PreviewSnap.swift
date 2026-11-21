@@ -18,4 +18,29 @@ public enum PreviewSnap {
         }
         return f.offsetBy(dx: dx ?? 0, dy: dy ?? 0)
     }
+
+    /// Whether two windows rest against each other: their facing edges no more than the gap
+    /// apart (and a little), and overlapping along those edges.
+    public static func touching(_ a: CGRect, _ b: CGRect, gap: CGFloat) -> Bool {
+        let slack = gap + 2
+        let alongX = a.minX < b.maxX && b.minX < a.maxX
+        let alongY = a.minY < b.maxY && b.minY < a.maxY
+        let besideX = abs(a.minX - b.maxX) <= slack || abs(b.minX - a.maxX) <= slack
+        let besideY = abs(a.minY - b.maxY) <= slack || abs(b.minY - a.maxY) <= slack
+        return (alongY && (besideX || a.intersects(b))) || (alongX && (besideY || a.intersects(b)))
+    }
+
+    /// The windows among `loose` that rest against the `body`, directly or through each other.
+    public static func attached(_ loose: [String: CGRect], to body: [CGRect], gap: CGFloat) -> Set<String> {
+        var joined = Set<String>(), reached = body, grew = true
+        while grew {
+            grew = false
+            for (k, f) in loose where !joined.contains(k) && reached.contains(where: { touching(f, $0, gap: gap) }) {
+                joined.insert(k)
+                reached.append(f)
+                grew = true
+            }
+        }
+        return joined
+    }
 }

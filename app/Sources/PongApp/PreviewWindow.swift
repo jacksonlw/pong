@@ -10,7 +10,7 @@ final class PreviewController {
     private let inbox: Inbox
     private let dock: Dock
     private let store = ResourceStore.shared
-    private var panels: [String: DockPanel] = [:]
+    private var panels: [String: (panel: DockPanel, host: FirstMouseHostingView<ResourcePreview?>)] = [:]
     private var shownPing: String?
 
     init(inbox: Inbox, dock: Dock, client: @escaping @Sendable () async -> EngineClient?) {
@@ -22,7 +22,7 @@ final class PreviewController {
         }
         store.onOpen = { [weak self] _, r in
             self?.update()
-            self?.panels[r.id]?.orderFrontRegardless() // already open: bring it forward
+            self?.panels[r.id]?.panel.orderFrontRegardless() // already open: bring it forward
         }
         track()
     }
@@ -56,14 +56,16 @@ final class PreviewController {
         }
         for r in store.opened {
             let key = Self.key(r.id)
-            let p = panels[r.id] ?? {
+            let (p, host) = panels[r.id] ?? {
                 let p = DockPanel.make(size: previewSize)
-                p.contentView = FirstMouseHostingView<ResourcePreview?>(rootView: nil)
-                panels[r.id] = p
+                let host = FirstMouseHostingView<ResourcePreview?>(rootView: nil)
+                host.sizingOptions = [] // the human sizes the panel by its edges
+                p.host(host, minimum: CGSize(width: 280, height: 220))
+                panels[r.id] = (p, host)
                 print("preview shows \(r.id)")
-                return p
+                return (p, host)
             }()
-            (p.contentView as? FirstMouseHostingView<ResourcePreview?>)?.rootView = ResourcePreview(
+            host.rootView = ResourcePreview(
                 resource: r, data: store.contents[r.id],
                 moved: { [dock] in dock.dropped(key) },
                 putBack: { [dock] in dock.putBack(key) },

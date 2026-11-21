@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The Thread window's page: the Thread scrolling under a low bar that its header eases into,
-/// a button back to the latest Ping while the human reads further up, and the reply row below.
+/// The Thread window's page, under the panel's title strip (`ThreadPanelTitle`): the line that
+/// says a stop could not be delivered, the Thread scrolling, a button back to the latest Ping
+/// while the human reads further up, and the reply row below.
 public struct ThreadPage: View {
     var model: ThreadModel
     var opensIn: String?
@@ -20,11 +21,17 @@ public struct ThreadPage: View {
 
     public var body: some View {
         VStack(spacing: 0) {
+            if let line = model.cannotReach {
+                CannotReachLine(line: line)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Brand.surface)
+            }
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 0) {
-                        ThreadView(thread: model.thread, notice: model.notice, opensIn: opensIn, stop: model.stop,
-                                   cannotReach: model.cannotReach, actions: actions)
+                        ThreadView(thread: model.thread, notice: model.notice, actions: actions)
                         Color.clear.frame(height: 0).id(Self.latest)
                     }
                 }
@@ -41,13 +48,6 @@ public struct ThreadPage: View {
                                  content: g.contentSize.height)
                 } action: { _, now in
                     withAnimation(reduceMotion ? nil : Self.ease) { scroll = now }
-                }
-                .overlay(alignment: .top) {
-                    if scroll.collapsed, let t = model.thread {
-                        ThreadBar(thread: t, opensIn: opensIn, stop: model.stop, cannotReach: model.cannotReach,
-                                  openInHarness: actions.openInHarness, stopTurn: actions.stop)
-                            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
-                    }
                 }
                 .overlay(alignment: .bottomTrailing) {
                     if !scroll.atBottom {
@@ -75,14 +75,9 @@ public struct ThreadPage: View {
 
 /// Where the Thread is scrolled to, as far as the page cares.
 struct ThreadScroll: Equatable {
-    /// The header's Session title has gone up under the bar, so the bar shows.
-    var collapsed = false
     /// The latest Ping is in view.
     var atBottom = true
 
-    /// How far the Thread scrolls before its header has become the bar: about where the Session
-    /// title starts, under the Project line.
-    static let collapseAt: CGFloat = 44
     /// What counts as the bottom: the latest Ping in view, with or without the space under it.
     static let bottomSlack: CGFloat = 24
     /// The page's colour between the Thread and the reply row.
@@ -91,81 +86,59 @@ struct ThreadScroll: Equatable {
     init() {}
 
     init(offset: CGFloat, visible: CGFloat, content: CGFloat) {
-        collapsed = offset > Self.collapseAt
         atBottom = offset + visible >= content - Self.bottomSlack
     }
 }
 
-/// The low bar at the top of a scrolled Thread: the Project and the Session's title, as the card's
-/// Project line names them, Stop while the Session is Running, and the open button. Under it,
-/// the line that says a stop could not be delivered.
-public struct ThreadBar: View {
-    var thread: SessionThread
+/// The title strip of a Thread's panel: the Project's tile, the Project and the Session's title
+/// as the card's Project line names them, and a ⋮ menu holding Stop while the Session is Running
+/// and the open button's action, then the close control.
+public struct ThreadPanelTitle: View {
+    var thread: SessionThread?
     var opensIn: String?
     var stop: ThreadStop?
-    var cannotReach: String?
-    var openInHarness: () -> Void
-    var stopTurn: () -> Void
+    var actions: ThreadActions
+    var moved: () -> Void
+    var putBack: () -> Void
+    var onClose: () -> Void
     @Environment(\.cardContext) private var ctx
 
-    public init(thread: SessionThread, opensIn: String?, stop: ThreadStop? = nil, cannotReach: String? = nil,
-                openInHarness: @escaping () -> Void = {}, stopTurn: @escaping () -> Void = {}) {
+    public init(thread: SessionThread?, opensIn: String?, stop: ThreadStop?, actions: ThreadActions,
+                moved: @escaping () -> Void, putBack: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.thread = thread
         self.opensIn = opensIn
         self.stop = stop
-        self.cannotReach = cannotReach
-        self.openInHarness = openInHarness
-        self.stopTurn = stopTurn
+        self.actions = actions
+        self.moved = moved
+        self.putBack = putBack
+        self.onClose = onClose
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            row
-            if let cannotReach { CannotReachLine(line: cannotReach) }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
-        .frame(idealWidth: ThreadView.width, maxWidth: .infinity, alignment: .leading)
-        .background(Brand.surface)
-        .brandShadow()
-        .accessibilityElement(children: .contain)
-    }
-
-    private var row: some View {
-        let project = ctx.directory.project(thread.session.project)
-        return HStack(spacing: 8) {
-            if let (p, logo) = project { ProjectTile(project: p, logo: logo, side: 18) }
-            Text(ThreadView.title(thread, project: project?.0))
-                .brandStyle(.label)
-                .foregroundStyle(Brand.text)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .help("Session \(thread.session.id)")
-            Spacer(minLength: 12)
-            ThreadStopControl(stop: stop, action: stopTurn)
-            ThreadOpenButton(thread: thread, opensIn: opensIn, action: openInHarness)
+        let project = thread.flatMap { ctx.directory.project($0.session.project) }
+        PanelTitle(title: thread.map { ThreadView.title($0, project: project?.0) } ?? "Thread", closeLabel: "Close Thread",
+                   menu: thread.map { Self.menu($0, opensIn: opensIn, stop: stop, actions: actions) } ?? [],
+                   moved: moved, putBack: putBack, onClose: onClose) {
+            if let (p, logo) = project { ProjectTile(project: p, logo: logo, side: 22) } else { PanelSymbol(name: "text.bubble") }
         }
     }
-}
 
-/// Opens the Session in its Harness, named where Pong knows it; another computer's Session has none.
-struct ThreadOpenButton: View {
-    var thread: SessionThread
-    var opensIn: String?
-    var action: () -> Void
-
-    var body: some View {
-        if thread.remote != true {
-            Button(action: action) {
-                HStack(spacing: 6) {
-                    if opensIn != nil, let mark = HarnessMark.image(thread.session.harness) {
-                        Image(nsImage: mark).resizable().frame(width: 17, height: 17).accessibilityHidden(true)
-                    }
-                    Text(opensIn.map { "Open in \($0)" } ?? "Open in the Harness")
-                }
-            }
-            .buttonStyle(.brand)
+    /// Stop while the Session is Running ("Stopping…" once pressed), and Open in its Harness,
+    /// named where Pong knows it; another computer's Session has no way in.
+    @MainActor
+    static func menu(_ t: SessionThread, opensIn: String?, stop: ThreadStop?, actions: ThreadActions) -> [PanelAction] {
+        var out: [PanelAction] = []
+        switch stop {
+        case .offered: out.append(PanelAction("Stop", symbol: "stop.fill", action: actions.stop))
+        case .stopping: out.append(PanelAction("Stopping…", symbol: "stop.fill", enabled: false))
+        case nil: break
         }
+        if t.remote != true {
+            let mark = opensIn == nil ? nil : HarnessMark.image(t.session.harness)
+            out.append(PanelAction(opensIn.map { "Open in \($0)" } ?? "Open in the Harness",
+                                   symbol: mark == nil ? "arrow.up.forward.app" : nil, image: mark, action: actions.openInHarness))
+        }
+        return out
     }
 }
 

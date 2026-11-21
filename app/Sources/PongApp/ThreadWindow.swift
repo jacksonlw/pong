@@ -77,8 +77,14 @@ final class ThreadWindowController {
             showInQueue: showInQueue,
             stop: { Task { await model.stopTurn() } }),
             moved: { dock.dropped(key) }, putBack: { dock.putBack(key) }, close: { [weak self] in self?.close(ref) },
-            widen: { [weak p] width in p?.setContentSize(NSSize(width: width, height: Self.height)) })
-        p.contentView = FirstMouseHostingView(rootView: root)
+            widen: { [weak p] by in
+                guard let p else { return }
+                let f = p.frame, w = f.width + by * Zoom.shared.scale
+                p.setFrame(NSRect(x: f.minX, y: f.minY, width: w, height: f.height), display: true)
+            })
+        let host = FirstMouseHostingView(rootView: root)
+        host.sizingOptions = [] // the human sizes the panel by its edges
+        p.host(host, minimum: CGSize(width: 360, height: 320))
         let live = Task {
             await model.refresh()
             while !Task.isCancelled {
@@ -103,7 +109,8 @@ final class ThreadWindowController {
     }
 }
 
-/// The Thread under its title strip, with the opened Resource's preview beside it.
+/// The Thread under its title strip, with the opened Resource's preview beside it, filling the
+/// panel at whatever size the human gives it.
 private struct ThreadWindowContent: View {
     var model: ThreadModel
     var store: ResourceStore
@@ -112,33 +119,29 @@ private struct ThreadWindowContent: View {
     var moved: () -> Void
     var putBack: () -> Void
     var close: () -> Void
-    /// Makes the panel this wide, to fit a preview beside the Thread or not.
+    /// Makes the panel this much wider, or narrower, as a preview opens beside the Thread or closes.
     var widen: (CGFloat) -> Void
 
-    /// The Project and the Session, as the card's Project line names them.
-    private var title: String {
-        guard let t = model.thread else { return "Thread" }
-        return ThreadView.title(t, project: CardContext.live.directory.project(t.session.project)?.0)
-    }
-
-    private var width: CGFloat { ThreadView.width + (store.opened.isEmpty ? 0 : previewSize.width + 8) }
+    private var previewing: Bool { !store.opened.isEmpty }
 
     var body: some View {
+        let opensIn = opener.opensIn(model.thread?.session.openTarget)
         VStack(spacing: 0) {
-            PanelTitle(symbol: "text.bubble", title: title, closeLabel: "Close Thread", moved: moved, putBack: putBack, onClose: close)
+            ThreadPanelTitle(thread: model.thread, opensIn: opensIn, stop: model.stop, actions: actions,
+                             moved: moved, putBack: putBack, onClose: close)
             HStack(alignment: .top, spacing: 8) {
-                ThreadPage(model: model, opensIn: opener.opensIn(model.thread?.session.openTarget), actions: actions)
-                    .frame(width: ThreadView.width)
+                ThreadPage(model: model, opensIn: opensIn, actions: actions)
+                    .frame(maxWidth: .infinity)
                 if let r = store.opened.last {
                     ResourcePreview(resource: r, data: store.contents[r.id]) { store.close(r) }
                         .frame(width: previewSize.width)
                 }
             }
         }
-        .frame(width: width, height: ThreadWindowController.height)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Brand.page)
         .environment(\.resourceStore, store)
         .environment(\.linkOpener, appLinkOpener)
-        .onChange(of: width) { _, now in widen(now) }
+        .onChange(of: previewing) { _, now in widen(now ? previewSize.width + 8 : -(previewSize.width + 8)) }
     }
 }

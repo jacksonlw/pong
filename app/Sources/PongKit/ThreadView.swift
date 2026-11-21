@@ -43,27 +43,15 @@ enum HarnessMark {
 public struct ThreadView: View {
     var thread: SessionThread?
     var notice: String?
-    /// What the open button's destination is called, as in "Claude" or "Terminal"; nil when
-    /// Pong cannot name it.
-    var opensIn: String?
-    /// What the header shows for stopping the Session's turn, and the line under it when the
-    /// last stop could not be delivered.
-    var stop: ThreadStop?
-    var cannotReach: String?
     var actions: ThreadActions
     /// The past Pings whose context the human opened.
     @State private var opened: Set<String>
-    @Environment(\.cardContext) private var ctx
 
     public static let width: CGFloat = 520
 
-    public init(thread: SessionThread?, notice: String? = nil, opensIn: String? = nil, stop: ThreadStop? = nil,
-                cannotReach: String? = nil, actions: ThreadActions = .init(), opened: Set<String> = []) {
+    public init(thread: SessionThread?, notice: String? = nil, actions: ThreadActions = .init(), opened: Set<String> = []) {
         self.thread = thread
         self.notice = notice
-        self.opensIn = opensIn
-        self.stop = stop
-        self.cannotReach = cannotReach
         self.actions = actions
         _opened = State(initialValue: opened)
     }
@@ -99,49 +87,35 @@ public struct ThreadView: View {
         return place.isEmpty ? title : "\(place) · \(title)"
     }
 
-    private func header(_ t: SessionThread) -> some View {
-        let project = ctx.directory.project(t.session.project)
-        let place = Self.place(t, project: project?.0)
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 8) {
-                if let (p, logo) = project { ProjectTile(project: p, logo: logo) }
-                if !place.isEmpty {
-                    Text(place).brandStyle(.secondary).foregroundStyle(Brand.secondary).lineLimit(1)
+    /// Above the Pings, where there is one: the link to the Session this one was continued from,
+    /// and the notice. The panel's title strip names the Session.
+    @ViewBuilder private func header(_ t: SessionThread) -> some View {
+        if t.session.continuedFrom != nil || notice != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                if let from = t.session.continuedFrom {
+                    HoverButton { actions.openSession(from) } label: { hover in
+                        Label("Continued from an earlier Session", systemImage: "arrow.uturn.backward").inlineIcon(.label)
+                            .brandStyle(.label)
+                            .foregroundStyle(hover ? Brand.secondary : Brand.link)
+                            .underline()
+                    }
+                    .help("Session \(from.id)")
+                    .accessibilityHint("Opens the Thread it was continued from")
                 }
-                Spacer(minLength: 12)
-                ThreadStopControl(stop: stop, action: actions.stop)
-                ThreadOpenButton(thread: t, opensIn: opensIn, action: actions.openInHarness)
-            }
-            if let cannotReach { CannotReachLine(line: cannotReach) }
-            Text(t.session.title ?? "Untitled Session")
-                .brandStyle(.question)
-                .foregroundStyle(Brand.text)
-                .fixedSize(horizontal: false, vertical: true)
-                .help("Session \(t.session.id)")
-            if let from = t.session.continuedFrom {
-                HoverButton { actions.openSession(from) } label: { hover in
-                    Label("Continued from an earlier Session", systemImage: "arrow.uturn.backward").inlineIcon(.label)
-                        .brandStyle(.label)
-                        .foregroundStyle(hover ? Brand.secondary : Brand.link)
-                        .underline()
+                if let notice {
+                    Text(notice)
+                        .brandStyle(.secondary)
+                        .foregroundStyle(Brand.text)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Brand.row, in: Rectangle())
                 }
-                .help("Session \(from.id)")
-                .accessibilityHint("Opens the Thread it was continued from")
             }
-            if let notice {
-                Text(notice)
-                    .brandStyle(.secondary)
-                    .foregroundStyle(Brand.text)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Brand.row, in: Rectangle())
-            }
+            .padding([.horizontal, .top], 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Brand.surface)
     }
 
     private func entry(_ ping: Ping, context: PingContext?) -> some View {
@@ -308,27 +282,7 @@ public struct ThreadView: View {
     }
 }
 
-/// Stop, beside the open button while the Session is Running: an ordinary action in the bar's
-/// neutral button, never a warning. Pressed, it gives way to "Stopping…" until the turn has ended.
-struct ThreadStopControl: View {
-    var stop: ThreadStop?
-    var action: () -> Void
-
-    var body: some View {
-        switch stop {
-        case .offered:
-            Button(action: action) { Label("Stop", systemImage: "stop.fill").imageScale(.large) }
-                .buttonStyle(.brand)
-                .help("Stops this turn at the agent's next tool call. The Session stays open.")
-        case .stopping:
-            Text("Stopping…").brandStyle(.label).foregroundStyle(Brand.secondary)
-        case nil:
-            EmptyView()
-        }
-    }
-}
-
-/// Under the bar when a stop could not be delivered: "Can't reach the MacBook."
+/// Under the title strip when a stop could not be delivered: "Can't reach the MacBook."
 struct CannotReachLine: View {
     var line: String
 
