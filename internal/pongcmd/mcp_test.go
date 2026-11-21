@@ -225,6 +225,28 @@ func TestMCPWithoutEngineTellsAgentToAskAsUsual(t *testing.T) {
 	}
 }
 
+// Codex runs every Session's tools under one shared process, so the process
+// cannot say which Session called; Codex names it in each call's
+// _meta.threadId, the id its hooks report. Pings, Notes and Thoughts from that
+// call join the Codex Session instead of one made up for the process.
+func TestMCPACodexCallJoinsTheSessionItNames(t *testing.T) {
+	transports(t, func(t *testing.T, c *client.Client, conn mcpConn) {
+		meta := map[string]any{"threadId": "019aa11b-codex-thread"}
+		for tool, args := range map[string]any{
+			"send_ping":    map[string]any{"question": "Raise on a zero divisor?", "blocks_agent": true},
+			"send_note":    map[string]any{"text": "Counted 20 lines."},
+			"send_thought": map[string]any{"text": "The divide test expects None."},
+		} {
+			r := conn(t, "tools/call", map[string]any{"name": tool, "arguments": args, "_meta": meta})
+			id, _ := r["structuredContent"].(map[string]any)["ping_id"].(string)
+			p, err := c.Ping(id)
+			if err != nil || p.Session != "019aa11b-codex-thread" || p.Harness != "codex" {
+				t.Fatalf("%s: Ping %+v %v", tool, p, err)
+			}
+		}
+	})
+}
+
 // send_thought keeps a Thought and tells the agent to carry on; a malformed
 // one comes back with what to fix.
 func TestMCPSendThought(t *testing.T) {

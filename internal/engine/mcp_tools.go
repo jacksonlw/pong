@@ -239,6 +239,9 @@ func (m MCP) call(name string, args json.RawMessage) (res toolResult, ok bool) {
 		if n.Session == "" {
 			n.Session = m.Session
 		}
+		if n.Harness == "" {
+			n.Harness = m.Harness
+		}
 		if n.Folder == "" {
 			n.Folder = m.Folder
 		}
@@ -271,6 +274,9 @@ func (m MCP) call(name string, args json.RawMessage) (res toolResult, ok bool) {
 		n := NewPing{Thought: true, Session: in.Session, Harness: in.Harness, Folder: in.Folder, Question: in.Text, Summary: in.Summary}
 		if n.Session == "" {
 			n.Session = m.Session
+		}
+		if n.Harness == "" {
+			n.Harness = m.Harness
 		}
 		if n.Folder == "" {
 			n.Folder = m.Folder

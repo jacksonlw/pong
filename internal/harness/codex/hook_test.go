@@ -207,6 +207,16 @@ func TestModelResumeCommandAndProcessAreRecordedOnTheSession(t *testing.T) {
 	}
 }
 
+// A Codex Session is named by its first prompt, as Pong names any Session that
+// states no name of its own, so the Bar never lists it without one.
+func TestTheFirstPromptNamesTheSession(t *testing.T) {
+	c, dir := enginetest.Start(t)
+	call(t, dir, "prompt-typed.json")()
+	if s, err := c.Session("codex", session); err != nil || s.Title != "Run the tests" {
+		t.Fatalf("Session = %+v, %v", s, err)
+	}
+}
+
 // With no Engine listening every hook writes nothing at once, which Codex
 // documents as success with no decision.
 func TestFailOpenWithNoEngine(t *testing.T) {

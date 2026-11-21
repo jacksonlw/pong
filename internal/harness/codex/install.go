@@ -87,6 +87,9 @@ func Block(pong string) string {
 	var b strings.Builder
 	b.WriteString("\n# Pong: begin\n[mcp_servers.pong]\n")
 	fmt.Fprintf(&b, "command = %s\nargs = [\"mcp\"]\ntool_timeout_sec = %d\n", q(pong), ToolTimeoutSec)
+	// Pong's tools exist to ask the human, so Codex runs them without asking
+	// the human first whether it may ask (checked against codex-cli 0.171.0).
+	b.WriteString("default_tools_approval_mode = \"auto\"\n")
 	for _, ev := range []struct {
 		name    string
 		timeout int

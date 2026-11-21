@@ -46,6 +46,7 @@ type Event struct {
 	ToolInput            json.RawMessage `json:"tool_input"`
 	StopHookActive       bool            `json:"stop_hook_active"`
 	LastAssistantMessage string          `json:"last_assistant_message"`
+	Prompt               string          `json:"prompt"` // UserPromptSubmit: what the human sent
 }
 
 // Hook handles one hook call: the event is read from in, the Engine is found
@@ -100,7 +101,8 @@ func registerSession(c *client.Client, e Event) {
 		return
 	}
 	// The Codex process it runs in, so the Engine ends it if that dies unseen.
-	n := engine.RegisterSession{Harness: HarnessName, ID: e.SessionID, Folder: e.Cwd, PID: attended.HarnessPID()}
+	// The first prompt names the Session when it has no title yet; the Engine keeps the first.
+	n := engine.RegisterSession{Harness: HarnessName, ID: e.SessionID, Folder: e.Cwd, PID: attended.HarnessPID(), FirstPrompt: e.Prompt}
 	if e.Cwd != "" {
 		n.ResumeCommand = Runner{}.ResumeCommand(e.Cwd, e.SessionID)
 	}

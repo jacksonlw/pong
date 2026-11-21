@@ -31,6 +31,7 @@ var ErrEngineDown = errors.New("Engine is not running")
 type MCP struct {
 	Backend MCPBackend
 	Session string // used when a tool call names no session
+	Harness string // used when a tool call names no harness
 	Folder  string // used when a tool call names no folder
 	// Quiet serves an agent nobody attends: no instruction and no tools, so it
 	// works as it would without Pong.
@@ -38,6 +39,10 @@ type MCP struct {
 }
 
 const mcpProtocol = "2025-06-18"
+
+// codexHarness is the Codex adapter's name for its Harness, the one Harness
+// that names its Session in a tool call's _meta.threadId.
+const codexHarness = "codex"
 
 type rpcRequest struct {
 	ID     json.RawMessage `json:"id,omitempty"`
@@ -92,10 +97,19 @@ func (m MCP) Handle(msg []byte) []byte {
 		var p struct {
 			Name      string          `json:"name"`
 			Arguments json.RawMessage `json:"arguments"`
+			Meta      struct {
+				ThreadID string `json:"threadId"`
+			} `json:"_meta"`
 		}
 		if err := json.Unmarshal(req.Params, &p); err != nil {
 			rerr = &rpcError{-32602, "params: " + err.Error()}
 			break
+		}
+		if p.Meta.ThreadID != "" {
+			// Codex runs every Session's tools in one shared process, so the
+			// process cannot say which Session called; Codex names it on each
+			// call, with the id its hooks report.
+			m.Session, m.Harness = p.Meta.ThreadID, codexHarness
 		}
 		r, ok := m.call(p.Name, p.Arguments)
 		if !ok {

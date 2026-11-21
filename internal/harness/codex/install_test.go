@@ -48,6 +48,8 @@ func TestInstallThenRemoveLeavesConfigurationAsFound(t *testing.T) {
 			ins, _ := read(t, home, "AGENTS.md")
 			if !strings.HasPrefix(cfg, files["config.toml"]) || !strings.Contains(cfg, "[mcp_servers.pong]") ||
 				!strings.Contains(cfg, "tool_timeout_sec = 300") || !strings.Contains(cfg, "[[hooks.PermissionRequest]]") ||
+				// Pong's own tools run without Codex asking first: asking the human is what they are for.
+				!strings.Contains(cfg, "default_tools_approval_mode = \"auto\"") ||
 				!strings.Contains(cfg, `command = "`+pongPath+` hook codex"`) || !strings.Contains(ins, "Pong") {
 				t.Fatalf("config.toml:\n%s\nAGENTS.md:\n%s", cfg, ins)
 			}
