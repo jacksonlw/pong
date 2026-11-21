@@ -33,6 +33,13 @@ public struct ResourcePreview: View {
                 SheetView(content: sheet)
                     .padding([.horizontal, .bottom], 16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else if let lines = longLines() {
+                // A long change or file is a page of its own that draws only the lines on screen.
+                Group {
+                    if resource.kind == "change" { DiffView.lazy(lines) } else { Mono.lazy(lines) }
+                }
+                .padding([.horizontal, .bottom], 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 ScrollView {
                     content()
@@ -43,6 +50,13 @@ public struct ResourcePreview: View {
         }
         .frame(idealWidth: previewSize.width, maxWidth: .infinity, idealHeight: previewSize.height, maxHeight: .infinity)
         .background(Brand.surface, in: Rectangle())
+    }
+
+    /// The lines of a change, file or output too long to draw at once; nil for anything else.
+    private func longLines() -> [Substring]? {
+        guard let data, ["change", "output", "file", "error"].contains(resource.kind) else { return nil }
+        let lines = splitLines(String(decoding: data, as: UTF8.self))
+        return lines.count > lazyLineCount ? lines : nil
     }
 
     @ViewBuilder private func content() -> some View {
@@ -124,15 +138,24 @@ struct Mono: View {
     }
 }
 
+extension Mono {
+    /// A long text's lines, drawn as they come on screen.
+    static func lazy(_ lines: [Substring]) -> some View {
+        LazyLines(lines: lines, gutter: 20) { line in
+            Text(line).brandStyle(.monospace).foregroundStyle(Brand.text).fixedSize().padding(.horizontal, 10)
+        }
+    }
+}
+
 /// A unified diff, one row per line. Added and removed lines keep their + and − in a gutter and
 /// are tinted, so they differ by more than colour alone.
 struct DiffView: View {
     var source: String
 
     var body: some View {
-        let lines = source.trimmingCharacters(in: .newlines).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let lines = splitLines(source)
         let rows = VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in row(line) }
+            ForEach(lines.indices, id: \.self) { i in Self.row(lines[i]) }
         }
         .textSelection(.enabled)
         .padding(.vertical, 6)
@@ -145,12 +168,17 @@ struct DiffView: View {
         .clipShape(Rectangle())
     }
 
-    @ViewBuilder private func row(_ line: String) -> some View {
+    /// A long diff's lines, drawn as they come on screen.
+    static func lazy(_ lines: [Substring]) -> some View {
+        LazyLines(lines: lines, gutter: 44) { row($0) }
+    }
+
+    @ViewBuilder static func row(_ line: Substring) -> some View {
         let header = line.hasPrefix("+++") || line.hasPrefix("---") || line.hasPrefix("diff ") || line.hasPrefix("index ")
         let hunk = line.hasPrefix("@@")
         let added = !header && line.hasPrefix("+")
         let removed = !header && line.hasPrefix("-")
-        let body = added || removed || line.hasPrefix(" ") ? String(line.dropFirst()) : line
+        let body = added || removed || line.hasPrefix(" ") ? line.dropFirst() : line
         HStack(alignment: .firstTextBaseline, spacing: 0) {
             Text(added ? "+" : removed ? "−" : " ")
                 .font(monoFont.weight(.bold))
@@ -166,6 +194,6 @@ struct DiffView: View {
         // As much room after the longest line as the sign gutter leaves before it.
         .padding(.trailing, 22)
         .background(added ? Brand.addedWash : removed ? Brand.removedWash : .clear)
-        .accessibilityLabel(added ? "Added: \(body)" : removed ? "Removed: \(body)" : line)
+        .accessibilityLabel(added ? "Added: \(body)" : removed ? "Removed: \(body)" : String(line))
     }
 }

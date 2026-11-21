@@ -9,7 +9,7 @@ struct MarkdownView: View {
     var source: String
 
     var body: some View {
-        BlocksView(blocks: MarkdownReader.blocks(source), spacing: 10)
+        BlocksView(blocks: MarkdownReader.blocks(source), spacing: 10, lazy: true)
             .foregroundStyle(Brand.text)
             .textSelection(.enabled)
     }
@@ -34,11 +34,19 @@ func styled(_ s: AttributedString, code: Color = Brand.row) -> AttributedString 
 struct BlocksView: View {
     var blocks: [MarkdownBlock]
     var spacing: CGFloat = 6
+    /// A long document's blocks are drawn as they come on screen in the page that scrolls it.
+    var lazy = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: spacing) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { i, b in block(b, first: i == 0) }
+        if lazy && blocks.count > lazyLineCount / 4 {
+            LazyVStack(alignment: .leading, spacing: spacing) { rows }
+        } else {
+            VStack(alignment: .leading, spacing: spacing) { rows }
         }
+    }
+
+    private var rows: some View {
+        ForEach(blocks.indices, id: \.self) { i in block(blocks[i], first: i == 0) }
     }
 
     @ViewBuilder private func block(_ b: MarkdownBlock, first: Bool) -> some View {
@@ -59,7 +67,14 @@ struct BlocksView: View {
                 .foregroundStyle(Brand.secondary)
                 .padding(.leading, 16)
         case let .code(language, text):
-            if language == "diff" { DiffView(source: text) } else { CodeBlock(language: language, text: text) }
+            let lines = splitLines(text)
+            if lines.count > lazyLineCount {
+                // A long block scrolls in a frame of its own, drawing only the lines on screen.
+                Group {
+                    if language == "diff" { DiffView.lazy(lines) } else { CodeBlock.lazy(lines, language: language) }
+                }
+                .frame(height: 480)
+            } else if language == "diff" { DiffView(source: text) } else { CodeBlock(language: language, text: text) }
         case let .mermaid(source):
             MermaidView(source: source) { CodeBlock(language: nil, text: source) }
         case let .table(t):
@@ -110,17 +125,7 @@ struct CodeBlock: View {
     var text: String
 
     var body: some View {
-        var a = AttributedString()
-        for run in Highlight.runs(text, language: language) {
-            var piece = AttributedString(run.text)
-            switch run.kind {
-            case .keyword: piece.font = Brand.Style.monospace.font.weight(.semibold)
-            case .comment: piece.foregroundColor = Brand.secondary
-            case .string, .number, nil: break
-            }
-            a += piece
-        }
-        let lines = Text(a)
+        let lines = Text(Self.highlighted(text, language: language))
             .brandStyle(.monospace)
             .foregroundStyle(Brand.text)
             .textSelection(.enabled)
@@ -133,6 +138,28 @@ struct CodeBlock: View {
         }
         .background(Brand.row)
         .clipShape(Rectangle())
+    }
+
+    /// A long block's lines, each highlighted on its own as it comes on screen.
+    static func lazy(_ lines: [Substring], language: String?) -> some View {
+        LazyLines(lines: lines, gutter: 20) { line in
+            Text(highlighted(String(line), language: language))
+                .brandStyle(.monospace).foregroundStyle(Brand.text).fixedSize().padding(.horizontal, 10)
+        }
+    }
+
+    static func highlighted(_ text: String, language: String?) -> AttributedString {
+        var a = AttributedString()
+        for run in Highlight.runs(text, language: language) {
+            var piece = AttributedString(run.text)
+            switch run.kind {
+            case .keyword: piece.font = Brand.Style.monospace.font.weight(.semibold)
+            case .comment: piece.foregroundColor = Brand.secondary
+            case .string, .number, nil: break
+            }
+            a += piece
+        }
+        return a
     }
 }
 

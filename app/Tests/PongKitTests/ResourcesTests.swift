@@ -190,3 +190,34 @@ final class ResourcesTests: XCTestCase {
     // MARK: snapshots (same method as CardSnapshotTests)
 
 }
+
+/// A change, file or document of tens of thousands of lines opens at once: only the lines on
+/// screen are drawn.
+@MainActor
+final class LongResourceTests: XCTestCase {
+    func render(_ kind: String, _ text: String) -> TimeInterval {
+        let r = Resource(id: "long", title: "Long", kind: kind, file: nil, contentType: "text/plain")
+        let start = Date()
+        let v = NSHostingView(rootView: ResourcePreview(resource: r, data: Data(text.utf8), onClose: {}))
+        v.frame = CGRect(origin: .zero, size: previewSize)
+        v.layoutSubtreeIfNeeded()
+        v.display()
+        return Date().timeIntervalSince(start)
+    }
+
+    func testLongChangeOpensAtOnce() {
+        let diff = (0..<50_000).map { $0 % 3 == 0 ? "+added line \($0)" : $0 % 3 == 1 ? "-removed line \($0)" : " kept \($0)" }
+            .joined(separator: "\n")
+        XCTAssertLessThan(render("change", "diff --git a/x b/x\n" + diff), 2)
+    }
+
+    func testLongFileOpensAtOnce() {
+        XCTAssertLessThan(render("file", (0..<50_000).map { "line \($0)" }.joined(separator: "\n")), 2)
+    }
+
+    func testLongDocumentOpensAtOnce() {
+        let doc = (0..<5_000).map { "## Part \($0)\n\nA paragraph about part \($0).\n" }.joined(separator: "\n")
+            + "\n```diff\n" + (0..<50_000).map { "+line \($0)" }.joined(separator: "\n") + "\n```\n"
+        XCTAssertLessThan(render("document", doc), 2)
+    }
+}
