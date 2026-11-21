@@ -35,9 +35,6 @@ public struct SettingsView: View {
                     Text("Move the card to the display you are working on")
                 }
                 .toggleStyle(BrandToggleStyle())
-                Text("Off, the card stays on your main display.")
-                    .brandStyle(.secondary)
-                    .foregroundStyle(Brand.secondary)
             }
             pingSoundSection
             voiceSection
@@ -80,7 +77,8 @@ public struct SettingsView: View {
     }
 
     private var pingSoundSection: some View {
-    section("Ping sound") {
+    section("Ping sound", info: InfoButton(about: "Ping sound", text: "A follow-up is a Ping from a Session within five minutes of your last answer to it, and plays a softer sound. Notes make no sound.",
+                                               learnMore: Docs.page("settings", "ping-sound"))) {
             HStack {
                 Text("Play a sound")
                 Spacer()
@@ -89,21 +87,18 @@ public struct SettingsView: View {
                     .fixedSize()
                     .accessibilityLabel("Ping sound")
             }
-            Text("A follow-up is a Ping from a Session within five minutes of its last answer, and plays a softer sound. Notes make no sound.")
-                .brandStyle(.secondary)
-                .foregroundStyle(Brand.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var voiceSection: some View {
-        section("Voice") {
+        section("Voice", info: InfoButton(about: "Voice", text: "Speech is recognised on this Mac, and no audio leaves it. Without Listen when a Ping appears, start from the microphone on the card.",
+                                          learnMore: Docs.page("settings", "voice"))) {
             Toggle(isOn: Binding(get: { model.voice }, set: { on in Task { await model.setVoice(on) } })) {
                 Text("Read Pings aloud and answer by speaking")
             }
             .toggleStyle(BrandToggleStyle())
             if let problem = model.voiceProblem {
-                Label { Text(problem).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: "exclamationmark.triangle.fill") }
+                Label { Text(problem).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: "exclamationmark.triangle.fill").fontWeight(Brand.iconWeight) }
                 .inlineIcon(.secondary)
                 .brandStyle(.secondary)
                 .foregroundStyle(Brand.warning)
@@ -113,17 +108,16 @@ public struct SettingsView: View {
             }
             .toggleStyle(BrandToggleStyle())
             .disabled(!model.voice)
-            Text("Otherwise, start from the microphone on the card. Speech is recognised on this Mac, and no audio leaves it.")
-                .brandStyle(.secondary)
-                .foregroundStyle(Brand.secondary)
-                .fixedSize(horizontal: false, vertical: true)
             VoiceModelSettings(model: model)
         }
     }
 
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func section<Content: View>(_ title: String, info: InfoButton? = nil, @ViewBuilder content: () -> Content) -> some View {
         return VStack(alignment: .leading, spacing: 8) {
-            Text(title).brandStyle(.question)
+            HStack(alignment: .capMiddle, spacing: 6) {
+                Text(title).brandStyle(.heading).capCentred(.heading)
+                if let info { info }
+            }
             VStack(alignment: .leading, spacing: 12) { content() }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -156,8 +150,11 @@ struct HarnessRow: View {
                 state(harness.connected, "Connected", "Not connected")
             }
             if let surface = harness.surface.flatMap(HarnessSurface.init(rawValue:)) {
-                HStack {
-                    Text("You work in")
+                HStack(alignment: .capMiddle) {
+                    Text("You work in").capCentred(.body)
+                    InfoButton(about: "where you work in \(harness.name)",
+                               text: "Its app: Pong starts Sessions with no terminal window and moves them into the app once their first turn ends. A terminal: Pong starts Sessions in a terminal.",
+                               learnMore: Docs.page("settings", "harnesses"))
                     Spacer()
                     BrandSegments(options: HarnessSurface.allCases.map { ($0, $0.title) },
                                   selection: Binding(get: { surface }, set: setSurface))
@@ -165,13 +162,9 @@ struct HarnessRow: View {
                         .accessibilityLabel("Where you work in \(harness.name)")
                 }
                 .padding(.top, 4)
-                Text(surface.explanation)
-                    .brandStyle(.secondary)
-                    .foregroundStyle(Brand.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             if let w = harness.warning {
-                Label { Text(w.replacingOccurrences(of: "/", with: "/\u{2060}")).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: "exclamationmark.triangle.fill") }
+                Label { Text(w.replacingOccurrences(of: "/", with: "/\u{2060}")).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: "exclamationmark.triangle.fill").fontWeight(Brand.iconWeight) }
                 .inlineIcon(.body)
                 .foregroundStyle(Brand.warning)
             }
@@ -195,8 +188,11 @@ struct VoiceModelSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Model")
+            HStack(alignment: .capMiddle) {
+                Text("Model").capCentred(.body)
+                InfoButton(about: "the voice model",
+                           text: "Only the words you say and the Ping's question, answers and context go to a model; never audio. Without a model, say a number, \"recommended\", \"yes\" or \"no\". An Anthropic API key is kept in the macOS Keychain.",
+                           learnMore: Docs.page("settings", "voice"))
                 Spacer()
                 BrandSegments(options: VoiceModelChoice.allCases.filter { $0 != .hosted || Extras.current.hostedVoice != nil }.map { ($0, $0.title) },
                               selection: Binding(get: { model.voiceModel }, set: { (m: VoiceModelChoice) in Task { await model.setVoiceModel(m) } }))
@@ -205,16 +201,9 @@ struct VoiceModelSettings: View {
             }
             switch model.voiceModel {
             case .none:
-                Text("Without a model, say a number, \"recommended\", \"yes\" or \"no\". Only the words you say and the Ping's question, answers and context go to a model; never audio.")
-                    .brandStyle(.secondary)
-                    .foregroundStyle(Brand.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                EmptyView()
             case .hosted:
-                HStack(alignment: .top) {
-                    Text(Extras.current.hostedVoiceAbout)
-                        .brandStyle(.secondary)
-                        .foregroundStyle(Brand.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                HStack {
                     Spacer()
                     testButton
                 }
@@ -239,10 +228,6 @@ struct VoiceModelSettings: View {
                     if model.voiceKeySet { Button("Clear") { Task { await model.setVoiceKey(nil) } }.buttonStyle(.brand) }
                     testButton
                 }
-                Text("The key is kept in the macOS Keychain, never in Pong's settings or on Pong's servers.")
-                    .brandStyle(.secondary)
-                    .foregroundStyle(Brand.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             if let result = model.voiceTest {
                 Text(result)

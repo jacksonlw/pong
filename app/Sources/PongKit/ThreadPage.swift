@@ -149,7 +149,7 @@ struct ScrollToLatest: View {
 
     var body: some View {
         HoverButton(action: action) { hover in
-            Image(systemName: "arrow.down").imageScale(.large)
+            Image(systemName: "arrow.down").fontWeight(Brand.iconWeight).imageScale(.large)
                 .font(Brand.Style.label.font)
                 .foregroundStyle(Brand.text)
                 .frame(width: 32, height: 32)

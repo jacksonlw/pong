@@ -194,17 +194,17 @@ public struct BarView: View {
                            spoken: figures.working == 1 ? "1 Session working" : "\(figures.working) Sessions working")
                         .transition(fade)
                 } else {
-                    figure(Image(systemName: "checkmark.circle").imageScale(.large).foregroundStyle(Brand.statusDone), nil, colour: Brand.secondary,
+                    figure(Image(systemName: "checkmark.circle").fontWeight(Brand.iconWeight).imageScale(.large).foregroundStyle(Brand.statusDone), nil, colour: Brand.secondary,
                            spoken: "No Sessions working")
                         .transition(fade)
                 }
                 if figures.failed > 0 {
-                    figure(Image(systemName: "exclamationmark.triangle").imageScale(.large).foregroundStyle(Brand.statusError),
+                    figure(Image(systemName: "exclamationmark.triangle").fontWeight(Brand.iconWeight).imageScale(.large).foregroundStyle(Brand.statusError),
                            figures.failed == 1 ? "1 error" : "\(figures.failed) errors", colour: Brand.statusError)
                         .transition(fade)
                 }
                 if let cost = figures.cost {
-                    figure(Image(systemName: "dollarsign.circle").imageScale(.large).foregroundStyle(Brand.secondary),
+                    figure(Image(systemName: "dollarsign.circle").fontWeight(Brand.iconWeight).imageScale(.large).foregroundStyle(Brand.secondary),
                            String(format: "$%.2f today", cost), colour: Brand.secondary)
                         .transition(fade)
                 }
@@ -248,7 +248,7 @@ public struct BarView: View {
     private var waitingButton: some View {
         HoverButton(action: actions.unhide) { hover in
             HStack(spacing: 6) {
-                Image(systemName: "exclamationmark.bubble").imageScale(.large).font(Brand.Style.answer.font).foregroundStyle(Brand.statusWaiting)
+                Image(systemName: "exclamationmark.bubble").fontWeight(Brand.iconWeight).imageScale(.large).font(Brand.Style.answer.font).foregroundStyle(Brand.statusWaiting)
                 Text("\(figures.waiting) waiting").brandStyle(.label).monospacedDigit()
             }
             .padding(.horizontal, 8)
@@ -264,7 +264,7 @@ public struct BarView: View {
         let closes = open == .start
         return HoverButton(action: actions.newSession) { hover in
             // A quarter turn of the plus makes the cross that closes the panel.
-            Image(systemName: "plus").imageScale(.large)
+            Image(systemName: "plus").fontWeight(Brand.iconWeight).imageScale(.large)
                 .font(Brand.Style.label.font)
                 .rotationEffect(.degrees(closes ? 45 : 0))
                 .animation(reduceMotion ? nil : CardMotion.box, value: closes)
@@ -303,7 +303,7 @@ public struct BarView: View {
     private func heldButton(_ held: (question: String, from: String?)) -> some View {
         HoverButton(action: actions.openHeld) { hover in
             HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.bubble").imageScale(.large).font(Brand.Style.label.font).foregroundStyle(Brand.onSelected)
+                Image(systemName: "exclamationmark.bubble").fontWeight(Brand.iconWeight).imageScale(.large).font(Brand.Style.label.font).foregroundStyle(Brand.onSelected)
                 VStack(alignment: .leading, spacing: 1) {
                     if let from = held.from {
                         Text(from).brandStyle(.secondary).foregroundStyle(Brand.onSelected).lineLimit(1)
@@ -311,7 +311,7 @@ public struct BarView: View {
                     Text(held.question).brandStyle(.label).foregroundStyle(Brand.onSelected).lineLimit(1).truncationMode(.tail)
                 }
                 Spacer(minLength: 8)
-                Image(systemName: "arrow.right").imageScale(.large).font(Brand.Style.label.font).foregroundStyle(Brand.onSelected)
+                Image(systemName: "arrow.right").fontWeight(Brand.iconWeight).imageScale(.large).font(Brand.Style.label.font).foregroundStyle(Brand.onSelected)
             }
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)

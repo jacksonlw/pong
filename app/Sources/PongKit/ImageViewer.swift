@@ -77,7 +77,7 @@ struct ImageViewerView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityLabel(title)
             HoverButton(action: close) { hover in
-                Image(systemName: "xmark").imageScale(.large).font(Brand.Style.label.font)
+                Image(systemName: "xmark").fontWeight(Brand.iconWeight).imageScale(.large).font(Brand.Style.label.font)
                     .foregroundStyle(Brand.fixedWhite)
                     .opacity(hover ? 1 : 0.7)
                     .frame(width: 32, height: 32)

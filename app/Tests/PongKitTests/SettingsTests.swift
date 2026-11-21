@@ -229,6 +229,16 @@ final class SettingsTests: XCTestCase {
         await repair.value
     }
 
+    func testSnapshotInfoPopover() throws {
+        try assertSnapshot(InfoPopover(text: "Speech is recognised on this Mac, and no audio leaves it. Without Listen when a Ping appears, start from the microphone on the card.",
+                                       learnMore: Docs.page("settings", "voice")),
+                           named: "settings-info")
+    }
+
+    func testDocsLinkGoesToTheSection() {
+        XCTAssertEqual(Docs.page("settings", "ping-sound").absoluteString, "https://pong.fly/docs/settings#ping-sound")
+    }
+
     func assertSettings(_ model: SettingsModel, named name: String, file: StaticString = #filePath, line: UInt = #line) throws {
         try assertSnapshot(SettingsView(model: model), named: name, file: file, line: line)
     }

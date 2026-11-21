@@ -8,7 +8,7 @@ struct ListeningBar: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "mic.fill").imageScale(.large)
+            Image(systemName: "mic.fill").fontWeight(Brand.iconWeight).imageScale(.large)
                 .font(Brand.Style.label.font)
                 .foregroundStyle(Brand.text)
                 .accessibilityHidden(true)

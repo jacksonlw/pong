@@ -78,11 +78,9 @@ public struct CardFaceStack<Edges: View>: View {
     /// The held Ping's button is on the Bar. When the card is asked for, it stays there and fades
     /// out with the rest of the Bar, until the card takes the Bar's place.
     @State private var keepsHeld = false
-    /// The whole face's scale and its tip about its middle, top edge away: as the human sticks
-    /// the Threads list open it lands like a sheet of paper on a desk, dipping and rocking to
-    /// rest, and it rocks less as they unstick it.
+    /// The whole face's scale: it dips as the human sticks the Threads list open, as if pressed
+    /// onto the screen, and less as they unstick it.
     @State private var press: CGFloat = 1
-    @State private var tip = 0.0
     /// How strongly the stuck Bar's edge is drawn: it comes in as the Bar lands and goes as it lifts.
     @State private var edge = 0.0
     private static var stuckEdge: Double { 0.6 }
@@ -146,7 +144,6 @@ public struct CardFaceStack<Edges: View>: View {
         }
         .environment(\.chosenCardWidth, width)
         .fixedSize()
-        .rotation3DEffect(.degrees(tip), axis: (x: 1, y: 0, z: 0), perspective: 0.3)
         .scaleEffect(press)
         .overlay { if shown == .card { edges } }
         .onChange(of: faces.stuck) { _, now in pressed(deep: now) }
@@ -197,21 +194,17 @@ public struct CardFaceStack<Edges: View>: View {
         if follow != h { withAnimation(CardMotion.easeOut(stage.timing.box)) { follow = h } }
     }
 
-    /// The landing: a quick dip and tip, then the dip settles while the tip rocks to rest.
+    /// The press: a quick dip, then a spring back.
     private func pressed(deep: Bool) {
         pressing?.cancel()
         guard !reduceMotion else { edge = deep ? Self.stuckEdge : 0; return }
         withAnimation(.easeInOut(duration: deep ? 0.7 : 0.25)) { edge = deep ? Self.stuckEdge : 0 }
-        withAnimation(.easeOut(duration: 0.12)) {
-            press = deep ? 0.955 : 0.985
-            tip = deep ? 12 : -4
-        }
+        withAnimation(.easeOut(duration: 0.08)) { press = deep ? 0.955 : 0.985 }
         pressing = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(120))
+            try? await Task.sleep(for: .milliseconds(80))
             guard !Task.isCancelled else { return }
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { press = 1 }
-            withAnimation(.spring(response: 0.55, dampingFraction: 0.4)) { tip = 0 }
-            try? await Task.sleep(for: .milliseconds(1100))
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.6)) { press = 1 }
+            try? await Task.sleep(for: .milliseconds(450))
             guard !Task.isCancelled else { return }
             settled() // the window's shadow is drawn again around the face at rest
         }

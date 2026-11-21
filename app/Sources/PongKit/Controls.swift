@@ -78,7 +78,7 @@ public struct BrandToggleStyle: ToggleStyle {
         @Environment(\.isFocused) private var focused
 
         var body: some View {
-            Image(systemName: "checkmark").imageScale(.large)
+            Image(systemName: "checkmark").fontWeight(Brand.iconWeight).imageScale(.large)
                 .font(Brand.Style.label.font)
                 .foregroundStyle(Brand.onSelected)
                 .opacity(on ? 1 : 0)
@@ -157,7 +157,7 @@ extension View {
         overlay(alignment: .topLeading) {
             if shown {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    if let symbol { Image(systemName: symbol).imageScale(.large).font(Brand.Style.label.font) }
+                    if let symbol { Image(systemName: symbol).fontWeight(Brand.iconWeight).imageScale(.large).font(Brand.Style.label.font) }
                     Text(text)
                 }
                 .foregroundStyle(Brand.secondary)
@@ -330,7 +330,7 @@ struct InlineIconLabelStyle: LabelStyle {
         HStack(alignment: .top, spacing: 6) {
             Color.clear
                 .frame(width: line, height: line)
-                .overlay { configuration.icon.imageScale(.large) }
+                .overlay { configuration.icon.fontWeight(Brand.iconWeight).imageScale(.large) }
             configuration.title
         }
     }

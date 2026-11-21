@@ -46,6 +46,12 @@ public enum Brand {
     public static let shadowRadius: CGFloat = 12
     public static let shadowY: CGFloat = 4
 
+    /// The weight every icon is drawn at, so its stroke is as heavy as a Running Thread's ring: `.fontWeight(Brand.iconWeight)` on the symbol.
+    public static let iconWeight: Font.Weight = .bold
+
+    /// The stroke of every icon Pong draws (`BrandIcon`), in points at any size: as heavy as a Running Thread's ring.
+    public static let iconStroke: CGFloat = 2
+
     /// Tags: the icon vocabulary an agent may use, and the outline and tint of each pastel a Tag may take.
     /// Tag text is `Brand.tagText` on a coloured Tag, and `Brand.secondary` on a neutral one.
     public enum Tag {
@@ -131,7 +137,8 @@ public enum Brand {
         /// Extra space between lines, in points, for `.lineSpacing(_:)`.
         public var lineSpacing: CGFloat { max(0, size * (lineHeight - 1)) }
 
-        public static let question = Style(size: 22, weight: .semibold, tracking: -0.02, lineHeight: 1.15, monospaced: false)
+        public static let question = Style(size: 22, weight: .medium, tracking: -0.02, lineHeight: 1.15, monospaced: false)
+        public static let heading = Style(size: 18, weight: .semibold, tracking: -0.015, lineHeight: 1.2, monospaced: false)
         public static let answer = Style(size: 15, weight: .medium, tracking: 0, lineHeight: 1.3, monospaced: false)
         public static let body = Style(size: 15, weight: .regular, tracking: 0, lineHeight: 1.45, monospaced: false)
         public static let secondary = Style(size: 13, weight: .regular, tracking: 0, lineHeight: 1.4, monospaced: false)

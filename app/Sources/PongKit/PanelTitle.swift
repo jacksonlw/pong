@@ -55,7 +55,7 @@ public struct PanelTitle<Mark: View>: View {
             Spacer(minLength: 0)
             if !menu.isEmpty { PanelMenu(actions: menu) }
             HoverButton(action: onClose) { hover in
-                Image(systemName: "xmark").imageScale(.large).font(Brand.Style.label.font).foregroundStyle(hover ? Brand.text : Brand.secondary)
+                Image(systemName: "xmark").fontWeight(Brand.iconWeight).imageScale(.large).font(Brand.Style.label.font).foregroundStyle(hover ? Brand.text : Brand.secondary)
                     .frame(width: 24, height: 24)
                     .background(hover ? Brand.row : .clear, in: Rectangle())
                     .contentShape(Rectangle())
@@ -81,7 +81,7 @@ extension PanelTitle where Mark == PanelSymbol {
 /// The symbol at the start of a panel's title strip.
 public struct PanelSymbol: View {
     var name: String
-    public var body: some View { Image(systemName: name).imageScale(.large).foregroundStyle(Brand.secondary) }
+    public var body: some View { Image(systemName: name).fontWeight(Brand.iconWeight).imageScale(.large).foregroundStyle(Brand.secondary) }
 }
 
 /// The ⋮ button left of a panel's close control, the same size, opening its actions.
@@ -104,7 +104,7 @@ struct PanelMenu: View {
                 .disabled(!a.enabled)
             }
         } label: {
-            Image(systemName: "ellipsis").imageScale(.large).font(Brand.Style.label.font)
+            Image(systemName: "ellipsis").fontWeight(Brand.iconWeight).imageScale(.large).font(Brand.Style.label.font)
                 .rotationEffect(.degrees(90))
                 .foregroundStyle(hover ? Brand.text : Brand.secondary)
                 .frame(width: 24, height: 24)

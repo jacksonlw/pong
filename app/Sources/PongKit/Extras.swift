@@ -8,15 +8,13 @@ public struct PongExtras: Sendable {
     public var account: (any PongAccount)?
     /// Makes the hosted voice model from the account's session token.
     public var hostedVoice: (@Sendable (String) -> any VoiceModel)?
-    /// What Settings says about the hosted voice model, and when its account may not use it.
-    public var hostedVoiceAbout: String
+    /// What Settings says when its account may not use the hosted voice model.
     public var hostedVoiceUpgrade: String
 
     public init(account: (any PongAccount)? = nil, hostedVoice: (@Sendable (String) -> any VoiceModel)? = nil,
-                hostedVoiceAbout: String = "", hostedVoiceUpgrade: String = "") {
+                hostedVoiceUpgrade: String = "") {
         self.account = account
         self.hostedVoice = hostedVoice
-        self.hostedVoiceAbout = hostedVoiceAbout
         self.hostedVoiceUpgrade = hostedVoiceUpgrade
     }
 }

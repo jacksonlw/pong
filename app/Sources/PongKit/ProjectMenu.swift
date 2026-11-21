@@ -128,7 +128,7 @@ private struct Swatches: View {
                         .frame(width: 22, height: 22)
                         .overlay {
                             if chosen {
-                                Image(systemName: "checkmark").font(Brand.Style.label.font).imageScale(.medium)
+                                Image(systemName: "checkmark").fontWeight(Brand.iconWeight).font(Brand.Style.label.font).imageScale(.medium)
                                     .foregroundStyle(ProjectTile.readableInk(on: c))
                             }
                         }

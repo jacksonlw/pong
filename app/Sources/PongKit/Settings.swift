@@ -77,14 +77,6 @@ public enum HarnessSurface: String, CaseIterable, Sendable {
         case .terminal: "A terminal"
         }
     }
-
-    /// What starting a Session from Pong does there.
-    public var explanation: String {
-        switch self {
-        case .app: "Pong starts Sessions with no terminal window and moves them into the app once their first turn ends."
-        case .terminal: "Pong starts Sessions in a terminal."
-        }
-    }
 }
 
 /// The parts of the Engine's API the Settings window uses.

@@ -49,7 +49,7 @@ final class BackgroundTests: XCTestCase {
         let told = await run(login, record, n)
         XCTAssertEqual(login.status, .enabled)
         XCTAssertEqual(told.first, BackgroundText.loginOn)
-        XCTAssertTrue(told[0].contains("System Settings > General > Login Items"))
+        XCTAssertTrue(told[0].contains("turn this off in Settings"))
 
         let again = await run(login, record, n)
         XCTAssertEqual(login.registrations, 1)

@@ -6,13 +6,6 @@ public let cardWidth: CGFloat = 420
 /// The widths the human can drag the card to.
 public let cardWidths: ClosedRange<CGFloat> = 320...840
 
-/// A window that places itself (in a corner, at a size that eases) and must hold still under
-/// the pointer while `WindowDragArea` moves it: told the top-left corner at each step of a
-/// drag, and nil once the mouse is let go.
-public protocol GrabbedWindow: NSWindow {
-    func grabbed(at topLeft: NSPoint?)
-}
-
 extension EnvironmentValues {
     /// The card's width now: the standard one unless the human has dragged an edge.
     @Entry public var chosenCardWidth: CGFloat = cardWidth
@@ -525,7 +518,7 @@ public struct CardView: View {
             Color.clear.frame(height: 0).overlay(alignment: .bottomTrailing) {
                 if choosing && canReply {
                     let card = ctx.directory.card(for: ping)
-                    SendMenu(project: card.project?.name, used: card.session?.context?.usedFraction,
+                    SendMenu(used: card.session?.context?.usedFraction,
                              canSend: canChoose, offersNewSession: ping.blocksAgent != true,
                              newSession: { sendReply(newSession: true) }, thisSession: { sendReply() },
                              handBack: ping.isRemote ? nil : { choosing = false; actions.handBack() })
@@ -568,7 +561,7 @@ struct OptionRow: View {
                 switch mark {
                 case .none: EmptyView()
                 case .box(let on):
-                    Image(systemName: "checkmark").imageScale(.large)
+                    Image(systemName: "checkmark").fontWeight(Brand.iconWeight).imageScale(.large)
                         .font(Brand.Style.label.font)
                         .foregroundStyle(Brand.onSelected)
                         .opacity(on ? 1 : 0)
@@ -607,7 +600,7 @@ struct IconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol).imageScale(.large)
+            Image(systemName: symbol).fontWeight(Brand.iconWeight).imageScale(.large)
                 .font(Brand.Style.label.font)
                 .foregroundStyle(enabled ? Brand.text : Brand.secondary)
                 .frame(width: 30, height: 30)
@@ -797,6 +790,13 @@ struct WindowDragArea: NSViewRepresentable {
             if let w = window, NSPoint(x: w.frame.minX, y: w.frame.maxY) != s.topLeft { moved() } else if let clicked { reported = true; clicked() }
         }
     }
+}
+
+/// A window that places itself (in a corner, at a size that eases) and must hold still under
+/// the pointer while `WindowDragArea` moves it: told the top-left corner at each step of a
+/// drag, and nil once the mouse is let go.
+public protocol GrabbedWindow: NSWindow {
+    func grabbed(at topLeft: NSPoint?)
 }
 
 extension EnvironmentValues {

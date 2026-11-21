@@ -22,7 +22,7 @@ struct TagLine: View {
 struct FinishedMark: View {
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: "checkmark.circle.fill").imageScale(.large)
+            Image(systemName: "checkmark.circle.fill").fontWeight(Brand.iconWeight).imageScale(.large)
             Text("Finished").lineLimit(1)
         }
         .brandStyle(.label)
@@ -104,7 +104,7 @@ struct TagView: View {
         let look = Self.look(tag.colour)
         HStack(spacing: 4) {
             // A step larger than the text's own small scale; the badge's fixed height keeps the Tag the same size.
-            Image(systemName: Self.icon(tag.icon))
+            Image(systemName: Self.icon(tag.icon)).fontWeight(Brand.iconWeight)
                 .imageScale(.large)
             Text(tag.text)
                 .lineLimit(1)

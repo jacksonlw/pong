@@ -35,9 +35,9 @@ public protocol Notifier: AnyObject {
 }
 
 public enum BackgroundText {
-    public static let loginOn = "Pong now starts when you log in. To stop this, open System Settings > General > Login Items and switch Pong off."
-    public static let loginDisallowed = "macOS does not allow Pong to start at login. Pong will not ask again. To allow it, open System Settings > General > Login Items and switch Pong on."
-    public static let notificationsWhy = "Next, macOS asks whether Pong may send notifications. Pong sends one for each waiting Ping, and only while your screen is locked. Without them, the card still shows every Ping."
+    public static let loginOn = "Pong now starts when you log in. You can turn this off in Settings."
+    public static let loginDisallowed = "macOS does not allow Pong to start at login. To allow it, open System Settings > General > Login Items and switch Pong on."
+    public static let notificationsWhy = "Next, macOS asks whether Pong may send notifications. Pong sends one for each waiting Ping while your screen is locked."
 }
 
 /// First-launch and every-launch setup. `tell` shows the human a message and returns when

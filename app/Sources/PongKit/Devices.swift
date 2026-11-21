@@ -141,25 +141,32 @@ struct DevicesSection: View {
     private var connection: String {
         guard let set = model.set else { return "" }
         if set.mode == "cloud" {
-            return "Connected through Pong Cloud: your Devices reach each other from any network, sealed so Pong's server cannot read them."
+            return "Connected through Pong Cloud"
         }
         if set.account == true, let why = set.why, !why.isEmpty {
-            return "Connected on Local, because \(why): your Devices talk directly over this network."
+            return "Connected on Local, because \(why)"
         }
-        return "Connected on Local: your Devices talk directly over this network, and nothing passes through Pong's servers."
+        return "Connected on Local"
     }
 
     var body: some View {
-        Text(connection)
-            .brandStyle(.secondary)
-            .foregroundStyle(Brand.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .capMiddle, spacing: 6) {
+            Text(connection)
+                .brandStyle(.secondary)
+                .capCentred(.secondary)
+                .foregroundStyle(Brand.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if model.set != nil {
+                InfoButton(about: "how your Devices connect",
+                           text: "On Local, your Devices talk directly over this network and nothing passes through Pong's servers. Pong Cloud reaches them from any network, sealed so Pong's server cannot read them.",
+                           learnMore: Docs.page("settings", "devices"))
+            }
+        }
         if model.set != nil, model.set?.account != true {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Sign in to Pong Cloud to reach your Devices from any network. Your other Devices follow without signing in.")
+                Text("Sign in to Pong Cloud")
                     .brandStyle(.secondary)
                     .foregroundStyle(Brand.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
                 HStack {
                     TextField("", text: $model.address)
                         .brandPlaceholder("Email or phone", shown: model.address.isEmpty)
@@ -204,7 +211,7 @@ struct DevicesSection: View {
                 }
                 if model.confirmingRevoke == d.id {
                     HStack {
-                        Text("\(d.name) will stop being able to answer or start anything, at once.")
+                        Text("\(d.name) can no longer answer or start anything.")
                             .brandStyle(.secondary)
                             .foregroundStyle(Brand.secondary)
                             .fixedSize(horizontal: false, vertical: true)

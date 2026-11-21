@@ -38,9 +38,13 @@
   --pong-tag-mint-outline: #98b6a4;
   --pong-tag-mint-tint: #e2f6ea;
   --pong-type-question-size: 22px;
-  --pong-type-question-weight: 600;
+  --pong-type-question-weight: 500;
   --pong-type-question-tracking: -0.02em;
   --pong-type-question-line-height: 1.15;
+  --pong-type-heading-size: 18px;
+  --pong-type-heading-weight: 600;
+  --pong-type-heading-tracking: -0.015em;
+  --pong-type-heading-line-height: 1.2;
   --pong-type-answer-size: 15px;
   --pong-type-answer-weight: 500;
   --pong-type-answer-tracking: 0em;
