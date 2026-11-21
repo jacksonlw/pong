@@ -215,18 +215,7 @@ struct DevicesSection: View {
                 }
             }
             ForEach(set.waiting) { a in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("\(a.name) (\(platformTitle(a.platform))) asks to join")
-                    HStack {
-                        Text("Code \(a.code)").brandStyle(.question)
-                        Spacer()
-                        Button("Approve") { Task { await model.approve(a.id) } }
-                            .buttonStyle(.brandPrimary)
-                    }
-                    Text("Approve only if the same code shows on \(a.name).")
-                        .brandStyle(.secondary)
-                        .foregroundStyle(Brand.secondary)
-                }
+                AskingRow(asking: a) { Task { await model.approve(a.id) } }
             }
             if set.devices.count == 1 && set.waiting.isEmpty {
                 Text("To add a computer, run pong devices pair on it.")

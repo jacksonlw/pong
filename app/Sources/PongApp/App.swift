@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settings: SettingsWindowController!
     private var newSessionSignal: DispatchSourceSignal?
     private var threads: ThreadWindowController!
+    private var joins: JoinWindowController!
     private let arrivals = PingArrivals()
     private var soundIDs: [PingSound: SystemSoundID] = [:]
 
@@ -78,6 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         threads = ThreadWindowController(client: { await engine.client() }, dock: dock, showInQueue: { [inbox] in inbox.show($0.id) },
                                          changed: { [weak self] in self?.card.set(openThreads: $0) })
         previews = PreviewController(inbox: inbox, dock: dock, client: { await engine.client() })
+        joins = JoinWindowController(client: { await engine.client() }, dock: dock)
+        joins.start()
         following = Task { await inbox.follow(clientProvider: { await engine.client() }) }
         ContextWindowController.start(clientProvider: { await engine.client() })
         if isReal { background = Background(inbox: inbox, client: { await engine.client() }) } // never under PONG_HOME or tests
@@ -110,6 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         following?.cancel()
+        joins.stop()
         engine.stop()
     }
 }
