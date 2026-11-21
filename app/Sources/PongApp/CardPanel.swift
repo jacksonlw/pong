@@ -218,9 +218,12 @@ struct CardRoot: View {
     }
 }
 
-final class CardPanel: NSPanel {
+final class CardPanel: NSPanel, GrabbedWindow {
     /// Escape, while the window is key (the start panel is open).
     var cancel: () -> Void = {}
+    /// The human is dragging the card by its bar (top-left corner), or let go (nil).
+    var onGrab: (NSPoint?) -> Void = { _ in }
+    func grabbed(at topLeft: NSPoint?) { onGrab(topLeft) }
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
     override func cancelOperation(_ sender: Any?) { cancel() }
@@ -269,6 +272,7 @@ final class CardController {
         let start = BarStart(client: client, window: panel, changed: { faces.set(starting: $0) })
         self.start = start
         panel.cancel = { start.close() }
+        panel.onGrab = { [weak self] in self?.grab($0) }
         let root = CardRoot(inbox: inbox, stage: stage, faces: faces, directory: directory, anchor: anchor, voice: voice,
                             moved: { [weak self] in self?.moved() }, putBack: { [weak self] in self?.putBack() },
                             resize: { [weak self] in self?.resize($0) },
@@ -433,6 +437,24 @@ final class CardController {
 
     /// Where the human let go of the card: Pong's other windows may pull it into place.
     var dropped: (NSWindow, @escaping () -> Void) -> Void = { _, settled in settled() }
+
+    /// While the card is held, it stays where the pointer has it: a resize or an ease that lands
+    /// mid-drag keeps its top edge there instead of putting it back in its corner.
+    private func grab(_ topLeft: NSPoint?) {
+        guard let topLeft else { return }
+        if dragged == nil, let later = shrink {
+            // Leaving the corner pins the top edge; a shrink still waiting would otherwise land
+            // after the grab and pull the bottom up under the pointer.
+            later.cancel()
+            shrink = nil
+            dragged = topLeft
+            place(size)
+            return
+        }
+        dragged = topLeft
+        if anchor.bottom { anchor.bottom = false }
+        if anchor.trailing { anchor.trailing = false }
+    }
 
     private func moved() {
         dropped(panel) { [weak self] in

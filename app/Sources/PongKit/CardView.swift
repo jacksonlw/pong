@@ -6,6 +6,13 @@ public let cardWidth: CGFloat = 420
 /// The widths the human can drag the card to.
 public let cardWidths: ClosedRange<CGFloat> = 320...840
 
+/// A window that places itself (in a corner, at a size that eases) and must hold still under
+/// the pointer while `WindowDragArea` moves it: told the top-left corner at each step of a
+/// drag, and nil once the mouse is let go.
+public protocol GrabbedWindow: NSWindow {
+    func grabbed(at topLeft: NSPoint?)
+}
+
 extension EnvironmentValues {
     /// The card's width now: the standard one unless the human has dragged an edge.
     @Entry public var chosenCardWidth: CGFloat = cardWidth
@@ -675,7 +682,10 @@ struct WindowDragArea: NSViewRepresentable {
         var moved: () -> Void = {}
         var putBack: () -> Void = {}
         var contextMenu: (() -> NSMenu)?
-        private var start: (mouse: NSPoint, origin: NSPoint)?
+        /// Where the mouse and the window's top-left corner were when the press began. The top
+        /// left, not the origin: the window may grow or shrink under the pointer mid-drag, and
+        /// the grabbed spot must stay under it.
+        private var start: (mouse: NSPoint, topLeft: NSPoint)?
 
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
         override var mouseDownCanMoveWindow: Bool { false }
@@ -713,7 +723,7 @@ struct WindowDragArea: NSViewRepresentable {
             }
             if e.clickCount == 2 { start = nil; putBack(); return }
             guard let w = window else { return }
-            start = (NSEvent.mouseLocation, w.frame.origin)
+            start = (NSEvent.mouseLocation, NSPoint(x: w.frame.minX, y: w.frame.maxY))
             NSCursor.closedHand.set()
         }
 
@@ -721,7 +731,9 @@ struct WindowDragArea: NSViewRepresentable {
             NSCursor.closedHand.set()
             guard let s = start, let w = window else { return }
             let p = NSEvent.mouseLocation
-            w.setFrameOrigin(NSPoint(x: s.origin.x + p.x - s.mouse.x, y: s.origin.y + p.y - s.mouse.y))
+            let topLeft = NSPoint(x: s.topLeft.x + p.x - s.mouse.x, y: s.topLeft.y + p.y - s.mouse.y)
+            (w as? GrabbedWindow)?.grabbed(at: topLeft)
+            w.setFrameOrigin(NSPoint(x: topLeft.x, y: topLeft.y - w.frame.height))
         }
 
         override func mouseUp(with e: NSEvent) {
@@ -729,7 +741,8 @@ struct WindowDragArea: NSViewRepresentable {
             start = nil
             let inside = bounds.contains(convert(e.locationInWindow, from: nil))
             (inside ? NSCursor.openHand : NSCursor.arrow).set()
-            if window?.frame.origin != s.origin { moved() }
+            (window as? GrabbedWindow)?.grabbed(at: nil)
+            if let w = window, NSPoint(x: w.frame.minX, y: w.frame.maxY) != s.topLeft { moved() }
         }
     }
 }
