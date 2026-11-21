@@ -38,9 +38,10 @@ struct ResourceBar: View {
                     ResourceTile(resource: r, thumbnail: thumbnail(r), host: store.linkHost(r), width: tile, opened: store.isOpen(r)) {
                         // A link opens through LinkOpener; it has no preview.
                         if r.isLink { Task { await store.openLink(r, of: ping, clicks: clicks) }; return }
-                        // Command adds one and Shift adds a run, as in a Finder window.
+                        // Command or Control adds one and Shift adds a run, as in a Finder window.
                         let keys = NSApp.currentEvent?.modifierFlags ?? []
-                        store.open(r, of: ping, keys.contains(.command) ? .added : keys.contains(.shift) ? .through : .alone,
+                        store.open(r, of: ping, keys.contains(.command) || keys.contains(.control) ? .added
+                                                : keys.contains(.shift) ? .through : .alone,
                                    among: resources)
                     }
                     .contextMenu {

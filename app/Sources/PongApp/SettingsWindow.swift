@@ -2,46 +2,53 @@ import AppKit
 import PongKit
 import SwiftUI
 
-/// The one Settings window. `show()` is the single way in: Settings… in the menu of the right
-/// click on the Bar calls it.
+/// The one Settings panel, in the row beside the card. `show()` is the single way in: Settings…
+/// in the menu of the right click on the Bar calls it.
 @MainActor
 final class SettingsWindowController {
     private let client: @Sendable () async -> EngineClient?
     private let login: LoginItem
-    private var window: NSWindow?
+    private let dock: Dock
+    private var panel: DockPanel?
+    private static let key = "settings"
+    static let height: CGFloat = 640
 
-    init(client: @escaping @Sendable () async -> EngineClient?, login: LoginItem) {
+    init(client: @escaping @Sendable () async -> EngineClient?, login: LoginItem, dock: Dock) {
         self.client = client
         self.login = login
+        self.dock = dock
     }
 
     func show() {
-        if let window {
-            NSApp.activate()
-            window.makeKeyAndOrderFront(nil)
-            return
-        }
+        if let panel { return panel.orderFrontRegardless() }
         Task { await open() }
     }
 
     private func open() async {
-        guard let c = await client() else { return }
+        guard panel == nil, let c = await client(), panel == nil else { return }
         let model = SettingsModel(api: c, login: login)
-        let view = ScrollView {
-            SettingsView(model: model, devices: DevicesModel(api: c))
+        let dock = dock
+        let view = VStack(spacing: 0) {
+            PanelTitle(symbol: "gearshape", title: "Settings", closeLabel: "Close Settings",
+                       moved: { dock.dropped(Self.key) }, putBack: { dock.putBack(Self.key) },
+                       onClose: { [weak self] in self?.close() })
+            ScrollView {
+                SettingsView(model: model, devices: DevicesModel(api: c))
+            }
         }
-        .frame(width: SettingsView.width)
-        .frame(minHeight: 420, idealHeight: 640)
+        .frame(width: SettingsView.width, height: Self.height)
+        .background(Brand.page)
         .task { await model.load() }
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SettingsView.width, height: 640),
-                         styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        w.title = "Pong Settings"
-        w.contentView = NSHostingView(rootView: view)
-        w.isReleasedWhenClosed = false
-        w.center()
-        window = w
-        NSApp.activate()
-        w.makeKeyAndOrderFront(nil)
+        let p = DockPanel.make(size: CGSize(width: SettingsView.width, height: Self.height))
+        p.contentView = FirstMouseHostingView(rootView: view)
+        panel = p
+        dock.show(Self.key, p, closed: { [weak self] in self?.close() })
         print("settings shown")
+    }
+
+    private func close() {
+        guard panel != nil else { return }
+        panel = nil
+        dock.remove(Self.key)
     }
 }

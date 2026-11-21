@@ -26,26 +26,8 @@ public struct ResourcePreview: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                // The mouse goes through the title to the area behind it, which moves the window.
-                Group {
-                    Image(systemName: symbol(forKind: resource.kind)).imageScale(.large).foregroundStyle(Brand.secondary)
-                    Text(resource.title).brandStyle(.answer).foregroundStyle(Brand.text).lineLimit(1)
-                }
-                .allowsHitTesting(false)
-                Spacer(minLength: 0)
-                HoverButton(action: onClose) { hover in
-                    Image(systemName: "xmark").imageScale(.large).font(Brand.Style.label.font).foregroundStyle(hover ? Brand.text : Brand.secondary)
-                        .frame(width: 24, height: 24)
-                        .background(hover ? Brand.row : .clear, in: Rectangle())
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("Close preview")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background { if let moved { WindowDragArea(moved: moved, putBack: putBack) } }
-            .help(moved == nil ? "" : "Drag to move. Double-click to put it back.")
+            PanelTitle(symbol: symbol(forKind: resource.kind), title: resource.title, closeLabel: "Close preview",
+                       moved: moved, putBack: putBack, onClose: onClose)
             if resource.kind == "sheet", let data, let sheet = SheetContent.decode(data) {
                 // A table scrolls both ways inside its own frame, so it is not put in the page's scroll.
                 SheetView(content: sheet)

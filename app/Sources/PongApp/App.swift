@@ -34,6 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var following: Task<Void, Never>?
     private var background: Background?
     private var previews: PreviewController!
+    /// The row of Threads, Settings and previews beside the card.
+    private let dock = Dock()
     private var settings: SettingsWindowController!
     private var newSessionSignal: DispatchSourceSignal?
     private var threads: ThreadWindowController!
@@ -50,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let engine = engine!
         settings = SettingsWindowController(client: { await engine.client() },
-                                            login: isReal ? MainAppLoginItem() : PretendLoginItem())
+                                            login: isReal ? MainAppLoginItem() : PretendLoginItem(), dock: dock)
         let settings = settings!
         // The Bar is Pong's place on screen: it starts Sessions and leads to Settings and Quit.
         card = CardController(inbox: inbox, directory: CardContext.live.directory, client: { await engine.client() },
@@ -73,8 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return VoiceModels.make(d.voiceModel, endpoint: d.voiceEndpoint, endpointModel: d.voiceEndpointModel, key: key ?? nil)
         }
-        threads = ThreadWindowController(client: { await engine.client() }, showInQueue: { [inbox] in inbox.show($0.id) })
-        previews = PreviewController(inbox: inbox, client: { await engine.client() })
+        threads = ThreadWindowController(client: { await engine.client() }, dock: dock, showInQueue: { [inbox] in inbox.show($0.id) })
+        previews = PreviewController(inbox: inbox, dock: dock, client: { await engine.client() })
         following = Task { await inbox.follow(clientProvider: { await engine.client() }) }
         ContextWindowController.start(clientProvider: { await engine.client() })
         if isReal { background = Background(inbox: inbox, client: { await engine.client() }) } // never under PONG_HOME or tests

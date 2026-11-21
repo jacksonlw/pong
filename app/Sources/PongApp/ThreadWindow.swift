@@ -2,19 +2,25 @@ import AppKit
 import PongKit
 import SwiftUI
 
-/// One ordinary window per Thread, opened by clicking a Ping's question (an explicit click, so it
-/// activates Pong). Each window fetches its Thread and fetches it again on events about it.
+/// One panel per Thread in the row beside the card, opened from the Bar's Threads list, a Ping's
+/// question or a Session link. A plain click puts it in place of the docked Thread; Command,
+/// Control or Shift puts it beside. Each panel fetches its Thread and fetches it again on events
+/// about it.
 @MainActor
 final class ThreadWindowController {
     private let client: @Sendable () async -> EngineClient?
-    private var windows: [SessionThread.SessionRef: (NSWindow, Task<Void, Never>)] = [:]
-    private var closing: [NSObjectProtocol] = []
+    private let dock: Dock
+    private var threads: [SessionThread.SessionRef: (DockPanel, Task<Void, Never>)] = [:]
 
     /// Brings the card to a Ping that waits.
     private let showInQueue: (Ping) -> Void
 
-    init(client: @escaping @Sendable () async -> EngineClient?, showInQueue: @escaping (Ping) -> Void) {
+    static let height: CGFloat = 640
+    private static func key(_ ref: SessionThread.SessionRef) -> String { "thread:\(ref.harness)/\(ref.id)" }
+
+    init(client: @escaping @Sendable () async -> EngineClient?, dock: Dock, showInQueue: @escaping (Ping) -> Void) {
         self.client = client
+        self.dock = dock
         self.showInQueue = showInQueue
         ThreadOpening.open = { [weak self] ping in
             let harness = CardContext.live.directory.card(for: ping).session?.harness ?? ""
@@ -29,9 +35,10 @@ final class ThreadWindowController {
     }
 
     func show(_ ref: SessionThread.SessionRef) {
-        NSApp.activate()
-        if let (w, _) = windows[ref] {
-            w.makeKeyAndOrderFront(nil)
+        let beside = opensBeside(NSApp.currentEvent?.modifierFlags ?? [])
+        let key = Self.key(ref)
+        if let (p, _) = threads[ref] {
+            p.orderFrontRegardless()
             return
         }
         let client = self.client
@@ -58,19 +65,16 @@ final class ThreadWindowController {
             return try await c.resource(resourceID, of: pingID)
         }
         let opener = SystemHarnessOpener()
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: ThreadView.width, height: 600),
-                         styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
-        w.title = "Thread"
+        let p = DockPanel.make(size: CGSize(width: ThreadView.width, height: Self.height))
+        let dock = self.dock
         let root = ThreadWindowContent(model: model, store: store, opener: opener, actions: ThreadActions(
             openInHarness: { model.openInHarness(with: opener) },
             openSession: { [weak self] in self?.show($0) },
             showInQueue: showInQueue,
-            stop: { Task { await model.stopTurn() } }), retitle: { [weak w] in w?.title = $0 })
-        w.contentView = NSHostingView(rootView: root)
-        w.contentMinSize = NSSize(width: ThreadWindowContent.minWidth, height: 360)
-        w.isReleasedWhenClosed = false
-        w.center()
-        if let last = windows.values.first?.0 { w.setFrameTopLeftPoint(NSPoint(x: last.frame.minX + 24, y: last.frame.maxY - 24)) }
+            stop: { Task { await model.stopTurn() } }),
+            moved: { dock.dropped(key) }, putBack: { dock.putBack(key) }, close: { [weak self] in self?.close(ref) },
+            widen: { [weak p] width in p?.setContentSize(NSSize(width: width, height: Self.height)) })
+        p.contentView = FirstMouseHostingView(rootView: root)
         let live = Task {
             await model.refresh()
             while !Task.isCancelled {
@@ -80,54 +84,55 @@ final class ThreadWindowController {
                 try? await Task.sleep(for: .milliseconds(500))
             }
         }
-        windows[ref] = (w, live)
-        closing.append(NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.windows[ref]?.1.cancel()
-                self?.windows[ref] = nil
-            }
-        })
-        w.makeKeyAndOrderFront(nil)
+        threads[ref] = (p, live)
+        dock.show(key, p, replacing: beside ? { _ in false } : { $0.hasPrefix("thread:") },
+                  closed: { [weak self] in self?.close(ref) })
         print("thread shown \(ref.id)")
+    }
+
+    private func close(_ ref: SessionThread.SessionRef) {
+        guard let (_, live) = threads.removeValue(forKey: ref) else { return }
+        live.cancel()
+        dock.remove(Self.key(ref))
     }
 }
 
-/// The Thread with the opened Resource's preview beside it.
+/// The Thread under its title strip, with the opened Resource's preview beside it.
 private struct ThreadWindowContent: View {
     var model: ThreadModel
     var store: ResourceStore
     var opener: SystemHarnessOpener
     var actions: ThreadActions
-    /// Names the window after the Project and the Session, as the card's Project line does.
-    var retitle: (String) -> Void
+    var moved: () -> Void
+    var putBack: () -> Void
+    var close: () -> Void
+    /// Makes the panel this wide, to fit a preview beside the Thread or not.
+    var widen: (CGFloat) -> Void
 
-    static let minWidth: CGFloat = 420
-
+    /// The Project and the Session, as the card's Project line names them.
     private var title: String {
         guard let t = model.thread else { return "Thread" }
         return ThreadView.title(t, project: CardContext.live.directory.project(t.session.project)?.0)
     }
 
+    private var width: CGFloat { ThreadView.width + (store.opened.isEmpty ? 0 : previewSize.width + 8) }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            ThreadPage(model: model, opensIn: opener.opensIn(model.thread?.session.openTarget), actions: actions)
-                .frame(minWidth: Self.minWidth, idealWidth: ThreadView.width, maxWidth: .infinity)
-            if let r = store.opened.last {
-                ResourcePreview(resource: r, data: store.contents[r.id]) { store.close(r) }
-                    .frame(width: previewSize.width)
+        VStack(spacing: 0) {
+            PanelTitle(symbol: "text.bubble", title: title, closeLabel: "Close Thread", moved: moved, putBack: putBack, onClose: close)
+            HStack(alignment: .top, spacing: 8) {
+                ThreadPage(model: model, opensIn: opener.opensIn(model.thread?.session.openTarget), actions: actions)
+                    .frame(width: ThreadView.width)
+                if let r = store.opened.last {
+                    ResourcePreview(resource: r, data: store.contents[r.id]) { store.close(r) }
+                        .frame(width: previewSize.width)
+                }
             }
         }
-        .frame(minHeight: 360, idealHeight: 600)
+        .frame(width: width, height: ThreadWindowController.height)
         .background(Brand.page)
         .environment(\.resourceStore, store)
         .environment(\.linkOpener, appLinkOpener)
-        .onChange(of: title, initial: true) { _, now in retitle(now) }
-        .onChange(of: store.opened.last?.id) { _, _ in
-            guard let w = NSApp.keyWindow else { return }
-            let width = ThreadView.width + (store.opened.isEmpty ? 0 : previewSize.width + 8)
-            var f = w.frame
-            f.size.width = width
-            w.setFrame(f, display: true, animate: false)
-        }
+        .onChange(of: width) { _, now in widen(now) }
     }
 }
