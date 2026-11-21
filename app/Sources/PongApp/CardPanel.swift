@@ -256,6 +256,7 @@ final class CardController {
     /// The card's width and right edge when the human began dragging one of its sides.
     private var widening: (width: CGFloat, maxX: CGFloat)?
     private static let widthKey = "cardWidth"
+    private static let stuckKey = "barStuck"
 
     init(inbox: Inbox, directory: Directory, client: @escaping @Sendable () async -> EngineClient?,
          settings: @escaping () -> Void, openThread: @escaping (SessionThread.SessionRef) -> Void) {
@@ -263,6 +264,7 @@ final class CardController {
         self.directory = directory
         let kept = UserDefaults.standard.double(forKey: Self.widthKey)
         if kept > 0 { anchor.width = min(max(kept, cardWidths.lowerBound), cardWidths.upperBound) }
+        faces.set(stuck: UserDefaults.standard.bool(forKey: Self.stuckKey))
         panel = CardPanel(contentRect: NSRect(x: 0, y: 0, width: cardWidth, height: 100),
                           styleMask: CardPanelConfiguration.style, backing: .buffered, defer: false)
         CardPanelConfiguration.apply(to: panel)
@@ -319,10 +321,15 @@ final class CardController {
         let was = faces.face
         withObservationTracking {
             _ = faces.face
+            _ = faces.stuck
         } onChange: { [weak self] in
             DispatchQueue.main.async {
                 guard let self else { return }
                 let face = self.faces.face
+                if UserDefaults.standard.bool(forKey: Self.stuckKey) != self.faces.stuck {
+                    UserDefaults.standard.set(self.faces.stuck, forKey: Self.stuckKey)
+                    print("bar \(self.faces.stuck ? "stuck open" : "unstuck")")
+                }
                 // The card shows over the start panel the human was writing in: the panel waits
                 // aside and takes typing again when the card goes. Elsewhere the panel closes.
                 self.start.aside = face == .card && self.start.isOpen

@@ -26,6 +26,52 @@ final class BarTests: XCTestCase {
         XCTAssertEqual(f.face, .bar, "the last Thread closed with the pointer away")
     }
 
+    /// Stuck open, the list stays without the pointer, a Ping still shows on the card, the list
+    /// comes back after it, and unsticking closes it once the pointer is away.
+    func testTheListStaysOpenWhileStuck() {
+        let f = CardFaces()
+        f.set(stuck: true)
+        XCTAssertEqual(f.face, .threads, "stuck open with the pointer away, as after a launch")
+        f.set(pointing: true)
+        f.set(pointing: false)
+        XCTAssertEqual(f.face, .threads, "the pointer left, but the list is stuck")
+        f.set(scene: true)
+        XCTAssertEqual(f.face, .card, "a Ping still shows")
+        f.set(scene: false)
+        XCTAssertEqual(f.face, .threads, "the list comes back after the card")
+        f.set(pointing: true)
+        f.set(stuck: false)
+        XCTAssertEqual(f.face, .threads, "unstuck under the pointer: open while it rests")
+        f.set(pointing: false)
+        XCTAssertEqual(f.face, .bar)
+    }
+
+    /// A click on the Bar's row that moves nothing sticks the list; a double-click takes that
+    /// back and puts the Bar in its corner.
+    func testAClickOnTheBarsRowSticksAndADoubleClickOnlyPutsItBack() throws {
+        var (sticks, putBacks) = (0, 0)
+        let host = NSHostingView(rootView: BarView(figures: BarFigures(), threads: [],
+                                                   actions: .init(putBack: { putBacks += 1 }, stick: { sticks += 1 }))
+            .environment(\.cardContext, CardContext(directory: Directory(), hover: ContextHover())))
+        let w = NSPanel(contentRect: NSRect(origin: .zero, size: host.fittingSize), styleMask: [.borderless, .nonactivatingPanel],
+                        backing: .buffered, defer: false)
+        w.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let at = NSPoint(x: 200, y: host.fittingSize.height - 21)
+        let area = try XCTUnwrap(w.contentView?.superview?.hitTest(at) as? WindowDragArea.Area)
+        func event(_ type: NSEvent.EventType, clicks: Int) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.mouseEvent(with: type, location: at, modifierFlags: [], timestamp: 0, windowNumber: w.windowNumber,
+                                             context: nil, eventNumber: 0, clickCount: clicks, pressure: 1))
+        }
+        area.mouseDown(with: try event(.leftMouseDown, clicks: 1))
+        area.mouseUp(with: try event(.leftMouseUp, clicks: 1))
+        XCTAssertEqual(sticks, 1, "one click sticks")
+        area.mouseDown(with: try event(.leftMouseDown, clicks: 2))
+        area.mouseUp(with: try event(.leftMouseUp, clicks: 2))
+        XCTAssertEqual(sticks, 2, "the double-click's first click is taken back")
+        XCTAssertEqual(putBacks, 1)
+    }
+
     func testTheCardShowsWhileAPingWaitsAndTheBarOtherwise() {
         let f = CardFaces()
         XCTAssertEqual(f.face, .bar)

@@ -78,6 +78,15 @@ public struct CardFaceStack<Edges: View>: View {
     /// The held Ping's button is on the Bar. When the card is asked for, it stays there and fades
     /// out with the rest of the Bar, until the card takes the Bar's place.
     @State private var keepsHeld = false
+    /// The whole face's scale and its tip about its middle, top edge away: as the human sticks
+    /// the Threads list open it lands like a sheet of paper on a desk, dipping and rocking to
+    /// rest, and it rocks less as they unstick it.
+    @State private var press: CGFloat = 1
+    @State private var tip = 0.0
+    /// How strongly the stuck Bar's edge is drawn: it comes in as the Bar lands and goes as it lifts.
+    @State private var edge = 0.0
+    private static var stuckEdge: Double { 0.6 }
+    @State private var pressing: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private func isBar(_ f: CardFace) -> Bool { f == .bar || f == .threads || f == .start }
@@ -113,6 +122,16 @@ public struct CardFaceStack<Edges: View>: View {
                     if shown == .card, stage.shown != nil, h > 0 { cardFull = h }
                     measured(h)
                 }
+            if isBar(shown), let s = surface {
+                // Stuck open, the Bar wears Pong's one outline around its surface, softened. The mask
+                // cuts the outline's halo off at the window's edge, which leaves its edge.
+                Color.clear
+                    .frame(width: width, height: s.height)
+                    .brandFocus(true)
+                    .padding(.bottom, s.inset)
+                    .opacity(boxOpacity * edge)
+                    .allowsHitTesting(false)
+            }
             if holdsMark {
                 // The card's top bar and the Bar start in the same place, so the mark stays put
                 // while everything around it fades.
@@ -127,7 +146,11 @@ public struct CardFaceStack<Edges: View>: View {
         }
         .environment(\.chosenCardWidth, width)
         .fixedSize()
+        .rotation3DEffect(.degrees(tip), axis: (x: 1, y: 0, z: 0), perspective: 0.3)
+        .scaleEffect(press)
         .overlay { if shown == .card { edges } }
+        .onChange(of: faces.stuck) { _, now in pressed(deep: now) }
+        .onAppear { edge = faces.stuck ? Self.stuckEdge : 0 }
         .onChange(of: stage.height) { _, h in if let h, h > 0 { cardHeight = h } }
         .onChange(of: faces.held, initial: true) { _, now in if now { keepsHeld = true } else if faces.face != .card { keepsHeld = false } }
         .onChange(of: faces.face, initial: true) { _, f in
@@ -145,10 +168,11 @@ public struct CardFaceStack<Edges: View>: View {
             BarView(figures: BarFigures(directory: directory, asking: inbox.waiting, waiting: inbox.hidden ? inbox.waitingCount : 0),
                     threads: rows, openThreads: faces.openThreads,
                     more: directory.sessions.count > rows.count ? { listed += ThreadRow.page } : nil,
-                    open: shown == .threads ? .threads : shown == .start ? .start : nil, start: start,
+                    open: shown == .threads ? .threads : shown == .start ? .start : nil, stuck: faces.stuck, start: start,
                     held: held, anchorsBottom: bottom,
                     actions: .init(openThread: openThread, openHeld: { faces.openHeld() },
                                    unhide: { if inbox.unhide() { faces.openCard() } }, pointing: pointing, moved: moved, putBack: putBack,
+                                   stick: { faces.set(stuck: !faces.stuck) },
                                    newSession: newSession, settings: settings))
         case .none:
             EmptyView()
@@ -171,6 +195,26 @@ public struct CardFaceStack<Edges: View>: View {
         guard isBar(shown) else { return }
         if follow == nil || reduceMotion { follow = h; return }
         if follow != h { withAnimation(CardMotion.easeOut(stage.timing.box)) { follow = h } }
+    }
+
+    /// The landing: a quick dip and tip, then the dip settles while the tip rocks to rest.
+    private func pressed(deep: Bool) {
+        pressing?.cancel()
+        guard !reduceMotion else { edge = deep ? Self.stuckEdge : 0; return }
+        withAnimation(.easeInOut(duration: deep ? 0.7 : 0.25)) { edge = deep ? Self.stuckEdge : 0 }
+        withAnimation(.easeOut(duration: 0.12)) {
+            press = deep ? 0.955 : 0.985
+            tip = deep ? 12 : -4
+        }
+        pressing = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { press = 1 }
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.4)) { tip = 0 }
+            try? await Task.sleep(for: .milliseconds(1100))
+            guard !Task.isCancelled else { return }
+            settled() // the window's shadow is drawn again around the face at rest
+        }
     }
 
     private func change(to target: CardFace) {

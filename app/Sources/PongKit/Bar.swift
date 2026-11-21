@@ -75,7 +75,8 @@ extension ThreadRow {
 
 /// The Bar: the card's place on screen while nothing waits. While the pointer rests on it, it
 /// opens into the Threads list below its figures (above them in a bottom corner, so the figures
-/// stay where they are); its New Session button opens it into the start panel instead. A Ping
+/// stay where they are); its New Session button opens it into the start panel instead. A click
+/// on its row sticks the list open, so it stays without the pointer, and another unsticks it. A Ping
 /// that arrives while either is open waits as a button at its top until the pointer leaves the
 /// list or the start panel closes. A right click on its row offers Settings and Quit.
 public struct BarView: View {
@@ -89,6 +90,8 @@ public struct BarView: View {
     /// Lists more Threads; nil when every one is listed.
     var more: (() -> Void)?
     var open: Part?
+    /// The human stuck the Threads list open.
+    var stuck: Bool
     /// The start panel, shown while `open` is `.start`.
     var start: StartPanelView?
     /// The question of a Ping held behind the open list, and where it is from.
@@ -118,6 +121,8 @@ public struct BarView: View {
         /// The human dragged the Bar somewhere new, or double-clicked it back to its corner.
         public var moved: () -> Void = {}
         public var putBack: () -> Void = {}
+        /// A click on the row: the Threads list sticks open, or comes unstuck.
+        public var stick: () -> Void = {}
         /// The New Session button: opens the start panel, or closes it.
         public var newSession: () -> Void = {}
         /// Settings…, from the right click on the row.
@@ -125,9 +130,10 @@ public struct BarView: View {
 
         public init(openThread: @escaping (SessionThread.SessionRef) -> Void = { _ in }, openHeld: @escaping () -> Void = {},
                     unhide: @escaping () -> Void = {}, pointing: @escaping (Bool) -> Void = { _ in },
-                    moved: @escaping () -> Void = {}, putBack: @escaping () -> Void = {},
+                    moved: @escaping () -> Void = {}, putBack: @escaping () -> Void = {}, stick: @escaping () -> Void = {},
                     newSession: @escaping () -> Void = {}, settings: @escaping () -> Void = {}) {
             self.moved = moved
+            self.stick = stick
             self.putBack = putBack
             self.newSession = newSession
             self.settings = settings
@@ -139,13 +145,14 @@ public struct BarView: View {
     }
 
     public init(figures: BarFigures, threads: [ThreadRow], openThreads: Set<SessionThread.SessionRef> = [], more: (() -> Void)? = nil,
-                open: Part? = nil, start: StartPanelView? = nil,
+                open: Part? = nil, stuck: Bool = false, start: StartPanelView? = nil,
                 held: (question: String, from: String?)? = nil, anchorsBottom: Bool = false, actions: Actions = Actions()) {
         self.figures = figures
         self.threads = threads
         self.openThreads = openThreads
         self.more = more
         self.open = open
+        self.stuck = stuck
         self.start = start
         self.held = held
         self.anchorsBottom = anchorsBottom
@@ -177,7 +184,8 @@ public struct BarView: View {
     /// but the waiting button moves the window, as the card's top bar does.
     private var figuresRow: some View {
         HStack(spacing: 14) {
-            DragGrip()
+            DragGrip(pressed: stuck, hint: stuck ? "Click to let the Threads close. Drag to move. Double-click to put it back."
+                                                 : "Click to keep the Threads open. Drag to move. Double-click to put it back.")
             Spacer(minLength: 0)
             Group {
                 // The spinner says working, so only the count is written; VoiceOver hears the words.
@@ -211,7 +219,7 @@ public struct BarView: View {
         .padding(.trailing, 6)
         .frame(height: Self.height)
         // The drag area sits in front of the surface: a colour in front would take the clicks.
-        .background { WindowDragArea(moved: actions.moved, putBack: actions.putBack, menu: menu) }
+        .background { WindowDragArea(moved: actions.moved, putBack: actions.putBack, menu: menu, clicked: actions.stick) }
         .background(Brand.surface)
         .accessibilityElement(children: .contain)
     }

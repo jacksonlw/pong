@@ -623,24 +623,28 @@ struct IconButton: View {
 }
 
 /// The Pong mark at the start of the card's top bar and of the Bar, in the same place on both.
-/// The bar around it moves the window (`WindowDragArea`); the mark steps up on hover to say so.
+/// The bar around it moves the window (`WindowDragArea`), which lights up on hover to say so.
 struct DragGrip: View {
-    @State private var hover = false
+    /// The Bar's list is stuck open: the mark stays stepped up, as if held down.
+    var pressed = false
+    /// What the bar around the mark does, said on hover.
+    var hint = "Drag to move. Double-click to put it back."
     @Environment(\.cardMarkHeld) private var held
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Where the mark sits from the top-left corner of the bar it starts.
     static let inset = EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 0)
 
     var body: some View {
         PongMark()
-            .foregroundStyle(hover ? Brand.text : Brand.secondary)
+            .foregroundStyle(pressed ? Brand.text : Brand.secondary)
             .frame(width: 30, height: 30)
-            .background(hover ? Brand.row : .clear, in: Rectangle())
+            .background(pressed ? Brand.rowHover : .clear, in: Rectangle())
+            .animation(reduceMotion ? nil : CardMotion.box, value: pressed)
             .opacity(held ? 0 : 1)
             // The mouse goes through the mark to the bar's drag area behind it.
             .allowsHitTesting(false)
-            .hoverHighlight($hover)
-            .help("Drag to move. Double-click to put it back.")
+            .help(hint)
             .accessibilityLabel("Move")
     }
 }
@@ -663,12 +667,16 @@ struct PongMark: View {
 
 /// Moves its window with the mouse, and reports a move once the mouse is let go. Shows an open
 /// hand while the pointer is over it and a closed hand while dragging, even while Pong is
-/// inactive (cursor rects only work in the key window, which the card rarely is). With `menu`,
-/// a right click (or Control-click) opens that menu.
+/// inactive (cursor rects only work in the key window, which the card rarely is), and lights its
+/// bar faintly while the pointer is on it, buttons included, to say the bar moves. With `menu`,
+/// a right click (or Control-click) opens that menu. With `clicked`, a click that moves nothing
+/// is reported at once; the click that turns out to start a double-click is reported a second
+/// time, which takes it back.
 struct WindowDragArea: NSViewRepresentable {
     var moved: () -> Void
     var putBack: () -> Void
     var menu: (() -> NSMenu)? = nil
+    var clicked: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> Area { Area() }
 
@@ -676,16 +684,50 @@ struct WindowDragArea: NSViewRepresentable {
         v.moved = moved
         v.putBack = putBack
         v.contextMenu = menu
+        v.clicked = clicked
     }
 
     final class Area: NSView {
         var moved: () -> Void = {}
         var putBack: () -> Void = {}
         var contextMenu: (() -> NSMenu)?
+        var clicked: (() -> Void)?
+        /// The last press was reported as a click, so a double-click takes it back.
+        private var reported = false
         /// Where the mouse and the window's top-left corner were when the press began. The top
         /// left, not the origin: the window may grow or shrink under the pointer mid-drag, and
         /// the grabbed spot must stay under it.
         private var start: (mouse: NSPoint, topLeft: NSPoint)?
+        private var lit = false
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            layer?.opacity = 0
+        }
+
+        required init?(coder: NSCoder) { fatalError("not used") }
+
+        private func paint() {
+            effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = NSColor(Brand.row).cgColor }
+        }
+
+        /// The faint highlight, drawn in AppKit so showing it redraws nothing in SwiftUI.
+        private func light(_ on: Bool) {
+            guard on != lit else { return }
+            lit = on
+            paint()
+            NSAnimationContext.runAnimationGroup { c in
+                c.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.15
+                c.allowsImplicitAnimation = true
+                layer?.opacity = on ? 1 : 0
+            }
+        }
+
+        override func viewDidChangeEffectiveAppearance() {
+            super.viewDidChangeEffectiveAppearance()
+            paint()
+        }
 
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
         override var mouseDownCanMoveWindow: Bool { false }
@@ -706,14 +748,16 @@ struct WindowDragArea: NSViewRepresentable {
 
         private func inside(_ e: NSEvent) -> Bool { bounds.contains(convert(e.locationInWindow, from: nil)) }
 
-        override func mouseEntered(with e: NSEvent) { point(e) }
-        override func mouseMoved(with e: NSEvent) { point(e) }
+        override func mouseEntered(with e: NSEvent) { light(true); point(e) }
+        override func mouseMoved(with e: NSEvent) { light(true); point(e) }
         /// AppKit asks the view under the pointer for its cursor as the pointer moves; left to
         /// NSView this is the arrow, which then fights the open hand set on each move.
         override func cursorUpdate(with e: NSEvent) { point(e) }
         /// Rebuilding the tracking areas, as the window grows or shrinks under the pointer, can
         /// report an exit while the pointer is still on the area: that one keeps the hand.
-        override func mouseExited(with e: NSEvent) { if start == nil, !inside(e) { NSCursor.arrow.set() } }
+        override func mouseExited(with e: NSEvent) {
+            if start == nil, !inside(e) { NSCursor.arrow.set(); light(false) }
+        }
 
         override func menu(for event: NSEvent) -> NSMenu? { contextMenu?() }
 
@@ -721,7 +765,14 @@ struct WindowDragArea: NSViewRepresentable {
             if e.modifierFlags.contains(.control), let menu = contextMenu?() {
                 return NSMenu.popUpContextMenu(menu, with: e, for: self)
             }
-            if e.clickCount == 2 { start = nil; putBack(); return }
+            if e.clickCount == 2 {
+                start = nil
+                if reported { clicked?() }
+                reported = false
+                putBack()
+                return
+            }
+            reported = false
             guard let w = window else { return }
             start = (NSEvent.mouseLocation, NSPoint(x: w.frame.minX, y: w.frame.maxY))
             NSCursor.closedHand.set()
@@ -741,8 +792,9 @@ struct WindowDragArea: NSViewRepresentable {
             start = nil
             let inside = bounds.contains(convert(e.locationInWindow, from: nil))
             (inside ? NSCursor.openHand : NSCursor.arrow).set()
+            if !inside { light(false) }
             (window as? GrabbedWindow)?.grabbed(at: nil)
-            if let w = window, NSPoint(x: w.frame.minX, y: w.frame.maxY) != s.topLeft { moved() }
+            if let w = window, NSPoint(x: w.frame.minX, y: w.frame.maxY) != s.topLeft { moved() } else if let clicked { reported = true; clicked() }
         }
     }
 }

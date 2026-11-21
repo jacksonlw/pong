@@ -14,7 +14,8 @@ public enum CardFace: Equatable, Sendable {
 /// list, the start panel closes, or the button is clicked. A card the human opened from the list
 /// or the panel goes back to it when they leave the card; the start panel stays open aside,
 /// with its draft, while the card shows. While a Thread the human opened is open, the list stays
-/// open when the pointer leaves it, and opens again once the card goes.
+/// open when the pointer leaves it, and opens again once the card goes. The same holds while
+/// the human has stuck the list open with a click on the Bar.
 @MainActor @Observable
 public final class CardFaces {
     public private(set) var face: CardFace = .bar
@@ -23,6 +24,9 @@ public final class CardFaces {
     /// The Threads open in panels beside the card.
     public private(set) var openThreads: Set<SessionThread.SessionRef> = []
 
+    /// The human stuck the Threads list open: it stays without the pointer, until they unstick it.
+    public private(set) var stuck = false
+
     private var scene = false
     private var pointing = false
     private var starting = false
@@ -30,6 +34,8 @@ public final class CardFaces {
     private var asked = false
     /// Where the human opened the card from, to go back to when they leave it.
     private var back: CardFace?
+    /// The list stays open with the pointer away.
+    private var stays: Bool { stuck || !openThreads.isEmpty }
 
     public init() {}
 
@@ -41,6 +47,9 @@ public final class CardFaces {
     public func set(starting: Bool) { self.starting = starting; decide() }
     /// The Threads open in panels beside the card changed.
     public func set(openThreads: Set<SessionThread.SessionRef>) { self.openThreads = openThreads; decide() }
+
+    /// The human clicked the Bar: the Threads list sticks open, or comes unstuck.
+    public func set(stuck: Bool) { self.stuck = stuck; decide() }
 
     /// The human clicked the held Ping's button: the card shows it now.
     public func openHeld() {
@@ -72,11 +81,11 @@ public final class CardFaces {
             switch back {
             case .start? where starting: face = .start
             case .threads?: pointing = true; face = .threads
-            default: pointing = false; face = openThreads.isEmpty ? .bar : .threads
+            default: pointing = false; face = stays ? .threads : .bar
             }
             back = nil
         } else {
-            face = pointing || !openThreads.isEmpty ? .threads : .bar
+            face = pointing || stays ? .threads : .bar
         }
         held = (face == .threads || face == .start) && scene
     }
