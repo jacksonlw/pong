@@ -47,8 +47,8 @@ cat > "$out/Contents/Info.plist" <<EOF
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>LSUIElement</key><true/>
-  <key>NSMicrophoneUsageDescription</key><string>In voice mode, Pong listens for your answer to a Ping. Speech is recognised on this Mac.</string>
-  <key>NSSpeechRecognitionUsageDescription</key><string>In voice mode, Pong turns what you say into a Pong. Recognition runs on this Mac and no audio leaves it.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Pong listens only while its microphone is on, to write what you say into the box you are typing in, or to hear your answer in Voice mode.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Pong turns what you say into text on this Mac. Nothing you say leaves it.</string>
 </dict>
 </plist>
 EOF

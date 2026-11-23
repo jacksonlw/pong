@@ -134,7 +134,9 @@ public struct StartPanelView: View {
                 .help("Add files for the agent to read")
                 .accessibilityLabel("Add files")
                 startButton
-                if let speak { speakTile(speak) }
+                if let speak {
+                    SpeakButton(speak: speak, box: .start) { speak.toggle(.start, text: $model.text, caret: caret) }
+                }
             }
             .padding(.top, 10)
         }
@@ -164,30 +166,6 @@ public struct StartPanelView: View {
             }
             return true
         }
-    }
-
-    /// Speak's microphone, a tile like Add files', right of Start Session.
-    private func speakTile(_ speak: Speak) -> some View {
-        let on = speak.box == .start
-        return HoverButton(action: {
-            speak.toggle(.start, text: $model.text, caret: caret)
-        }) { hover in
-            ZStack {
-                if on {
-                    LevelMeter(level: speak.level)
-                } else {
-                    Image(systemName: "mic").imageScale(.large)
-                        .font(Brand.Style.label.font)
-                        .brandIcon()
-                }
-            }
-            .frame(width: 40, height: 40)
-            .background(hover ? Brand.rowHover : Brand.row, in: Rectangle())
-            .foregroundStyle(Brand.text)
-            .contentShape(Rectangle())
-        }
-        .help(on ? "Stop. What you said stays in the box." : "Speak into the box. Nothing is sent until you start the Session.")
-        .accessibilityLabel(on ? "Stop speaking" : "Speak")
     }
 
     /// The Session starts in the Harness last used in the Project, else the first one offered.

@@ -63,13 +63,8 @@ struct ReplyField: View {
             .background(hover && enabled && !editing ? Brand.rowHover : Brand.row, in: Rectangle())
             .hoverHighlight($hover)
             .brandFocus(editing)
-            // The Skill menu stands on the box's top edge, over what is above it.
-            .overlay(alignment: .topLeading) {
-                if let menu, !menu.items.isEmpty {
-                    SkillMenu(state: menu, trigger: skills.trigger ?? "/") { picked = $0 }
-                        .alignmentGuide(.top) { $0[.bottom] + 4 }
-                }
-            }
+        // The Skill menu is a window of its own under the box (SkillMenuWindow), so it is never
+        // cut off by the panel the box is in.
     }
 }
 
@@ -190,9 +185,17 @@ private struct ReplyText: NSViewRepresentable {
             context.coordinator.pick(name, in: tv)
         }
         context.coordinator.paint(tv)
+        context.coordinator.menuWindow.show(menu, trigger: skills.trigger ?? "/", under: scroll) { [weak tv, weak coordinator = context.coordinator] name in
+            guard let tv else { return }
+            coordinator?.pick(name, in: tv)
+        }
         if focused, enabled, let w = tv.window, w.firstResponder !== tv {
             DispatchQueue.main.async { w.makeFirstResponder(tv) }
         }
+    }
+
+    static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+        coordinator.menuWindow.close()
     }
 
     /// As wide as offered, and as tall as the lines the text takes, from one to five.
@@ -212,6 +215,7 @@ private struct ReplyText: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: ReplyText
+        let menuWindow = SkillMenuWindow()
         init(_ parent: ReplyText) { self.parent = parent }
 
         func textDidChange(_ n: Notification) {
@@ -398,4 +402,54 @@ private final class Editor: NSTextView, PointerCursorOwner {
         window?.showPointerCursor()
     }
     override func mouseExited(with e: NSEvent) { window?.showPointerCursor() }
+}
+
+
+/// The Skill menu's own window: borderless, never key, a child of the box's window so it moves
+/// with it, its top just under the box and as wide as the menu needs. Typing stays in the box.
+@MainActor
+final class SkillMenuWindow {
+    private var panel: NSPanel?
+    private var host: NSHostingView<AnyView>?
+    /// Room around the menu for its shadow.
+    static let margin: CGFloat = 16
+
+    func show(_ state: SkillMenuState?, trigger: Character, under box: NSView, pick: @escaping (String) -> Void) {
+        guard let state, !state.items.isEmpty, let parent = box.window else { close(); return }
+        let view = AnyView(SkillMenu(state: state, trigger: trigger, pick: pick).padding(Self.margin))
+        let panel = self.panel ?? make()
+        if let host { host.rootView = view } else {
+            let h = NSHostingView(rootView: view)
+            panel.contentView = h
+            host = h
+        }
+        let size = host!.fittingSize
+        let boxOnScreen = parent.convertToScreen(box.convert(box.bounds, to: nil))
+        panel.setFrame(NSRect(x: boxOnScreen.minX - Self.margin, y: boxOnScreen.minY - 4 - size.height + Self.margin,
+                              width: size.width, height: size.height), display: true)
+        if panel.parent !== parent {
+            panel.parent?.removeChildWindow(panel)
+            parent.addChildWindow(panel, ordered: .above)
+        }
+        panel.level = parent.level
+        panel.orderFront(nil)
+    }
+
+    func close() {
+        guard let panel else { return }
+        panel.parent?.removeChildWindow(panel)
+        panel.orderOut(nil)
+    }
+
+    private func make() -> NSPanel {
+        let p = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = false
+        p.becomesKeyOnlyIfNeeded = true
+        p.hidesOnDeactivate = false
+        p.isReleasedWhenClosed = false
+        panel = p
+        return p
+    }
 }

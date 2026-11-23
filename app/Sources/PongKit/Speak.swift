@@ -215,8 +215,8 @@ public final class Speak {
     }
 }
 
-/// The microphone, as a reply row's icon button: `mic`, or `mic.fill` with the level while
-/// Speak listens in this box.
+/// The microphone: a 40-point tile, the same beside Start Session and in each reply row. It
+/// shows `mic` while idle and the level meter while Speak listens in its box.
 struct SpeakButton: View {
     var speak: Speak
     var box: SpeakBox
@@ -225,11 +225,23 @@ struct SpeakButton: View {
 
     var body: some View {
         let on = speak.box == box
-        HStack(spacing: 6) {
-            if on { LevelMeter(level: speak.level) }
-            IconButton(symbol: on ? "mic.fill" : "mic", label: on ? "Stop speaking" : "Speak",
-                       help: on ? "Stop. What you said stays in the box." : "Speak into the box. Nothing is sent until you send it.",
-                       enabled: enabled || on, action: toggle)
+        HoverButton(action: toggle) { hover in
+            ZStack {
+                if on {
+                    LevelMeter(level: speak.level)
+                } else {
+                    Image(systemName: "mic").imageScale(.large)
+                        .font(Brand.Style.label.font)
+                        .brandIcon()
+                }
+            }
+            .frame(width: 40, height: 40)
+            .foregroundStyle(enabled || on ? Brand.text : Brand.secondary)
+            .background(hover && (enabled || on) ? Brand.rowHover : Brand.row, in: Rectangle())
+            .contentShape(Rectangle())
         }
+        .disabled(!enabled && !on)
+        .help(on ? "Stop. What you said stays in the box." : "Speak into the box. Nothing is sent until you send it.")
+        .accessibilityLabel(on ? "Stop speaking" : "Speak")
     }
 }
