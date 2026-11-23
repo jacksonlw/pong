@@ -79,7 +79,7 @@ func Entry(pong string, timeoutMS int) string {
 
 // InstructionBlock is what install appends to the instruction file.
 func InstructionBlock() string {
-	return "\n<!-- Pong: begin -->\n" + integrations.StandingInstruction + "<!-- Pong: end -->\n"
+	return "\n<!-- Pong: begin -->\n" + integrations.StandingInstruction + integrations.AskingInstruction + "<!-- Pong: end -->\n"
 }
 
 // record is what install added, kept under Pong's data folder so removal

@@ -14,7 +14,6 @@ import (
 	"github.com/jacksonlw/pong/internal/client"
 	"github.com/jacksonlw/pong/internal/engine"
 	"github.com/jacksonlw/pong/internal/harness/claudecode"
-	"github.com/jacksonlw/pong/internal/harness/turn"
 )
 
 // Sessions in the recorded payloads.
@@ -100,29 +99,33 @@ func state(t *testing.T, c *client.Client, session string) string {
 	return s.State
 }
 
-func TestTurnWithNoPingIsNudgedOnce(t *testing.T) {
+// A turn with no Ping of the agent's own is never pushed for one: Pong builds
+// it from the turn, here from an offer at the end of the closing message.
+func TestTurnWithNoPingGetsThePingBuiltFromIt(t *testing.T) {
 	c, dir := enginetest.Start(t)
 	run(t, dir, "prompt/typed.json")
-	out, wake := run(t, dir, "stop/first.json")
-	if out != "" || wake != turn.Nudge {
-		t.Fatalf("wrote %q, woke with %q; want the nudge", out, wake)
+	wait := stopHook(t, dir, "stop/first.json")
+	p := waiting(t, c, 1)[0]
+	if !p.BlocksAgent || p.Question != "If you want me to try steps 3 to 5 again, tell me and I'll run them." ||
+		len(p.Answers) != 2 || p.Answers[0].Label != "Yes" || !strings.Contains(p.Context, "**Button colour:** You chose Red.") {
+		t.Fatalf("built Ping = %+v", p)
 	}
-	if ps, _ := c.Pings(""); len(ps) != 0 {
-		t.Fatalf("the nudge made Pings: %+v", ps)
+	if s := state(t, c, recordedSession); s != engine.SessionIdle {
+		t.Fatalf("Session is %s, want idle", s)
 	}
-	if s := state(t, c, recordedSession); s != engine.SessionWorking {
-		t.Fatalf("Session is %s while the agent is nudged", s)
+	typeIn(t, dir, recordedSession) // answered in the terminal instead
+	if out, wake := wait(); out != "" || wake != "" {
+		t.Fatalf("wrote %q and woke with %q", out, wake)
 	}
 }
 
-func TestNoPingAfterTheNudgeGetsAPlainPing(t *testing.T) {
+func TestAClosingMessageThatAsksNothingGetsAFinishedPing(t *testing.T) {
 	c, dir := enginetest.Start(t)
-	run(t, dir, "prompt/woken.json") // the turn the nudge woke
+	run(t, dir, "prompt/woken.json")
 	wait := stopHook(t, dir, "stop/woken.json")
 	p := waiting(t, c, 1)[0]
-	if p.Question != "BANANA" || p.Session != woken || p.Harness != "claude-code" || p.BlocksAgent ||
-		len(p.Answers) != 1 || p.Answers[0].Label != engine.NothingMore {
-		t.Fatalf("plain Ping = %+v", p)
+	if p.Question != "BANANA" || p.Session != woken || p.Harness != "claude-code" || p.BlocksAgent || !p.Finished {
+		t.Fatalf("built Ping = %+v", p)
 	}
 	if s := state(t, c, woken); s != engine.SessionIdle {
 		t.Fatalf("Session is %s, want idle", s)
@@ -134,30 +137,6 @@ func TestNoPingAfterTheNudgeGetsAPlainPing(t *testing.T) {
 	}
 	if s := state(t, c, woken); s != engine.SessionIdle {
 		t.Fatalf("Session is %s, want idle", s)
-	}
-}
-
-// An agent whose work is not finished, because it waits on work it started,
-// answers the nudge with a Note saying so. Its turn ends idle with no plain
-// Ping, so the human is not asked about a message that asks nothing.
-func TestNoteAfterTheNudgeEndsTheTurnWithNoPlainPing(t *testing.T) {
-	c, dir := enginetest.Start(t)
-	run(t, dir, "prompt/woken.json") // the turn the nudge woke
-	if _, err := c.CreatePing(engine.NewPing{IsNote: true, Session: woken, Folder: "/tmp",
-		Question: "Still waiting on the test run I started; I report when it ends."}); err != nil {
-		t.Fatal(err)
-	}
-	wait := stopHook(t, dir, "stop/woken.json")
-	time.Sleep(50 * time.Millisecond)
-	if ps, _ := c.Pings(engine.StateWaiting); len(ps) != 1 || !ps[0].IsNote {
-		t.Fatalf("waiting = %+v; want only the agent's Note", ps)
-	}
-	if s := state(t, c, woken); s != engine.SessionIdle {
-		t.Fatalf("Session is %s, want idle", s)
-	}
-	typeIn(t, dir, woken) // ends the hook's listening
-	if out, wake := wait(); out != "" || wake != "" {
-		t.Fatalf("wrote %q and woke with %q", out, wake)
 	}
 }
 
@@ -193,9 +172,8 @@ func TestATurnEndingWithBackgroundWorkLeavesTheSessionWorking(t *testing.T) {
 	}
 }
 
-// A Thought is not the agent answering the nudge: after one, the turn still
-// gets its plain Ping.
-func TestThoughtAfterTheNudgeStillGetsAPlainPing(t *testing.T) {
+// A Thought is not a Ping: after one, the turn still gets its built Ping.
+func TestATurnOfThoughtsStillGetsItsBuiltPing(t *testing.T) {
 	c, dir := enginetest.Start(t)
 	run(t, dir, "prompt/woken.json")
 	if _, err := c.CreatePing(engine.NewPing{IsNote: true, Thought: true, Session: woken, Folder: "/tmp",
@@ -204,7 +182,7 @@ func TestThoughtAfterTheNudgeStillGetsAPlainPing(t *testing.T) {
 	}
 	stopHook(t, dir, "stop/woken.json")
 	if p := waiting(t, c, 1)[0]; p.Question != "BANANA" {
-		t.Fatalf("plain Ping = %+v", p)
+		t.Fatalf("built Ping = %+v", p)
 	}
 }
 
@@ -239,7 +217,7 @@ func TestAgentsOwnFinishedPingIsNotDoubledAndItsPongWakes(t *testing.T) {
 	}
 	pong(t, c, mine.ID, engine.SendPong{Answer: "Run the tests", Text: "and fix any failure"})
 	_, wake := wait()
-	if !strings.Contains(wake, ": Run the tests. and fix any failure\n") {
+	if !strings.Contains(wake+"\n", ": Run the tests. and fix any failure\n") {
 		t.Fatalf("woke with %q", wake)
 	}
 }
@@ -249,7 +227,7 @@ func TestTypedPongWakesThePlainPingsSession(t *testing.T) {
 	wait := stopHook(t, dir, "stop/woken.json")
 	p := waiting(t, c, 1)[0]
 	pong(t, c, p.ID, engine.SendPong{Text: "now add a changelog line"})
-	if _, wake := wait(); !strings.Contains(wake, ": now add a changelog line\n") {
+	if _, wake := wait(); !strings.Contains(wake+"\n", ": now add a changelog line\n") {
 		t.Fatalf("woke with %q", wake)
 	}
 }
@@ -263,8 +241,9 @@ func TestPingFromAnEarlierTurnDoesNotCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	run(t, dir, "prompt/typed.json")
-	if _, wake := run(t, dir, "stop/first.json"); wake != turn.Nudge {
-		t.Fatalf("woke with %q; want the nudge", wake)
+	stopHook(t, dir, "stop/first.json")
+	if ps := waiting(t, c, 1); ps[0].ID == p.ID || !ps[0].BlocksAgent {
+		t.Fatalf("waiting = %+v; want the Ping built from this turn", ps)
 	}
 }
 
@@ -324,7 +303,7 @@ func TestRoundEndsTheTurnAndWakesWithEveryPong(t *testing.T) {
 	pong(t, c, qs[1].ID, engine.SendPong{Answer: "No", Text: "keep it"})
 	pong(t, c, qs[0].ID, engine.SendPong{Answer: "Yes"})
 	_, wake := wait()
-	want := "The human answered your Pings in Pong:\n- Cut the first line?: Yes\n- Shrink the nudge?: No. keep it\nOpen your reply by quoting each Pong on a line of its own, starting \"You answered in Pong:\"."
+	want := "The human answered your Pings in Pong:\n- Cut the first line?: Yes\n- Shrink the nudge?: No. keep it"
 	if wake != want {
 		t.Fatalf("woke with %q; want %q", wake, want)
 	}
@@ -339,11 +318,11 @@ func TestPongSentBeforeTheTurnEndsWakesTheSession(t *testing.T) {
 	q := round(t, c, recordedSession, "Which right curve?")[0]
 	pong(t, c, q.ID, engine.SendPong{Answer: "Yes"})
 	_, wake := run(t, dir, "stop/first.json")
-	if !strings.Contains(wake, "\n- Which right curve?: Yes\n") {
+	if !strings.Contains(wake+"\n", "\n- Which right curve?: Yes\n") {
 		t.Fatalf("woke with %q; want the Pong", wake)
 	}
-	if got, _ := c.Ping(q.ID); got.Pong == nil || got.Pong.Delivery != engine.DeliveryDelivered {
-		t.Fatalf("the Pong is %+v; want it delivered", got.Pong)
+	if got, _ := c.Ping(q.ID); got.Pong == nil || got.Pong.Delivery != engine.DeliveryDelivering {
+		t.Fatalf("the Pong is %+v; want it handed to the wake (delivering)", got.Pong)
 	}
 	if s := state(t, c, recordedSession); s != engine.SessionWorking {
 		t.Fatalf("Session is %s, want working", s)
@@ -413,12 +392,12 @@ func TestASubagentsReportMidTurnKeepsTheTurnsPongs(t *testing.T) {
 	report(t, dir, recordedSession)
 	wait := stopHook(t, dir, "stop/first.json")
 	time.Sleep(20 * time.Millisecond)
-	if got, _ := c.Ping(qs[0].ID); got.Pong == nil || got.Pong.Delivery != engine.DeliveryDelivered {
-		t.Fatalf("the Pong is %+v; want it delivered as the turn ends", got.Pong)
+	if got, _ := c.Ping(qs[0].ID); got.Pong == nil || got.Pong.Delivery != engine.DeliveryDelivering {
+		t.Fatalf("the Pong is %+v; want it handed to the wake (delivering) as the turn ends", got.Pong)
 	}
 	pong(t, c, qs[1].ID, engine.SendPong{Answer: "No"})
 	_, wake := wait()
-	if wake == turn.Nudge || !strings.Contains(wake, "\n- Thread only?: Yes\n") || !strings.Contains(wake, "\n- Who writes them?: No\n") {
+	if !strings.Contains(wake+"\n", "\n- Thread only?: Yes\n") || !strings.Contains(wake+"\n", "\n- Who writes them?: No\n") {
 		t.Fatalf("woke with %q; want both Pongs", wake)
 	}
 }
@@ -436,11 +415,11 @@ func TestAnEarlierTurnsPongOnItsWayWakesTheNextTurn(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 	report(t, dir, recordedSession)
 	_, wake := run(t, dir, "stop/first.json")
-	if !strings.Contains(wake, "\n- Thread only?: Yes\n") {
+	if !strings.Contains(wake+"\n", "\n- Thread only?: Yes\n") {
 		t.Fatalf("woke with %q; want the earlier turn's Pong", wake)
 	}
-	if got, _ := c.Ping(q.ID); got.Pong == nil || got.Pong.Delivery != engine.DeliveryDelivered {
-		t.Fatalf("the Pong is %+v; want it delivered", got.Pong)
+	if got, _ := c.Ping(q.ID); got.Pong == nil || got.Pong.Delivery != engine.DeliveryDelivering {
+		t.Fatalf("the Pong is %+v; want it handed to the wake (delivering)", got.Pong)
 	}
 }
 
@@ -463,7 +442,7 @@ func TestAQuestionStillWaitingFromAnEarlierTurnIsNotNudged(t *testing.T) {
 		t.Fatalf("Pings = %+v; want only the waiting question", ps)
 	}
 	pong(t, c, q.ID, engine.SendPong{Answer: "Yes"})
-	if _, wake := wait(); wake == turn.Nudge || !strings.Contains(wake, "\n- Lead with these three?: Yes\n") {
+	if _, wake := wait(); !strings.Contains(wake+"\n", "\n- Lead with these three?: Yes\n") {
 		t.Fatalf("woke with %q; want the question's Pong, not the nudge", wake)
 	}
 }
@@ -519,7 +498,7 @@ func TestAPongsWakeLeavesALaterTurnsPingWaiting(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	later := round(t, c, recordedSession, "Shrink the nudge?")[0]
 	pong(t, c, first.ID, engine.SendPong{Answer: "Yes"})
-	if _, wake := wait(); !strings.Contains(wake, "\n- Cut the first line?: Yes\n") {
+	if _, wake := wait(); !strings.Contains(wake+"\n", "\n- Cut the first line?: Yes\n") {
 		t.Fatalf("woke with %q", wake)
 	}
 	if got, _ := c.Ping(later.ID); got.State != engine.StateWaiting {
@@ -530,10 +509,9 @@ func TestAPongsWakeLeavesALaterTurnsPingWaiting(t *testing.T) {
 	}
 }
 
-// The last message comes whole as the question, trimmed of surrounding
-// whitespace only, with Nothing more and without the Finished mark: the
-// agent never said it was finished.
-func TestPlainPingCarriesTheLastMessageWhole(t *testing.T) {
+// A closing message that asks nothing is broken into a Finished Ping: its
+// first sentence is the question and the rest is the context, nothing lost.
+func TestTheBuiltPingCarriesTheWholeMessage(t *testing.T) {
 	c, dir := enginetest.Start(t)
 	long := "I added the total to the invoice view and wired it to the tax table.\n\n" +
 		"Tests: the unit tests pass; I did not run the browser tests.\n- next: rounding, " + strings.Repeat("and more detail ", 30)
@@ -543,10 +521,25 @@ func TestPlainPingCarriesTheLastMessageWhole(t *testing.T) {
 	in = bytes.Replace(in, []byte(`"BANANA"`), msg, 1)
 	go claudecode.Hook(dir, bytes.NewReader(in), &bytes.Buffer{})
 	p := waiting(t, c, 1)[0]
-	if p.Question != long || len(p.Resources) != 0 || p.Finished {
-		t.Fatalf("plain Ping = %+v", p)
+	if p.Question != "I added the total to the invoice view and wired it to the tax table." || !p.Finished ||
+		!strings.HasPrefix(p.Context, "Tests: the unit tests pass; I did not run the browser tests.\n\n- next: rounding, and more detail") {
+		t.Fatalf("built Ping = %+v", p)
 	}
-	if len(p.Answers) != 1 || p.Answers[0].Label != engine.NothingMore {
-		t.Fatalf("answers = %+v", p.Answers)
+}
+
+// A permission answered in the terminal during the turn is not the agent's
+// Ping for the turn's end: the turn still gets the Ping built from it.
+func TestASettledApprovalStillLeavesTheBuiltPing(t *testing.T) {
+	c, dir := enginetest.Start(t)
+	run(t, dir, "prompt/woken.json")
+	out := call(t, dir, "permission/bash.json")
+	p := waiting(t, c, 1)[0]
+	if _, err := c.AnsweredInHarness(p.ID); err != nil {
+		t.Fatal(err)
+	}
+	out()
+	stopHook(t, dir, "stop/woken.json")
+	if b := waiting(t, c, 1)[0]; b.ID == p.ID || b.Question != "BANANA" || !b.Finished {
+		t.Fatalf("built Ping = %+v", b)
 	}
 }

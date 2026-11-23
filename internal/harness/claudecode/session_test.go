@@ -56,7 +56,7 @@ func TestSessionStartRegistersAndGivesTheStandingInstruction(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("output %q: %v", out, err)
 	}
-	if got.HookSpecificOutput.HookEventName != "SessionStart" || got.HookSpecificOutput.AdditionalContext != integrations.StandingInstruction+claudecode.RetryInstruction+claudecode.CommandInstruction {
+	if got.HookSpecificOutput.HookEventName != "SessionStart" || got.HookSpecificOutput.AdditionalContext != integrations.StandingInstruction+claudecode.RetryInstruction {
 		t.Fatalf("output = %s", out)
 	}
 	s, err := c.Session("claude-code", "dc68d69d-3138-4b80-8497-63951f30e9aa")

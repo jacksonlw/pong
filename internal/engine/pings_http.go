@@ -310,7 +310,12 @@ func (s *pings) routes(mux *http.ServeMux, hold time.Duration) {
 		s.writePing(w, p, err)
 	})
 	mux.HandleFunc("GET /pings/{id}/wait", func(w http.ResponseWriter, r *http.Request) {
-		p, err := s.wait(r.PathValue("id"), hold, r.Context().Done(), r.URL.Query().Get("held") == "1")
+		q := r.URL.Query()
+		p, err := s.wait(r.PathValue("id"), hold, r.Context().Done(), q.Get("held") == "1", q.Get("wake") == "1")
+		writePing(w, p, err)
+	})
+	mux.HandleFunc("POST /pings/{id}/arrived", func(w http.ResponseWriter, r *http.Request) {
+		p, err := s.arrived(r.PathValue("id"))
 		writePing(w, p, err)
 	})
 	mux.HandleFunc("POST /pings/{id}/pong", func(w http.ResponseWriter, r *http.Request) {

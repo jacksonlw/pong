@@ -252,7 +252,7 @@ func setupOne(name string, f setupFlags, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "Pong does not know where %s keeps its configuration. Add these two things by hand.\n\n", name)
 		fmt.Fprintf(stdout, "1. An MCP server (stdio) named \"pong\":\n\n  \"pong\": %s\n\n", generic.Entry(*f.pong, 0))
 		fmt.Fprintln(stdout, "   Raise its tool time limit to at least a minute if the Harness has one.")
-		fmt.Fprintf(stdout, "\n2. This standing instruction, in a file the Harness always loads (often AGENTS.md):\n\n%s", integrations.StandingInstruction)
+		fmt.Fprintf(stdout, "\n2. This standing instruction, in a file the Harness always loads (often AGENTS.md):\n\n%s", integrations.StandingInstruction+integrations.AskingInstruction)
 		fmt.Fprintf(stdout, "\nThe Harness %s.\n", generic.Limits)
 		return 0
 	}

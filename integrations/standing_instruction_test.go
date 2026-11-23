@@ -5,42 +5,46 @@ import (
 	"testing"
 )
 
-// The Harness's own transcript must show what was asked and answered, so the
-// agent is told to write both in its messages, not only in Pong's tools.
-func TestStandingInstructionKeepsAskingAndAnsweringInTheTranscript(t *testing.T) {
-	for _, want := range []string{
-		"first write it in your message with the answers you offer, then send it",
-		`open your next message with one line that quotes it, starting "You answered in Pong:"`,
-	} {
+// A Session with Pong reads as one without it: the agent is told to write as
+// it would without Pong, and is never told to write a question twice, quote a
+// Pong back, or end every turn on a Ping.
+func TestStandingInstructionKeepsPongOutOfTheAgentsWords(t *testing.T) {
+	want := "Write every message as you would without Pong: never say you sent something to Pong, never write a question twice, and never offer a step, such as committing, because of Pong."
+	if !strings.Contains(StandingInstruction, want) {
+		t.Errorf("the standing instruction lacks %q", want)
+	}
+	for _, gone := range []string{"You answered in Pong", "first write it in your message", "finished: true", "blocks_agent"} {
+		if strings.Contains(StandingInstruction, gone) {
+			t.Errorf("the standing instruction still has %q", gone)
+		}
+	}
+}
+
+// Thoughts are taught with the rule that keeps them rare and concrete.
+func TestStandingInstructionTeachesThoughts(t *testing.T) {
+	for _, want := range []string{"send a Thought with send_thought for each real finding or decision", "One to three a turn."} {
 		if !strings.Contains(StandingInstruction, want) {
 			t.Errorf("the standing instruction lacks %q", want)
 		}
 	}
 }
 
-// Thoughts are taught in the standing instruction, with the rule that keeps
-// them rare and concrete.
-func TestStandingInstructionTeachesThoughts(t *testing.T) {
-	want := "As you work, send a Thought with send_thought each time you find, decide or change something, so your human can follow the Session without opening it: the cause you found, the approach you chose and why, what now works or still fails. One sentence they understand without the code open: never what you are running, never output, never the same news twice. Most turns need three to six, and a long one one every few minutes."
-	if !strings.Contains(StandingInstruction, want) {
-		t.Errorf("the standing instruction lacks %q", want)
+// An agent offers work for a new Session as a choice, named as the apps name
+// it, and never starts that Session itself.
+func TestStandingInstructionOffersNewSessionsAndNeverStartsThem(t *testing.T) {
+	for _, want := range []string{"they send it with New Session with this Pong, and Pong starts that Session", "Never start that Session yourself."} {
+		if !strings.Contains(StandingInstruction, want) {
+			t.Errorf("the standing instruction lacks %q", want)
+		}
 	}
 }
 
-// An agent offers work for a new Session on its finished Ping, and names the
-// choice the human sends it with as the Mac and iPhone apps name it.
-func TestStandingInstructionOffersNewSessionsOnTheFinishedPing(t *testing.T) {
-	want := "offer that work as an answer on your finished Ping, saying what the new Session should do: they send it with New Session with this Pong, and Pong starts that Session"
-	if !strings.Contains(StandingInstruction, want) {
-		t.Errorf("the standing instruction lacks %q", want)
-	}
-}
-
-// A Pong is not a message the human typed, so the Harness refuses a Session
-// the agent starts on a Pong's say-so. The agent is told never to try.
-func TestStandingInstructionNeverStartsSessionsFromAPong(t *testing.T) {
-	want := "Never start that Session yourself with your Harness's own tools: a Pong is not a message your human typed, so the Harness refuses it."
-	if !strings.Contains(StandingInstruction, want) {
-		t.Errorf("the standing instruction lacks %q", want)
+// Where Pong cannot read the Harness, the agent's own Pings are the only way
+// questions and finished work reach the human.
+func TestAskingInstructionSendsQuestionsAndFinishedWork(t *testing.T) {
+	for _, want := range []string{"one question per Ping, with blocks_agent set", "send a Ping with finished: true"} {
+		if !strings.Contains(AskingInstruction, want) {
+			t.Errorf("the asking instruction lacks %q", want)
+		}
 	}
 }

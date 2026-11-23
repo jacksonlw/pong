@@ -18,7 +18,6 @@ import (
 	"github.com/jacksonlw/pong/internal/engine"
 	"github.com/jacksonlw/pong/internal/harness/attended"
 	"github.com/jacksonlw/pong/internal/harness/codex"
-	"github.com/jacksonlw/pong/internal/harness/turn"
 )
 
 const session = "thr_doc1"
@@ -133,14 +132,19 @@ func TestHandedBackPermissionWritesNothing(t *testing.T) {
 	}
 }
 
-func TestTurnWithNoPingIsContinuedOnceWithTheNudge(t *testing.T) {
+// A turn with no Ping is never continued to ask for one: Pong builds it from
+// the last message, here a Finished Ping that "Nothing more" clears.
+func TestTurnWithNoPingGetsThePingBuiltFromIt(t *testing.T) {
 	c, dir := enginetest.Start(t)
 	call(t, dir, "prompt-typed.json")()
-	if got := out(t, dir, "stop-first.json"); got != `{"decision":"block","reason":`+quote(turn.Nudge)+"}\n" {
-		t.Fatalf("Codex would receive %s", got)
+	done := call(t, dir, "stop-first.json")
+	p := waiting(t, c)
+	if !p.Finished || p.Question != "Added the total; tests not run." {
+		t.Fatalf("built Ping = %+v", p)
 	}
-	if ps, _ := c.Pings(""); len(ps) != 0 {
-		t.Fatalf("the nudge made Pings: %+v", ps)
+	pong(t, c, p.ID, engine.SendPong{Answer: engine.NothingMore})
+	if got := done(); got != "" {
+		t.Fatalf("Codex would receive %s", got)
 	}
 }
 
@@ -155,7 +159,7 @@ func TestPongOnTheFinishedPingContinuesTheSession(t *testing.T) {
 		t.Fatalf("Session is %s, want idle", s.State)
 	}
 	pong(t, c, p.ID, engine.SendPong{Text: "now add a changelog line"})
-	if got := wait(); got != `{"decision":"block","reason":`+quote("The human answered your finished Ping in Pong: now add a changelog line\nOpen your reply with one line that quotes this Pong, starting \"You answered in Pong:\".")+"}\n" {
+	if got := wait(); got != `{"decision":"block","reason":`+quote("The human answered your finished Ping in Pong: now add a changelog line")+"}\n" {
 		t.Fatalf("Codex would receive %s", got)
 	}
 }
@@ -179,7 +183,7 @@ func TestRoundEndsTheTurnAndContinuesWithEveryPong(t *testing.T) {
 	}
 	pong(t, c, ids[0], engine.SendPong{Answer: "Yes"})
 	pong(t, c, ids[1], engine.SendPong{Answer: "No"})
-	want := `{"decision":"block","reason":` + quote("The human answered your Pings in Pong:\n- Cut the first line?: Yes\n- Shrink the nudge?: No\nOpen your reply by quoting each Pong on a line of its own, starting \"You answered in Pong:\".") + "}\n"
+	want := `{"decision":"block","reason":` + quote("The human answered your Pings in Pong:\n- Cut the first line?: Yes\n- Shrink the nudge?: No") + "}\n"
 	if got := wait(); got != want {
 		t.Fatalf("Codex would receive %s", got)
 	}

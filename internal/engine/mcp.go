@@ -11,8 +11,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/jacksonlw/pong/integrations"
 )
 
 // MCPBackend is what Pong's MCP tools need from an Engine. The Engine itself
@@ -41,8 +39,9 @@ type MCP struct {
 	Harness  string // used when a tool call names no harness
 	Folder   string // used when a tool call names no folder
 	PID      int    // the Harness process this server runs under, when known
-	// Quiet serves an agent nobody attends: no instruction and no tools, so it
-	// works as it would without Pong.
+	// Quiet serves an agent nobody attends: no tools, so it works as it would
+	// without Pong. No server gives the standing instruction: each Harness
+	// gets it once, from its own start context or instruction file.
 	Quiet bool
 }
 
@@ -88,9 +87,6 @@ func (m MCP) Handle(msg []byte) []byte {
 			"protocolVersion": v,
 			"capabilities":    map[string]any{"tools": map[string]any{}},
 			"serverInfo":      map[string]any{"name": "pong", "version": Version},
-		}
-		if !m.Quiet {
-			init["instructions"] = integrations.StandingInstruction
 		}
 		result = init
 	case "ping":
@@ -212,7 +208,7 @@ func (b engineBackend) CreatePing(n NewPing) (Ping, error) {
 func (b engineBackend) Get(id string) (Ping, error) { return b.s.getAny(id) }
 
 func (b engineBackend) WaitOnce(id string) (Ping, error) {
-	return fixIt(b.s.wait(id, b.hold, b.done, false))
+	return fixIt(b.s.wait(id, b.hold, b.done, false, false))
 }
 
 func (b engineBackend) Withdraw(id string) (Ping, error) {

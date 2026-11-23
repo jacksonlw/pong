@@ -101,8 +101,8 @@ func transports(t *testing.T, f func(t *testing.T, c *client.Client, conn mcpCon
 func TestMCPListsItsTools(t *testing.T) {
 	transports(t, func(t *testing.T, c *client.Client, conn mcpConn) {
 		init := conn(t, "initialize", map[string]any{"protocolVersion": "2025-06-18"})
-		if !strings.Contains(init["instructions"].(string), "send_ping") {
-			t.Fatalf("initialize = %v", init)
+		if _, ok := init["instructions"]; ok {
+			t.Fatalf("initialize repeats the standing instruction: %v", init)
 		}
 		var names []string
 		for _, tool := range conn(t, "tools/list", nil)["tools"].([]any) {

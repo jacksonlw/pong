@@ -135,6 +135,8 @@ func ask(c *client.Client, e Event, ns []engine.NewPing) ([]*engine.Pong, error)
 		ids = append(ids, p.ID)
 		remember(c, p.ID)
 	}
+	hold(e, ids) // held.go: answered in the terminal, they leave Pong at once
+	defer release(e)
 	pongs := make([]*engine.Pong, len(ids))
 	for i, id := range ids {
 		p, err := c.Wait(id)
@@ -148,6 +150,25 @@ func ask(c *client.Client, e Event, ns []engine.NewPing) ([]*engine.Pong, error)
 		pongs[i] = p.Pong
 	}
 	return pongs, nil
+}
+
+// mirror sends ns as Pings for a prompt Claude Code shows in the terminal
+// itself, without holding it: the human is at this Mac and answers there. The
+// call's PostToolUse marks them answered in the Harness (held.go); a Pong sent
+// first reaches the Session when its turn ends, as any question's does.
+func mirror(c *client.Client, e Event, ns []engine.NewPing) error {
+	refreshContext(c, e)
+	var ids []string
+	for _, n := range ns {
+		n.Session, n.Harness, n.Folder, n.BlocksAgent, n.Captured = e.SessionID, HarnessName, e.Cwd, true, true
+		p, err := c.CreatePing(n)
+		if err != nil {
+			return err
+		}
+		ids = append(ids, p.ID)
+	}
+	hold(e, ids)
+	return nil
 }
 
 // waitingOn holds the Pings this hook process is waiting on, so they can be

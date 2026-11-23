@@ -452,13 +452,50 @@ func writeStart(w http.ResponseWriter, v any, err error) {
 
 // wait is waitOnce, recording a Pong it returns as delivered: waits are
 // how a Session collects Pongs (its hooks and Pong's MCP tools wait).
-func (s *pings) wait(id string, hold time.Duration, done <-chan struct{}, holds bool) (Ping, error) {
+// A caller that hands the Pong to a wake (toWake) has not delivered it yet:
+// the Harness may drop the wake, as Claude Code did once for a Session moving
+// into its app. Such a Pong is delivering until the woken turn shows it
+// (arrived), and comes back to the human if that does not happen within
+// s.grace. A Pong that wakes nothing is delivered as it is taken.
+func (s *pings) wait(id string, hold time.Duration, done <-chan struct{}, holds, toWake bool) (Ping, error) {
 	p, err := s.waitOnce(id, hold, done, holds)
 	if err == nil && p.Pong != nil && p.Pong.Delivery == DeliverySent {
-		if q, ok, derr := s.deliver(p.ID, []string{DeliverySent}, DeliveryDelivered, ""); derr == nil && ok {
+		to := DeliveryDelivered
+		if toWake && p.Pong.wakes() {
+			to = DeliveryDelivering
+		}
+		if q, ok, derr := s.deliver(p.ID, []string{DeliverySent}, to, ""); derr == nil && ok {
 			p = q
+			if to == DeliveryDelivering {
+				s.watchArrival(p.ID)
+			}
 		}
 	}
+	return p, err
+}
+
+// wakes reports whether a Pong wakes its Session: not "Nothing more" with no
+// text, nor one sent as a new Session.
+func (pg *Pong) wakes() bool {
+	return !pg.NewSession && !(pg.Answer == NothingMore && strings.TrimSpace(pg.Text) == "")
+}
+
+// watchArrival gives a Pong handed to a wake s.grace to arrive; one still
+// delivering then comes back to the human.
+func (s *pings) watchArrival(id string) {
+	time.AfterFunc(s.grace, func() {
+		select {
+		case <-s.closing:
+			return
+		default:
+		}
+		s.deliver(id, []string{DeliveryDelivering}, DeliveryUndelivered, whyNotArrived)
+	})
+}
+
+// arrived marks a Pong handed to a wake delivered: the woken turn showed it.
+func (s *pings) arrived(id string) (Ping, error) {
+	p, _, err := s.deliver(id, []string{DeliveryDelivering}, DeliveryDelivered, "")
 	return p, err
 }
 

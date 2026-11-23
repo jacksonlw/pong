@@ -42,7 +42,7 @@ func sessionStart(c *client.Client, e Event) (any, error) {
 	}
 	return sessionStartOutput{HookSpecificOutput: additionalContext{
 		HookEventName:     "SessionStart",
-		AdditionalContext: integrations.StandingInstruction + RetryInstruction + CommandInstruction,
+		AdditionalContext: integrations.StandingInstruction + RetryInstruction,
 	}}, nil
 }
 

@@ -7,19 +7,16 @@ import (
 
 // The end of a turn (Stop). Codex documents that a Stop hook answering
 // {"decision":"block","reason":R} does not reject the turn: R becomes the
-// prompt of a continuation, and that continuation's Stop carries
-// stop_hook_active true. That is how both the nudge and a Pong reach the
-// agent, and how the nudge is kept to once. Codex documents only synchronous
+// prompt of a continuation. That is how a Pong reaches the agent; a turn
+// without a Ping gets the one Pong builds from its last message.
+// Codex documents only synchronous
 // Stop hooks as able to continue a turn, so the hook waits for the Pong with
 // a long timeout (WaitTimeout). Unverified against the real Codex.
 func stop(c *client.Client, e Event) (any, error) {
-	nudge, waits, err := turn.End(c, turn.Turn{Harness: HarnessName, Session: e.SessionID, Folder: e.Cwd,
-		LastMessage: e.LastAssistantMessage, Nudged: e.StopHookActive})
+	waits, err := turn.End(c, turn.Turn{Harness: HarnessName, Session: e.SessionID, Folder: e.Cwd,
+		LastMessage: e.LastAssistantMessage})
 	if err != nil {
 		return nil, err
-	}
-	if nudge {
-		return block{"block", turn.Nudge}, nil
 	}
 	for _, p := range waits {
 		remember(c, p.ID)

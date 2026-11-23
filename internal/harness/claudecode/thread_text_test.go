@@ -14,7 +14,6 @@ import (
 	"github.com/jacksonlw/pong/internal/client"
 	"github.com/jacksonlw/pong/internal/engine"
 	"github.com/jacksonlw/pong/internal/harness/claudecode"
-	"github.com/jacksonlw/pong/internal/harness/turn"
 )
 
 // Text the human writes in a Thread while no Ping waits reaches a Claude Code
@@ -49,10 +48,11 @@ func TestTextReachesAWorkingSessionBeforeItsNextToolCall(t *testing.T) {
 	if got := callFile(t, dir, toolCall)(); got != "" {
 		t.Fatalf("the text was handed over twice: %q", got)
 	}
-	// The text is the human's, not a Ping the agent sent: the turn still ends
-	// with the nudge to send a finished Ping.
-	if _, wake := run(t, dir, "stop/first.json"); wake != turn.Nudge {
-		t.Fatalf("the turn ended with %q; want the nudge", wake)
+	// The text is the human's, not a Ping the agent sent: the turn still gets
+	// the Ping built from it.
+	stopHook(t, dir, "stop/first.json")
+	if p := waiting(t, c, 1)[0]; p.Unasked || !p.BlocksAgent {
+		t.Fatalf("the turn's Ping = %+v; want the one built from it", p)
 	}
 }
 
@@ -137,7 +137,7 @@ func TestAResumedSessionHearsThePongOnItsFinishedPing(t *testing.T) {
 	heard := listen(t, dir, resumed(t, woken))
 	time.Sleep(50 * time.Millisecond)
 	pong(t, c, p.ID, engine.SendPong{Text: "now add a changelog line"})
-	if got := heard(); !strings.Contains(got, "finished Ping in Pong: now add a changelog line\nOpen your reply with one line that quotes this Pong") {
+	if got := heard(); !strings.Contains(got, "finished Ping in Pong: now add a changelog line") {
 		t.Fatalf("woke with %q", got)
 	}
 	if s := state(t, c, woken); s != engine.SessionWorking {
@@ -173,18 +173,11 @@ func TestTheListenerLeavesASessionThatIsNotIdleAlone(t *testing.T) {
 }
 
 // The end of a turn tells the wrapper Pong started the Session under that it
-// can now be moved into the Claude app; a turn held by the nudge has not ended.
+// can now be moved into the Claude app.
 func TestTheEndOfATurnMarksTheSessionReadyToMove(t *testing.T) {
 	c, dir := textEngine(t)
 	mark := filepath.Join(t.TempDir(), "mark")
 	t.Setenv(claudecode.MoveMarkEnv, mark)
-	run(t, dir, "prompt/typed.json")
-	if _, wake := run(t, dir, "stop/first.json"); wake != turn.Nudge {
-		t.Fatalf("woke with %q; want the nudge", wake)
-	}
-	if _, err := os.Stat(mark); err == nil {
-		t.Fatal("marked ready to move while the nudge holds the turn")
-	}
 	stopHook(t, dir, "stop/woken.json") // it goes on to wait for the Pong
 	waiting(t, c, 1)
 	// Its transcript is not on this computer, so it has no title to carry.

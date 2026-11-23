@@ -15,7 +15,6 @@ import (
 	"github.com/jacksonlw/pong/enginetest"
 	"github.com/jacksonlw/pong/internal/engine"
 	"github.com/jacksonlw/pong/internal/harness/claudecode"
-	"github.com/jacksonlw/pong/internal/harness/turn"
 )
 
 // The agent's send_ping through the plugin's MCP server is allowed and given
@@ -76,7 +75,7 @@ func TestOwnSendPingCarriesTheSession(t *testing.T) {
 	pong(t, c, mine.ID, engine.SendPong{Answer: "Yes"})
 	select {
 	case w := <-woke:
-		if w == turn.Nudge || !strings.Contains(w, ": Yes\n") {
+		if !strings.HasSuffix(w, ": Yes") {
 			t.Fatalf("woke with %q", w)
 		}
 	case <-time.After(5 * time.Second):
@@ -150,6 +149,8 @@ func TestPluginHookEntries(t *testing.T) {
 		"PreToolUse/*":        {async: true, timeout: long}, // listens after a stop (stopturn.go)
 		"PermissionDenied/":   {timeout: long},
 		"PermissionRequest/":  {timeout: long},
+		"PostToolUse/":        {}, // settles a prompt the terminal answered (held.go)
+		"PostToolUseFailure/": {},
 	}
 	for k, w := range want {
 		if g, ok := got[k]; !ok || g != w {
@@ -204,10 +205,9 @@ func TestOwnSendThoughtCarriesTheSessionAndIsNoPing(t *testing.T) {
 	}
 	stopIn, _ := os.ReadFile(filepath.Join("testdata", "stop/first.json"))
 	stopIn = bytes.ReplaceAll(stopIn, []byte(recordedSession), []byte(session))
-	var w claudecode.Wake
-	errors.As(claudecode.Hook(dir, bytes.NewReader(stopIn), &bytes.Buffer{}), &w)
-	if w.Text != turn.Nudge {
-		t.Fatalf("a turn of only Thoughts woke with %q; want the nudge", w.Text)
+	stopHookOn(t, dir, stopIn)
+	if p := waiting(t, c, 1)[0]; p.Thought || !p.BlocksAgent {
+		t.Fatalf("a turn of only Thoughts got %+v; want the Ping built from it", p)
 	}
 }
 
@@ -273,13 +273,13 @@ func TestPongAnsweredAfterTheTurnEndedReachesTheHumansSession(t *testing.T) {
 	pong(t, c, mine.ID, engine.SendPong{Answer: "Yes"})
 	select {
 	case w := <-woke:
-		if w == turn.Nudge || !strings.Contains(w, ": Yes\n") {
+		if !strings.HasSuffix(w, ": Yes") {
 			t.Fatalf("woke with %q", w)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the Stop hook did not return")
 	}
-	if got, _ := c.Ping(mine.ID); got.Pong == nil || got.Pong.Delivery != engine.DeliveryDelivered {
-		t.Fatalf("the Pong is %+v; want it delivered", got.Pong)
+	if got, _ := c.Ping(mine.ID); got.Pong == nil || got.Pong.Delivery != engine.DeliveryDelivering {
+		t.Fatalf("the Pong is %+v; want it handed to the wake (delivering)", got.Pong)
 	}
 }

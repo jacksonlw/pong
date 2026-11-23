@@ -37,7 +37,7 @@ func TestStoppedHookWithdrawsItsPing(t *testing.T) {
 		t.Run(s.String(), func(t *testing.T) {
 			c, dir := enginetest.Start(t)
 			cmd := exec.Command(bin, "hook", "claude-code", "-dir", dir)
-			in, _ := os.Open("../../internal/harness/claudecode/testdata/question/single.json")
+			in, _ := os.Open("../../internal/harness/claudecode/testdata/permission/bash.json")
 			defer in.Close()
 			cmd.Stdin = in
 			if err := cmd.Start(); err != nil {

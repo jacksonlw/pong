@@ -105,10 +105,6 @@ func askPermission(c *client.Client, e Event) (any, error) {
 	return out, nil
 }
 
-// CommandInstruction is added to the standing instruction at Session start,
-// so the description a shell command's approval Ping asks in says why.
-const CommandInstruction = "Give every shell command a description that says what it does and why, in one plain line: when the command needs approval, Pong asks your human that line.\n"
-
 // fileEdits are Claude Code's tools other than Write that change a file.
 var fileEdits = map[string]bool{"Edit": true, "MultiEdit": true, "NotebookEdit": true}
 

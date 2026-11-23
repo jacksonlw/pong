@@ -1,6 +1,6 @@
 ---
 name: pong
-description: How to write a good Ping with Pong's tools (send_ping, wait_for_pong, send_note, send_thought, withdraw_ping). Use before asking your human a question, asking them to approve a plan or action, or handing over finished work.
+description: How to write a good Ping with Pong's tools (send_ping, wait_for_pong, send_note, send_thought, withdraw_ping). Use when you send a Ping or Note yourself, such as finished work with a document to hand over, or in a Harness whose instruction says Pong cannot read your turns.
 ---
 
 # Writing a Ping
@@ -86,7 +86,7 @@ Anything that needs answers, Resources or Tags is a Note or a Ping, not a Though
 
 ## A finished Ping
 
-When you finish a piece of work, send a Ping with `finished: true`. Your human reads this Ping, not your closing message or your Harness's own recap, so everything they need is in it:
+Pong takes finished work from your closing message itself. Send a Ping with `finished: true` only when you have more to hand over than your message holds, such as a document, or when your instruction says Pong cannot read your turns. Your human reads that Ping instead of your closing message, so everything they need is in it:
 
 - in the question, what was done;
 - in `context`, what changed and why it works, and the cause if you found one: "Zoom now scales a plain box around each window's content, since SwiftUI ignored the view's bounds", not "Zoom is fixed";
@@ -94,13 +94,13 @@ When you finish a piece of work, send a Ping with `finished: true`. Your human r
 - the test output as an `output` Resource when you ran tests. Pong attaches the uncommitted diff itself;
 - what you suggest next, as up to four answers, the recommended one first.
 
-If the work is not committed, committing it is usually the recommended answer. A question you would close the work with, such as whether to commit, is one of these answers, not a Ping of its own: your human then answers it on the finished Ping.
+Suggest only what you would offer without Pong. A question you would close the work with, such as whether to commit, is one of these answers, not a Ping of its own: your human then answers it on the finished Ping.
 
 Pong adds "Nothing more" as the last answer itself; do not add it.
 
 ### Work for a new Session
 
-When your human asks in Pong for work to go on in a new Session, offer that work as an answer on your finished Ping instead of starting the Session yourself. Your Harness refuses a Session you start on a Pong's say-so, because a Pong is not a message your human typed. Its label names the work, such as "Add the export button", and its `leads_to` says what the new Session should do. Your human sends that answer with New Session with this Pong, and Pong starts the Session in this folder, with the Pong and your Ping as its first prompt. Only a finished Ping offers this: a Pong to a blocking question always comes back to you.
+When your human asks in Pong for work to go on in a new Session, offer that work as a choice in your message, or as an answer on your finished Ping when you send one, instead of starting the Session yourself. Its label names the work, such as "Add the export button", and its `leads_to` says what the new Session should do. Your human sends that answer with New Session with this Pong, and Pong starts the Session in this folder, with the Pong and your Ping as its first prompt. Only a finished Ping offers this: a Pong to a blocking question always comes back to you.
 
 ## The summary
 

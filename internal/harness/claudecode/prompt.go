@@ -54,6 +54,10 @@ func prompted(c *client.Client, e Event) (any, error) {
 		return nil, err
 	}
 	if framed.MatchString(p.Prompt) {
+		// A turn a hook woke: the Pongs it carries have arrived.
+		if err := turn.Arrived(c, HarnessName, e.SessionID, p.Prompt, answerText); err != nil {
+			return nil, err
+		}
 		return nil, turn.HarnessPrompted(c, HarnessName, e.SessionID, e.Cwd)
 	}
 	return nil, turn.Prompted(c, HarnessName, e.SessionID, e.Cwd)

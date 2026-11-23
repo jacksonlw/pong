@@ -13,7 +13,7 @@ import (
 // counts as delivered.
 const (
 	DeliverySent        = "sent"        // kept and retried until delivered
-	DeliveryDelivering  = "delivering"  // recorded by an earlier Pong that resumed Sessions itself; nothing sets it now
+	DeliveryDelivering  = "delivering"  // handed to a wake, not yet seen in the woken turn
 	DeliveryDelivered   = "delivered"   // the Harness accepted it
 	DeliveryUndelivered = "undelivered" // it cannot be delivered; back with the human
 	// DeliveryUnconfirmed is a Pong an earlier Pong was resuming a Session
@@ -38,6 +38,7 @@ const (
 	whyEnded       = "The Session has ended."
 	whyNotHeld     = "Its prompt is no longer held: the terminal may have closed or the Harness quit."
 	whyUnconfirmed = "Pong stopped while resuming the Session with it, so it may or may not have arrived."
+	whyNotArrived  = "The Session never took it: it may have moved or closed."
 )
 
 // needsHuman reports whether a Pong is back with the human.

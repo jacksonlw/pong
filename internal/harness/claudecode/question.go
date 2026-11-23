@@ -9,9 +9,11 @@ import (
 	"github.com/jacksonlw/pong/internal/harness"
 )
 
-// A structured question (the AskUserQuestion tool) is held at PreToolUse: one
-// Ping per question, in order, each but the last marked more_coming. The
-// Pongs go back together as "allow" with the tool's input plus an answers
+// A structured question (the AskUserQuestion tool) becomes one Ping per
+// question, in order, each but the last marked more_coming. While the human
+// is at this Mac, Claude Code shows its own dialog at once and the Pings only
+// mirror it; while they are away, PreToolUse holds it and the Pongs go back
+// together as "allow" with the tool's input plus an answers
 // object keyed by question text, which is how Claude Code 2.1.322 takes a
 // hook's answer.
 func init() {
@@ -46,6 +48,9 @@ func askQuestions(c *client.Client, e Event) (any, error) {
 			n.Answers = append(n.Answers, engine.Answer{Label: o.Label, LeadsTo: o.Description})
 		}
 		ns = append(ns, n)
+	}
+	if !away() {
+		return nil, mirror(c, e, ns) // presence.go: Claude Code asks in the terminal
 	}
 	pongs, err := ask(c, e, ns)
 	if err != nil {

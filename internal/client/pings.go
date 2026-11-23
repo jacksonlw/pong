@@ -39,18 +39,28 @@ func (c *Client) Pings(state string) ([]engine.Ping, error) {
 
 // WaitOnce holds a request open until the Ping has a Pong or the Engine's
 // hold runs out, and returns the Ping as it then stands.
-func (c *Client) WaitOnce(id string) (engine.Ping, error) { return c.waitOnce(id, false) }
+func (c *Client) WaitOnce(id string) (engine.Ping, error) { return c.waitOnce(id, false, false) }
 
-func (c *Client) waitOnce(id string, held bool) (engine.Ping, error) {
+func (c *Client) waitOnce(id string, held, toWake bool) (engine.Ping, error) {
 	var out engine.Ping
 	hc := *c.HTTP
 	hc.Timeout = 0
-	q := ""
+	q := url.Values{}
 	if held {
-		q = "?held=1"
+		q.Set("held", "1")
 	}
-	return out, c.do(&hc, "GET", "/pings/"+url.PathEscape(id)+"/wait"+q, nil, &out)
+	if toWake {
+		q.Set("wake", "1")
+	}
+	path := "/pings/" + url.PathEscape(id) + "/wait"
+	if len(q) > 0 {
+		path += "?" + q.Encode()
+	}
+	return out, c.do(&hc, "GET", path, nil, &out)
 }
+
+// Arrived tells the Engine a Pong handed to a wake reached the woken turn.
+func (c *Client) Arrived(id string) (engine.Ping, error) { return c.end(id, "arrived") }
 
 // RestartWait is how long Wait keeps trying to reach an Engine that stopped
 // answering, so a Pong sent before an Engine restart is delivered after it.
@@ -60,10 +70,17 @@ var RestartWait = 20 * time.Second
 // Wait repeats WaitOnce until the Ping is no longer waiting, holding the
 // Ping's prompt meanwhile: the caller is a hook holding it (see the Engine's
 // held). An Engine that stops answering is tried again for RestartWait.
-func (c *Client) Wait(id string) (engine.Ping, error) {
+func (c *Client) Wait(id string) (engine.Ping, error) { return c.wait(id, false) }
+
+// WaitToWake is Wait for a hook that wakes its Session with the Pong: the
+// Pong is delivering, not delivered, until Arrived says the woken turn
+// showed it.
+func (c *Client) WaitToWake(id string) (engine.Ping, error) { return c.wait(id, true) }
+
+func (c *Client) wait(id string, toWake bool) (engine.Ping, error) {
 	var lost time.Time
 	for {
-		p, err := c.waitOnce(id, true)
+		p, err := c.waitOnce(id, true, toWake)
 		var e *Error
 		if err != nil && !errors.As(err, &e) {
 			if lost.IsZero() {

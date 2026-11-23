@@ -41,6 +41,9 @@ func approvePlan(c *client.Client, e Event) (any, error) {
 		Resources:   []engine.NewResource{{Title: "Proposed plan", Kind: "document", Content: in.Plan}},
 		Tags:        []engine.Tag{harness.TagApprovePlan},
 	}
+	if !away() {
+		return nil, mirror(c, e, []engine.NewPing{n}) // presence.go: Claude Code asks in the terminal
+	}
 	pongs, err := ask(c, e, []engine.NewPing{n})
 	if err != nil {
 		return nil, err

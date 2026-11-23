@@ -33,6 +33,20 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          { "type": "command", "command": "pong hook claude-code" }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          { "type": "command", "command": "pong hook claude-code" }
+        ]
+      }
+    ],
     "PermissionDenied": [
       {
         "hooks": [

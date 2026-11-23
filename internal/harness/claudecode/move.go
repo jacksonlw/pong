@@ -131,7 +131,7 @@ func Listen(dir string, in io.Reader) error {
 		return nil
 	}
 	if waits := waitingPings(c, e.SessionID); len(waits) > 0 {
-		as, err := turn.WaitAll(c, waits)
+		as, err := turn.WaitAllToWake(c, waits)
 		if err != nil {
 			return err
 		}

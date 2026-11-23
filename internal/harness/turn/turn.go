@@ -1,7 +1,7 @@
 // Package turn is the Harness-neutral end of an agent's turn: whether the
-// agent already sent a Ping in it, the one nudge to send a finished Ping, the
-// Ping built from the agent's last message when it sends none,
-// and waiting for the Pong that continues the idle Session. Each Harness
+// agent already sent a Ping in it, the Ping Pong builds from the turn when it
+// sent none (build.go), and waiting for the Pong that continues the idle
+// Session. Each Harness
 // adapter maps its own payloads and answer shapes onto these.
 package turn
 
@@ -13,32 +13,24 @@ import (
 	"github.com/jacksonlw/pong/internal/engine"
 )
 
-// Nudge is what the agent is told when its turn ends with no Ping in it. An
-// agent whose work is not finished, because it waits on work it started such
-// as a subagent or a background command, answers with a Note instead: told
-// only to send a finished Ping, such agents refused and wrote why, and that
-// message came to the human as a plain Ping that asked nothing.
-const Nudge = "Before you stop, send a finished Ping with Pong's send_ping tool, with finished: true and what you suggest next as its answers, the recommended one first. Your human reads the Ping, not your closing message: say in it what changed and why, and in not_verified what you did not check. If your work is not finished because you are waiting on work you started, such as a subagent or a background command, send a Note with send_note saying what you are waiting on instead. Then stop."
-
 // Turn is one ended turn of a Session.
 type Turn struct {
 	Harness, Session, Folder string
 	LastMessage              string // the agent's last message in the turn
-	Nudged                   bool   // the agent was already nudged in this turn
+	Facts                    Facts  // what the turn left beside its message
 	// Background is true when work the agent started in the background,
 	// such as a subagent or a command, still runs as the turn ends. The
 	// Harness shows the Session running until it reports, and so does Pong.
 	Background bool
 }
 
-// End decides what an ended turn needs. nudge is true when the agent sent no
-// Ping in the turn and has not been nudged yet: the adapter holds the turn
-// with Nudge and does nothing else. A nudged turn with a Note in it (not a
-// Thought) ends idle with nothing to wait on: the agent said it is waiting on
-// its own work. Otherwise waits lists the Pings to wait
-// on, oldest first: the questions the agent ended its turn on (blocking Pings
-// it did not wait for itself) and its finished Ping, or a plain one built
-// from its last message. A question the human answered before the turn ended
+// End decides what an ended turn needs. The agent is never pushed for a Ping
+// (a Session reads as it would without Pong): a turn with none of its own
+// gets the one Pong builds from it,
+// unless background work it started still runs, when the Session stays
+// working and nothing is built. waits lists the Pings to wait on, oldest
+// first: the questions the agent ended its turn on (blocking Pings it did not
+// wait for itself) and its finished Ping, or the one built from the turn. A question the human answered before the turn ended
 // is among them while its Pong is still on its way: waiting on it delivers
 // the Pong at once. The Session is now idle, unless every Pong in waits is
 // already sent and one of them continues it: then it wakes at once and was
@@ -49,23 +41,26 @@ type Turn struct {
 // A Pong still on its way to a Ping from before the turn began is among
 // waits too, and counts as a Ping in the turn: no hook waited on it, and a
 // sent Pong is kept until it is delivered.
-func End(c *client.Client, t Turn) (nudge bool, waits []engine.Ping, err error) {
-	sent, noted, err := turnsPings(c, t)
+func End(c *client.Client, t Turn) (waits []engine.Ping, err error) {
+	sent, err := turnsPings(c, t)
 	if err != nil {
-		return false, nil, err
+		return nil, err
 	}
-	if len(sent) == 0 && !t.Nudged {
-		return true, nil, nil
+	// A prompt the Harness already settled, such as a permission answered in
+	// the terminal, is not the agent's Ping for the turn's end.
+	ends := false
+	for _, p := range sent {
+		ends = ends || p.State == engine.StateWaiting || onItsWay(p) || p.Finished
 	}
-	if len(sent) == 0 {
-		if err := idle(c, t); err != nil || noted {
-			return false, nil, err
+	if !ends {
+		if err := idle(c, t); err != nil || t.Background {
+			return nil, err
 		}
-		p, err := Plain(c, t)
+		p, err := Built(c, t)
 		if err != nil {
-			return false, nil, err
+			return nil, err
 		}
-		return false, []engine.Ping{p}, nil
+		return []engine.Ping{p}, nil
 	}
 	var finished *engine.Ping
 	asking, waking := false, false
@@ -87,10 +82,10 @@ func End(c *client.Client, t Turn) (nudge bool, waits []engine.Ping, err error) 
 	}
 	if asking || !waking {
 		if err := idle(c, t); err != nil {
-			return false, nil, err
+			return nil, err
 		}
 	}
-	return false, waits, nil
+	return waits, nil
 }
 
 // idle marks the Session's turn over: idle, or still working while its
@@ -104,17 +99,12 @@ func idle(c *client.Client, t Turn) error {
 	return err
 }
 
-// Plain sends the Ping built from the agent's last message, for a turn that
-// ended with no Ping of the agent's own. The question is the message whole,
-// trimmed of surrounding whitespace and nothing else. It offers
-// engine.NothingMore and is not finished: the agent never said it was.
-func Plain(c *client.Client, t Turn) (engine.Ping, error) {
-	q := strings.TrimSpace(t.LastMessage)
-	if q == "" {
-		q = "The agent finished its turn without a message."
-	}
-	return c.CreatePing(engine.NewPing{Session: t.Session, Harness: t.Harness, Folder: t.Folder, Question: q,
-		Answers: []engine.Answer{{Label: engine.NothingMore, LeadsTo: "the Session stays idle"}}, Captured: true})
+// Built sends the Ping Pong builds from the turn (Build), for a turn that
+// ended with no Ping of the agent's own.
+func Built(c *client.Client, t Turn) (engine.Ping, error) {
+	n := Build(t.LastMessage, t.Facts)
+	n.Session, n.Harness, n.Folder = t.Session, t.Harness, t.Folder
+	return c.CreatePing(n)
 }
 
 func onItsWay(p engine.Ping) bool {
@@ -126,16 +116,15 @@ func onItsWay(p engine.Ping) bool {
 // still waiting for the human, oldest first. A question still waiting is
 // already in the human's Queue, so a turn that ends while it waits, such as
 // one a background task's report started, is not nudged for another Ping.
-// noted reports whether it also sent a Note, not a Thought, in its turn.
-func turnsPings(c *client.Client, t Turn) (out []engine.Ping, noted bool, err error) {
+func turnsPings(c *client.Client, t Turn) (out []engine.Ping, err error) {
 	sess, err := c.Session(t.Harness, t.Session)
 	var ce *client.Error
 	if err != nil && !(errors.As(err, &ce) && ce.Status == 404) {
-		return nil, false, err
+		return nil, err
 	}
 	all, err := c.Pings("")
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	for _, p := range all {
 		// Text the human wrote in the Thread (Unasked) is not the agent's.
@@ -144,7 +133,6 @@ func turnsPings(c *client.Client, t Turn) (out []engine.Ping, noted bool, err er
 		}
 		inTurn := sess.TurnStartedAt == nil || !p.CreatedAt.Before(*sess.TurnStartedAt)
 		if p.IsNote {
-			noted = noted || (inTurn && !p.Thought)
 			continue
 		}
 		if !inTurn && !onItsWay(p) && !(p.BlocksAgent && p.State == engine.StateWaiting) {
@@ -158,7 +146,7 @@ func turnsPings(c *client.Client, t Turn) (out []engine.Ping, noted bool, err er
 			out[j], out[j-1] = out[j-1], out[j]
 		}
 	}
-	return out, noted, nil
+	return out, nil
 }
 
 // Wait waits for the finished Ping's Pong. continueWith is the Pong to
@@ -166,7 +154,15 @@ func turnsPings(c *client.Client, t Turn) (out []engine.Ping, noted bool, err er
 // (answered in the Harness, handed back, withdrawn), when the human chose
 // engine.NothingMore with no text, or when the Pong asks for a new Session.
 func Wait(c *client.Client, id string) (continueWith *engine.Pong, err error) {
-	p, err := c.Wait(id)
+	return wait(c, id, false)
+}
+
+func wait(c *client.Client, id string, toWake bool) (continueWith *engine.Pong, err error) {
+	wait := c.Wait
+	if toWake {
+		wait = c.WaitToWake
+	}
+	p, err := wait(id)
 	if err != nil || !continues(p.Pong) {
 		return nil, err
 	}
@@ -188,10 +184,19 @@ type Answered struct {
 
 // WaitAll waits for the Pongs to ps in order and returns those that continue
 // the Session.
-func WaitAll(c *client.Client, ps []engine.Ping) ([]Answered, error) {
+func WaitAll(c *client.Client, ps []engine.Ping) ([]Answered, error) { return waitAll(c, ps, false) }
+
+// WaitAllToWake is WaitAll for a hook that wakes its Session with the Pongs
+// and cannot know the wake arrived: each is delivering until Arrived finds
+// it in the woken turn's prompt.
+func WaitAllToWake(c *client.Client, ps []engine.Ping) ([]Answered, error) {
+	return waitAll(c, ps, true)
+}
+
+func waitAll(c *client.Client, ps []engine.Ping, toWake bool) ([]Answered, error) {
 	var out []Answered
 	for _, p := range ps {
-		pong, err := Wait(c, p.ID)
+		pong, err := wait(c, p.ID, toWake)
 		if err != nil {
 			return nil, err
 		}
@@ -203,19 +208,42 @@ func WaitAll(c *client.Client, ps []engine.Ping) ([]Answered, error) {
 }
 
 // WakeText is what wakes the Session with the Pongs in as, each written by
-// answer as the Harness reads one. A Harness shows its human the wake folded
-// away or not at all, so the text ends by asking the agent to quote the Pongs
-// in its reply: the Session then shows what was answered.
+// answer as the Harness reads one. It carries the Pongs only: the agent is
+// never asked to quote them back, which a Session without Pong would not
+// show.
 func WakeText(as []Answered, answer func(*engine.Pong) string) string {
 	if len(as) == 1 && !as[0].Ping.BlocksAgent {
-		return "The human answered your finished Ping in Pong: " + answer(as[0].Pong) +
-			"\nOpen your reply with one line that quotes this Pong, starting \"You answered in Pong:\"."
+		return "The human answered your finished Ping in Pong: " + answer(as[0].Pong)
 	}
 	s := "The human answered your Pings in Pong:"
 	for _, a := range as {
 		s += "\n- " + a.Ping.Question + ": " + answer(a.Pong)
 	}
-	return s + "\nOpen your reply by quoting each Pong on a line of its own, starting \"You answered in Pong:\"."
+	return s
+}
+
+// Arrived marks delivered each of session's Pongs handed to a wake whose
+// line, as WakeText writes it, is in prompt: the prompt of a turn the
+// Harness woke. A wake the Harness dropped leaves its Pongs delivering, and
+// the Engine brings them back to the human.
+func Arrived(c *client.Client, harness, session, prompt string, answer func(*engine.Pong) string) error {
+	ps, err := c.Pings(engine.StateAnswered)
+	if err != nil {
+		return err
+	}
+	for _, p := range ps {
+		if p.Session != session || (p.Harness != "" && p.Harness != harness) || p.Pong == nil ||
+			p.Pong.Delivery != engine.DeliveryDelivering {
+			continue
+		}
+		a := answer(p.Pong)
+		if strings.Contains(prompt, "\n- "+p.Question+": "+a) || strings.Contains(prompt, "finished Ping in Pong: "+a) {
+			if _, err := c.Arrived(p.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // Began is called when a hook wakes the Session into a new turn, as a Pong
