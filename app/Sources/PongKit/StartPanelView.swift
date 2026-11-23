@@ -7,14 +7,10 @@ public struct StartPanelView: View {
     @Bindable var model: StartPanelModel
     var actions: Actions
     @FocusState private var typing: Bool
-    @State private var selection: TextSelection?
+    /// Where the box's caret is, for Speak to write at.
+    @State private var caret: Int?
     @Environment(Speak.self) private var speak: Speak?
     @Environment(SkillNames.self) private var skillNames: SkillNames?
-    /// Which of the Skill menu's names ↑ and ↓ have reached.
-    @State private var menuIndex = 0
-    /// The query Escape closed the menu on, so it stays closed until something else is typed.
-    @State private var menuClosed: SkillCompletion.Query?
-
     /// Where the Skills are read: the chosen Harness in the chosen Project or folder.
     private var skillPlace: SkillNames.Place? {
         guard let harness = model.harness else { return nil }
@@ -25,31 +21,6 @@ public struct StartPanelView: View {
         }
     }
 
-    /// The Skill menu for the name typed before the caret, while one is.
-    private var skillMenu: SkillMenuState? {
-        let offer = skillNames?.offer(skillPlace) ?? .none
-        guard let trigger = offer.trigger, cursor.isEmpty else { return nil }
-        let at = model.text.utf16.distance(from: model.text.startIndex, to: cursor.lowerBound)
-        guard let q = SkillCompletion.query(in: model.text, caret: at, trigger: trigger), q != menuClosed else { return nil }
-        let items = SkillCompletion.matches(q.typed, in: offer.names)
-        return items.isEmpty ? nil : SkillMenuState(query: q, items: items, index: min(menuIndex, items.count - 1))
-    }
-
-    private func pickSkill(_ name: String) {
-        guard let m = skillMenu, let trigger = skillNames?.offer(skillPlace).trigger else { return }
-        let (text, at) = SkillCompletion.pick(name, for: m.query, in: model.text, trigger: trigger)
-        model.text = text
-        let i = text.utf16.index(text.startIndex, offsetBy: at)
-        selection = TextSelection(insertionPoint: i)
-        menuIndex = 0
-    }
-
-    /// Moves through the open menu; false when none is open.
-    private func moveInMenu(_ by: Int) -> Bool {
-        guard let m = skillMenu else { return false }
-        menuIndex = (m.index + by + m.items.count) % m.items.count
-        return true
-    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var fade: AnyTransition { reduceMotion ? .identity : CardMotion.fade }
@@ -111,64 +82,19 @@ public struct StartPanelView: View {
             }
 
             // Return starts the Session; Shift-Return starts a new line, and the next item in a list.
-            TextField("", text: $model.text, selection: $selection, axis: .vertical)
-                .lineLimit(3...6)
-                .brandFieldLines(model.text, 3...6)
-                .brandPlaceholder("What should the agent do?", shown: model.text.isEmpty)
-                .brandStyle(.body)
-                .focused($typing)
-                .brandField(focused: typing)
-                .onSubmit(start)
-                .onKeyPress(.return, phases: .down) { press in
-                    if press.modifiers.isEmpty, let m = skillMenu {
-                        pickSkill(m.items[m.index])
-                        return .handled
-                    }
-                    guard press.modifiers.contains(.shift) else { return .ignored }
-                    newLine()
-                    return .handled
-                }
-                .onKeyPress(.tab, phases: .down) { _ in
-                    guard let m = skillMenu else { return .ignored }
-                    pickSkill(m.items[m.index])
-                    return .handled
-                }
-                // ↑ on the first line steps back through the Project's recent prompts; ↓ on the
-                // last line steps forward again.
-                .onKeyPress(.escape, phases: .down) { _ in
-                    if let m = skillMenu {
-                        menuClosed = m.query
-                        return .handled
-                    }
-                    guard speak?.box == .start else { return .ignored }
-                    speak?.stop()
-                    return .handled
-                }
-                .onKeyPress(.upArrow, phases: .down) { press in
-                    if press.modifiers.isEmpty, moveInMenu(-1) { return .handled }
-                    guard press.modifiers.isEmpty, !model.text[..<cursor.lowerBound].contains("\n"),
-                          model.recallOlder() else { return .ignored }
-                    selection = TextSelection(insertionPoint: model.text.startIndex)
-                    return .handled
-                }
-                .onKeyPress(.downArrow, phases: .down) { press in
-                    if press.modifiers.isEmpty, moveInMenu(1) { return .handled }
-                    guard press.modifiers.isEmpty, !model.text[cursor.upperBound...].contains("\n"),
-                          model.recallNewer() else { return .ignored }
-                    selection = TextSelection(insertionPoint: model.text.endIndex)
-                    return .handled
-                }
-                .onChange(of: model.text) { _, new in
-                    let shown = ListText.bulleted(new)
-                    if shown != new { model.text = shown }
-                    if skillMenu == nil { menuIndex = 0 }
-                }
-                .overlay(alignment: .topLeading) {
-                    if let m = skillMenu {
-                        SkillMenu(state: m, trigger: skillNames?.offer(skillPlace).trigger ?? "/") { pickSkill($0) }
-                            .alignmentGuide(.top) { $0[.bottom] + 4 }
-                    }
-                }
+            // ↑ on the first line steps back through the Project's recent prompts; ↓ on the last
+            // steps forward again. Typing / or $ offers the Harness's Skills.
+            ReplyField(text: Binding(get: { model.text }, set: { model.text = ListText.bulleted($0) }),
+                       placeholder: "What should the agent do?", enabled: true, typing: $typing,
+                       escape: {
+                           guard speak?.box == .start else { return false }
+                           speak?.stop()
+                           return true
+                       },
+                       caret: { caret = $0 }, skills: skillNames?.offer(skillPlace) ?? .none,
+                       addFiles: { model.add(files: $0) }, lines: 3...6, symbol: nil,
+                       recall: { up in up ? model.recallOlder() : model.recallNewer() },
+                       send: start)
                 .task(id: skillPlace) { await skillNames?.load(skillPlace) }
 
             ForEach(model.files, id: \.self) { path in
@@ -244,7 +170,7 @@ public struct StartPanelView: View {
     private func speakTile(_ speak: Speak) -> some View {
         let on = speak.box == .start
         return HoverButton(action: {
-            speak.toggle(.start, text: $model.text, caret: model.text.utf16.distance(from: model.text.startIndex, to: cursor.lowerBound))
+            speak.toggle(.start, text: $model.text, caret: caret)
         }) { hover in
             ZStack {
                 if on {
@@ -275,18 +201,6 @@ public struct StartPanelView: View {
                 .contentShape(Rectangle())
         }
         .disabled(!model.canStart)
-    }
-
-    /// The selected range, or the end of the text when the field has not said.
-    private var cursor: Range<String.Index> {
-        if case .selection(let r)? = selection?.indices, r.upperBound <= model.text.endIndex { return r }
-        return model.text.endIndex..<model.text.endIndex
-    }
-
-    private func newLine() {
-        let (text, at) = ListText.newLine(in: model.text, at: cursor)
-        model.text = text
-        selection = TextSelection(insertionPoint: at)
     }
 
     private var sections: [ProjectMenuSection] {

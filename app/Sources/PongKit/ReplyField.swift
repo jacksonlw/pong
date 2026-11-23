@@ -24,6 +24,12 @@ struct ReplyField: View {
     var skills: SkillOffer = .none
     /// Files pasted or dropped on the box, by path; nil where a box takes none.
     var addFiles: (([String]) -> Void)?
+    /// How many lines it grows between, and the symbol leading its placeholder.
+    var lines: ClosedRange<Int> = ReplyField.lines
+    var symbol: String? = "pencil.line"
+    /// ↑ on the first line (true) or ↓ on the last (false), with no menu open; true when the
+    /// caller used it, as the start panel steps through recent prompts.
+    var recall: ((Bool) -> Bool)?
     var send: () -> Void
     @State private var hover = false
     @State private var editing = false
@@ -40,11 +46,12 @@ struct ReplyField: View {
                       typing.wrappedValue = now
                       if !now { menu = nil }
                   },
-                  send: send, escape: escape, caret: caret, skills: skills, menu: $menu, picked: $picked, addFiles: addFiles)
+                  send: send, escape: escape, caret: caret, skills: skills, menu: $menu, picked: $picked, addFiles: addFiles,
+                  lines: lines, recall: recall)
             .focused(typing)
             .overlay(alignment: .topLeading) {
                 Color.clear
-                    .brandPlaceholder(placeholder, symbol: "pencil.line", shown: text.isEmpty)
+                    .brandPlaceholder(placeholder, symbol: symbol, shown: text.isEmpty)
                     .brandStyle(.body)
                     .padding(.vertical, Self.inset.height)
                     .padding(.horizontal, Self.inset.width)
@@ -119,6 +126,8 @@ private struct ReplyText: NSViewRepresentable {
     @Binding var menu: SkillMenuState?
     @Binding var picked: String?
     var addFiles: (([String]) -> Void)?
+    var lines: ClosedRange<Int>
+    var recall: ((Bool) -> Bool)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -196,7 +205,7 @@ private struct ReplyText: NSViewRepresentable {
         layout.ensureLayout(for: container)
         let line = layout.defaultLineHeight(for: font)
         let used = layout.usedRect(for: container).height
-        let lines = min(ReplyField.lines.upperBound, max(ReplyField.lines.lowerBound, Int((used / line).rounded())))
+        let lines = min(self.lines.upperBound, max(self.lines.lowerBound, Int((used / line).rounded())))
         return CGSize(width: width, height: CGFloat(lines) * line + 2 * ReplyField.inset.height)
     }
 
@@ -256,6 +265,22 @@ private struct ReplyText: NSViewRepresentable {
             storage.endEditing()
         }
 
+        /// ↑ on the first line and ↓ on the last go to the caller, when it takes them; the caret
+        /// then stands at the start or the end of what it put in the box.
+        private func recallKey(_ sel: Selector, _ tv: NSTextView) -> Bool {
+            guard let recall = parent.recall, tv.selectedRange().length == 0 else { return false }
+            let s = tv.string as NSString, at = tv.selectedRange().location
+            let up = sel == #selector(NSResponder.moveUp(_:))
+            guard up || sel == #selector(NSResponder.moveDown(_:)) else { return false }
+            let onEdge = up ? !s.substring(to: at).contains("\n") : !s.substring(from: at).contains("\n")
+            guard onEdge, recall(up) else { return false }
+            DispatchQueue.main.async {
+                let n = (tv.string as NSString).length
+                tv.setSelectedRange(NSRange(location: up ? 0 : n, length: 0))
+            }
+            return true
+        }
+
         /// ↑, ↓, Tab, Return and Escape belong to the menu while it is open.
         private func menuKey(_ sel: Selector, _ tv: NSTextView) -> Bool {
             guard var m = parent.menu, !m.items.isEmpty else { return false }
@@ -274,6 +299,7 @@ private struct ReplyText: NSViewRepresentable {
 
         func textView(_ tv: NSTextView, doCommandBy sel: Selector) -> Bool {
             if menuKey(sel, tv) { return true }
+            if recallKey(sel, tv) { return true }
             switch sel {
             case #selector(NSResponder.insertNewline(_:)):
                 if (tv as? Editor)?.keyFlags.contains(.shift) == true {
