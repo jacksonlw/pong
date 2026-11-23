@@ -92,6 +92,8 @@ func otherToolCall(c *client.Client, e Event) (any, error) {
 	d := preToolUseDecision{HookEventName: "PreToolUse", AdditionalContext: markedText(c, e)}
 	if allowed(c, e, "check") {
 		d.PermissionDecision, d.PermissionDecisionReason = "ask", "The human allowed this call in Pong."
+	} else if readsFiles(e) {
+		d.PermissionDecision, d.PermissionDecisionReason = "allow", "A File the human sent from Pong."
 	}
 	if d.PermissionDecision == "" && d.AdditionalContext == "" {
 		return nil, nil

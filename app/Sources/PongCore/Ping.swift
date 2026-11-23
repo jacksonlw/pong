@@ -35,14 +35,19 @@ public struct Ping: Decodable, Identifiable, Equatable, Sendable {
         /// The Pong did not reach the Harness, or may not have: shown in the error colour.
         public var missedHarness: Bool { needsHuman || delivery == "left" }
 
-        public init(answer: String? = nil, answers: [String]? = nil, text: String? = nil, newSession: Bool? = nil) {
+        /// Files sent with it, for the Engine to give the Session as paths. Sent only.
+        public var files: [PongFile]?
+
+        public init(answer: String? = nil, answers: [String]? = nil, text: String? = nil, newSession: Bool? = nil,
+                    files: [PongFile]? = nil) {
             self.answer = answer
             self.answers = answers
             self.text = text
             self.newSession = newSession
+            self.files = files
         }
 
-        private enum Out: String, CodingKey { case answer, answers, text, new_session }
+        private enum Out: String, CodingKey { case answer, answers, text, new_session, files }
 
         // Written in the API's snake case; read with the decoder's snake case conversion.
         public func encode(to encoder: Encoder) throws {
@@ -51,6 +56,7 @@ public struct Ping: Decodable, Identifiable, Equatable, Sendable {
             try c.encodeIfPresent(answers, forKey: .answers)
             try c.encodeIfPresent(text, forKey: .text)
             try c.encodeIfPresent(newSession, forKey: .new_session)
+            if let files, !files.isEmpty { try c.encode(files, forKey: .files) }
         }
     }
 

@@ -219,6 +219,9 @@ func Start(cfg Config) (*Engine, error) {
 	}
 	starter.routes(mux)
 	harnessRoutes(mux, cfg.Harnesses, starter.withSurface)
+	reader, _ := cfg.Harnesses.(SkillReader)
+	skills := newSkillNames(reader, pr)
+	pr.sessionSeen = skills.sessionSeen
 	if cfg.DeliveryGrace != 0 {
 		ps.grace = cfg.DeliveryGrace
 	}
@@ -244,7 +247,25 @@ func Start(cfg Config) (*Engine, error) {
 		ps.set.pr = pr
 		starter.comp = newComputers(ps.set, starter, cfg.Harnesses, cfg.Runners)
 		starter.comp.routes(mux)
+		starter.comp.skills = skills
+		skills.changed = func() { starter.comp.report("") }
+		skills.remote = starter.comp.remoteSkills
 		ps.mu.Unlock()
+	}
+	skills.routes(mux, func() string {
+		if e.Devices == nil {
+			return ""
+		}
+		return e.Devices.ID()
+	})
+	if cfg.Harnesses != nil && reader != nil {
+		go func() {
+			var ids []string
+			for _, h := range cfg.Harnesses.List() {
+				ids = append(ids, h.ID)
+			}
+			skills.readAll(ids)
+		}()
 	}
 	e.server = &http.Server{Handler: guard(secret, mux)}
 	retention, every := cfg.Retention, cfg.SweepEvery

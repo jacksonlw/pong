@@ -7,6 +7,7 @@ import (
 )
 
 func (s *projects) sessionRoutes(mux *http.ServeMux) {
+	s.promptRoutes(mux)
 	mux.HandleFunc("PUT /sessions", func(w http.ResponseWriter, r *http.Request) {
 		var in RegisterSession
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
@@ -18,6 +19,9 @@ func (s *projects) sessionRoutes(mux *http.ServeMux) {
 			return
 		}
 		sess, err := s.register(in)
+		if err == nil && s.sessionSeen != nil {
+			s.sessionSeen(sess)
+		}
 		writeSession(w, sess, err)
 	})
 	mux.HandleFunc("GET /sessions", func(w http.ResponseWriter, r *http.Request) {

@@ -50,6 +50,20 @@ func (e errUnreachable) Error() string {
 // applyPong records a Pong on one of this Engine's Pings: the one
 // authority on whether it still applies.
 func (s *pings) applyPong(id string, in SendPong) (Ping, error) {
+	if len(in.Files) > 0 {
+		cur, err := s.get(id)
+		if err != nil {
+			return cur, err
+		}
+		if cur.State == StateWaiting {
+			paths, err := placeFiles(s.dir, cur.Session, in.Files)
+			if err != nil {
+				return cur, err
+			}
+			in.Text = withFiles(in.Text, paths)
+		}
+		in.Files = nil
+	}
 	pong := &Pong{Answer: in.Answer, Answers: in.Answers, Text: in.Text, NewSession: in.NewSession}
 	var undo func()
 	var after func(Ping) Ping
@@ -605,6 +619,13 @@ func (a *across) forwardPong(id string, in SendPong) (Ping, error) {
 			return p, errLost{winner: p.Pong, msg: "an earlier Pong was already sent to this Ping, so yours was not: " + describePong(p.Pong)}
 		}
 		return p, errState{"this Ping is already " + p.State + "; only a waiting Ping can change"}
+	}
+	if len(in.Files) > 0 {
+		files, err := inlineFiles(in.Files)
+		if err != nil {
+			return p, err
+		}
+		in.Files = files
 	}
 	body, _ := json.Marshal(in)
 	pm := wire.Pong{PingID: id, PongID: randomID(), Pong: body}

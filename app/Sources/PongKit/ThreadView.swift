@@ -48,6 +48,14 @@ public struct ThreadView: View {
     @State private var opened: Set<String>
 
     public static let width: CGFloat = 520
+    @Environment(SkillNames.self) private var skillNames: SkillNames?
+
+    /// The Session's Skills, to draw known ones in what the human sent.
+    private var sentSkills: SkillOffer {
+        guard let s = thread?.session, let harness = s.harness else { return .none }
+        return skillNames?.offer(SkillNames.Place(harness: harness, project: s.project,
+                                                  folder: s.project == nil ? s.folder : nil)) ?? .none
+    }
 
     public init(thread: SessionThread?, notice: String? = nil, actions: ThreadActions = .init(), opened: Set<String> = []) {
         self.thread = thread
@@ -155,7 +163,7 @@ public struct ThreadView: View {
                     Spacer(minLength: 60)
                     VStack(alignment: .trailing, spacing: 4) {
                         ForEach(Self.lines(of: pong), id: \.self) { line in
-                            Text(line).brandStyle(.body).foregroundStyle(Brand.onSelected)
+                            SentText(text: line, skills: sentSkills)
                                 .multilineTextAlignment(.trailing)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -361,16 +369,52 @@ public struct ThreadReply: View {
     var key: Drafts.Key?
     @State private var draft: String
     @FocusState private var typing: Bool
+    @State private var caret: Int?
+    @Environment(Speak.self) private var speak: Speak?
+    @Environment(SkillNames.self) private var skillNames: SkillNames?
+    /// Where the Session's Skills are read, for the menu and to draw known names.
+    var skills: SkillNames.Place?
+    /// Files added to the text, by path, kept with the draft.
+    @State private var files: [String] = []
+    @State private var filesProblem: String?
+    /// Sends the text with Files; where nil, the box takes no Files.
+    var sendFiles: ((String, [PongFile]) async -> Bool)?
+
+    /// The box Speak writes into: this Session's.
+    private var speakBox: SpeakBox? {
+        guard case .session(let ref)? = key else { return nil }
+        return .session(ref.harness + "/" + ref.id)
+    }
 
     public init(target: ThreadReplyTarget, session: SessionThread.SessionRef? = nil, sending: Bool = false,
-                refusal: String? = nil, draft: String? = nil, send: @escaping (String) async -> Bool = { _ in false }) {
+                refusal: String? = nil, draft: String? = nil, skills: SkillNames.Place? = nil,
+                sendFiles: ((String, [PongFile]) async -> Bool)? = nil,
+                send: @escaping (String) async -> Bool = { _ in false }) {
         self.target = target
+        self.skills = skills
+        self.sendFiles = sendFiles
+        _files = State(initialValue: session.map { Drafts.shared.files(.session($0)) } ?? [])
         self.sending = sending
         self.refusal = refusal
         self.send = send
         let key = session.map(Drafts.Key.session)
         self.key = key
         _draft = State(initialValue: draft ?? ListText.bulleted(key.map(Drafts.shared.text) ?? ""))
+    }
+
+    private var text: Binding<String> { Binding(get: { draft }, set: { keep(ListText.bulleted($0)) }) }
+
+    private func addFiles(_ paths: [String]) {
+        let r = DraftFiles.adding(paths, to: files)
+        files = r.paths
+        filesProblem = r.problem
+        if let key { Drafts.shared.setFiles(files, key) }
+    }
+
+    private func removeFile(_ path: String) {
+        files.removeAll { $0 == path }
+        filesProblem = nil
+        if let key { Drafts.shared.setFiles(files, key) }
     }
 
     private func keep(_ text: String) {
@@ -396,10 +440,28 @@ public struct ThreadReply: View {
         return t.isEmpty ? nil : t
     }
 
-    private var canSend: Bool { enabled && typed != nil }
+    private var canSend: Bool { enabled && (typed != nil || !files.isEmpty) }
 
     private func submit() {
-        guard canSend, let typed else { return }
+        guard canSend else { return }
+        let typed = typed ?? ""
+        if let speakBox { speak?.stop(speakBox) }
+        if !files.isEmpty, let sendFiles {
+            let (sending, problem) = PongFile.sending(files)
+            if let problem {
+                filesProblem = problem
+                return
+            }
+            let sent = files
+            Task {
+                if await sendFiles(typed, sending) {
+                    if self.typed ?? "" == typed { keep("") }
+                    files.removeAll { sent.contains($0) }
+                    if let key { Drafts.shared.setFiles(files, key) }
+                }
+            }
+            return
+        }
         // The draft goes only once it is sent; refused, it stays in the box. Text typed while it
         // was sending is not what went, so it stays too.
         Task { if await send(typed), self.typed == typed { keep("") } }
@@ -408,9 +470,27 @@ public struct ThreadReply: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .bottom, spacing: 8) {
-                ReplyField(text: Binding(get: { draft }, set: { keep(ListText.bulleted($0)) }),
-                           placeholder: placeholder, enabled: enabled, typing: $typing, send: submit)
+                ReplyField(text: text, placeholder: placeholder, enabled: enabled, typing: $typing,
+                           escape: {
+                               guard let speakBox, speak?.box == speakBox else { return false }
+                               speak?.stop()
+                               return true
+                           }, caret: { caret = $0 }, skills: skillNames?.offer(skills) ?? .none,
+                           addFiles: sendFiles == nil || !enabled ? nil : { addFiles($0) }, send: submit)
+                    .task(id: skills) { await skillNames?.load(skills) }
                 SendGroup(canSend: canSend, canOpen: false, typed: false, send: submit)
+                if let speak, let speakBox {
+                    SpeakButton(speak: speak, box: speakBox, enabled: enabled) {
+                        speak.toggle(speakBox, text: text, caret: caret)
+                    }
+                }
+            }
+            AddedFiles(paths: files, problem: filesProblem, remove: removeFile)
+            if let speakBox, let problem = speak?.problem, problem.box == speakBox {
+                Label(problem.text, systemImage: "exclamationmark.circle").inlineIcon(.secondary)
+                    .brandStyle(.secondary)
+                    .foregroundStyle(Brand.text)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let refusal {
                 Label(refusal, systemImage: "exclamationmark.circle").inlineIcon(.secondary)
@@ -424,6 +504,14 @@ public struct ThreadReply: View {
         .padding(.vertical, 14)
         .frame(idealWidth: ThreadView.width, maxWidth: .infinity, alignment: .leading)
         .background(Brand.surface)
+        .onChange(of: enabled, initial: true) { _, can in
+            guard let speak, let speakBox else { return }
+            guard can else { speak.detach(speakBox); return }
+            let text = text
+            speak.attach(speakBox, read: { text.wrappedValue }, write: { text.wrappedValue = $0 }, caret: { caret })
+        }
+        .onChange(of: typing) { _, now in if let speakBox { speak?.focus(speakBox, now) } }
+        .onDisappear { if let speakBox { speak?.detach(speakBox) } }
     }
 }
 
@@ -441,5 +529,32 @@ struct DeliveryLine: View {
         } else {
             Text(text).brandStyle(.secondary).foregroundStyle(Brand.secondary)
         }
+    }
+}
+
+
+/// What the human sent, on the selected fill, with known Skills in their colour. The fill is the
+/// other scheme's ink, so the text is drawn in the other scheme: the text token there is this
+/// scheme's on-selected ink, and Skills keep their contrast.
+struct SentText: View {
+    var text: String
+    var skills: SkillOffer
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        Text(attributed).brandStyle(.body)
+            .environment(\.colorScheme, scheme == .dark ? .light : .dark)
+    }
+
+    private var attributed: AttributedString {
+        var a = AttributedString(text)
+        a.foregroundColor = Brand.text
+        guard let trigger = skills.trigger else { return a }
+        for r in SkillCompletion.known(in: text, trigger: trigger, names: Set(skills.names)) {
+            guard let range = Range(r, in: text), let lower = AttributedString.Index(range.lowerBound, within: a),
+                  let upper = AttributedString.Index(range.upperBound, within: a) else { continue }
+            a[lower..<upper].foregroundColor = Brand.statusRunning
+        }
+        return a
     }
 }

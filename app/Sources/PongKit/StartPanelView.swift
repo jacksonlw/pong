@@ -8,6 +8,48 @@ public struct StartPanelView: View {
     var actions: Actions
     @FocusState private var typing: Bool
     @State private var selection: TextSelection?
+    @Environment(Speak.self) private var speak: Speak?
+    @Environment(SkillNames.self) private var skillNames: SkillNames?
+    /// Which of the Skill menu's names ↑ and ↓ have reached.
+    @State private var menuIndex = 0
+    /// The query Escape closed the menu on, so it stays closed until something else is typed.
+    @State private var menuClosed: SkillCompletion.Query?
+
+    /// Where the Skills are read: the chosen Harness in the chosen Project or folder.
+    private var skillPlace: SkillNames.Place? {
+        guard let harness = model.harness else { return nil }
+        switch model.place {
+        case .project(let id)?: return SkillNames.Place(harness: harness, project: id, computer: model.chosenComputer)
+        case .folder(let path)?: return SkillNames.Place(harness: harness, folder: path)
+        case nil: return nil
+        }
+    }
+
+    /// The Skill menu for the name typed before the caret, while one is.
+    private var skillMenu: SkillMenuState? {
+        let offer = skillNames?.offer(skillPlace) ?? .none
+        guard let trigger = offer.trigger, cursor.isEmpty else { return nil }
+        let at = model.text.utf16.distance(from: model.text.startIndex, to: cursor.lowerBound)
+        guard let q = SkillCompletion.query(in: model.text, caret: at, trigger: trigger), q != menuClosed else { return nil }
+        let items = SkillCompletion.matches(q.typed, in: offer.names)
+        return items.isEmpty ? nil : SkillMenuState(query: q, items: items, index: min(menuIndex, items.count - 1))
+    }
+
+    private func pickSkill(_ name: String) {
+        guard let m = skillMenu, let trigger = skillNames?.offer(skillPlace).trigger else { return }
+        let (text, at) = SkillCompletion.pick(name, for: m.query, in: model.text, trigger: trigger)
+        model.text = text
+        let i = text.utf16.index(text.startIndex, offsetBy: at)
+        selection = TextSelection(insertionPoint: i)
+        menuIndex = 0
+    }
+
+    /// Moves through the open menu; false when none is open.
+    private func moveInMenu(_ by: Int) -> Bool {
+        guard let m = skillMenu else { return false }
+        menuIndex = (m.index + by + m.items.count) % m.items.count
+        return true
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var fade: AnyTransition { reduceMotion ? .identity : CardMotion.fade }
@@ -78,18 +120,69 @@ public struct StartPanelView: View {
                 .brandField(focused: typing)
                 .onSubmit(start)
                 .onKeyPress(.return, phases: .down) { press in
+                    if press.modifiers.isEmpty, let m = skillMenu {
+                        pickSkill(m.items[m.index])
+                        return .handled
+                    }
                     guard press.modifiers.contains(.shift) else { return .ignored }
                     newLine()
+                    return .handled
+                }
+                .onKeyPress(.tab, phases: .down) { _ in
+                    guard let m = skillMenu else { return .ignored }
+                    pickSkill(m.items[m.index])
+                    return .handled
+                }
+                // ↑ on the first line steps back through the Project's recent prompts; ↓ on the
+                // last line steps forward again.
+                .onKeyPress(.escape, phases: .down) { _ in
+                    if let m = skillMenu {
+                        menuClosed = m.query
+                        return .handled
+                    }
+                    guard speak?.box == .start else { return .ignored }
+                    speak?.stop()
+                    return .handled
+                }
+                .onKeyPress(.upArrow, phases: .down) { press in
+                    if press.modifiers.isEmpty, moveInMenu(-1) { return .handled }
+                    guard press.modifiers.isEmpty, !model.text[..<cursor.lowerBound].contains("\n"),
+                          model.recallOlder() else { return .ignored }
+                    selection = TextSelection(insertionPoint: model.text.startIndex)
+                    return .handled
+                }
+                .onKeyPress(.downArrow, phases: .down) { press in
+                    if press.modifiers.isEmpty, moveInMenu(1) { return .handled }
+                    guard press.modifiers.isEmpty, !model.text[cursor.upperBound...].contains("\n"),
+                          model.recallNewer() else { return .ignored }
+                    selection = TextSelection(insertionPoint: model.text.endIndex)
                     return .handled
                 }
                 .onChange(of: model.text) { _, new in
                     let shown = ListText.bulleted(new)
                     if shown != new { model.text = shown }
+                    if skillMenu == nil { menuIndex = 0 }
                 }
+                .overlay(alignment: .topLeading) {
+                    if let m = skillMenu {
+                        SkillMenu(state: m, trigger: skillNames?.offer(skillPlace).trigger ?? "/") { pickSkill($0) }
+                            .alignmentGuide(.top) { $0[.bottom] + 4 }
+                    }
+                }
+                .task(id: skillPlace) { await skillNames?.load(skillPlace) }
 
             ForEach(model.files, id: \.self) { path in
                 FileRow(path: path) { model.remove(file: path) }
                     .padding(.top, 4)
+                    .transition(fade)
+            }
+
+            if let problem = speak?.problem, problem.box == .start {
+                Text(problem.text)
+                    .brandStyle(.secondary)
+                    .foregroundStyle(Brand.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
                     .transition(fade)
             }
 
@@ -115,6 +208,7 @@ public struct StartPanelView: View {
                 .help("Add files for the agent to read")
                 .accessibilityLabel("Add files")
                 startButton
+                if let speak { speakTile(speak) }
             }
             .padding(.top, 10)
         }
@@ -127,6 +221,13 @@ public struct StartPanelView: View {
         .animation(reduceMotion ? nil : CardMotion.box, value: model.problem)
         .animation(reduceMotion ? nil : CardMotion.box, value: model.placement)
         .onAppear { typing = true }
+        .onAppear {
+            let model = model
+            speak?.attach(.start, read: { model.text }, write: { model.text = $0 },
+                          caret: { model.text.utf16.count })
+        }
+        .onChange(of: typing) { _, now in speak?.focus(.start, now) }
+        .onDisappear { speak?.detach(.start) }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             actions.dropped()
             for p in providers {
@@ -137,6 +238,30 @@ public struct StartPanelView: View {
             }
             return true
         }
+    }
+
+    /// Speak's microphone, a tile like Add files', right of Start Session.
+    private func speakTile(_ speak: Speak) -> some View {
+        let on = speak.box == .start
+        return HoverButton(action: {
+            speak.toggle(.start, text: $model.text, caret: model.text.utf16.distance(from: model.text.startIndex, to: cursor.lowerBound))
+        }) { hover in
+            ZStack {
+                if on {
+                    LevelMeter(level: speak.level)
+                } else {
+                    Image(systemName: "mic").imageScale(.large)
+                        .font(Brand.Style.label.font)
+                        .brandIcon()
+                }
+            }
+            .frame(width: 40, height: 40)
+            .background(hover ? Brand.rowHover : Brand.row, in: Rectangle())
+            .foregroundStyle(Brand.text)
+            .contentShape(Rectangle())
+        }
+        .help(on ? "Stop. What you said stays in the box." : "Speak into the box. Nothing is sent until you start the Session.")
+        .accessibilityLabel(on ? "Stop speaking" : "Speak")
     }
 
     /// The Session starts in the Harness last used in the Project, else the first one offered.
@@ -152,9 +277,13 @@ public struct StartPanelView: View {
         .disabled(!model.canStart)
     }
 
+    /// The selected range, or the end of the text when the field has not said.
+    private var cursor: Range<String.Index> {
+        if case .selection(let r)? = selection?.indices, r.upperBound <= model.text.endIndex { return r }
+        return model.text.endIndex..<model.text.endIndex
+    }
+
     private func newLine() {
-        var cursor = model.text.endIndex..<model.text.endIndex
-        if case .selection(let r)? = selection?.indices, r.upperBound <= model.text.endIndex { cursor = r }
         let (text, at) = ListText.newLine(in: model.text, at: cursor)
         model.text = text
         selection = TextSelection(insertionPoint: at)
@@ -165,6 +294,7 @@ public struct StartPanelView: View {
     }
 
     private func start() {
+        speak?.stop(.start)
         Task { if await model.start() { actions.started() } }
     }
 
@@ -246,7 +376,7 @@ public struct StartPanelView: View {
     }
 
     /// A file the human added, with the button that takes it out again.
-    private struct FileRow: View {
+    struct FileRow: View {
         var path: String
         var remove: () -> Void
 

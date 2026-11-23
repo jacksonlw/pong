@@ -61,14 +61,17 @@ type Project struct {
 type projects struct {
 	takesText  func(Session) bool // set by the starter; may be nil
 	stopsTurns func(Session) bool // set by the starter; may be nil
+	// sessionSeen is told of each Session registered, so the Skills of its
+	// Project are read as it starts (skills.go); may be nil.
+	sessionSeen func(Session)
 	// turnOver reads a Session's transcript (TurnReader); set by the starter, may be nil.
 	turnOver func(Session) (ended bool, written time.Time, ok bool)
-	dir        string             // data directory, set by the starter; where a stop is marked
-	db         *sql.DB
-	pings      *pings     // for the event log
-	logos      string     // directory holding logo files, one per Project id
-	mu         sync.Mutex // held while recognising or changing a Project
-	smu        sync.Mutex // held while registering or changing a Session
+	dir      string // data directory, set by the starter; where a stop is marked
+	db       *sql.DB
+	pings    *pings     // for the event log
+	logos    string     // directory holding logo files, one per Project id
+	mu       sync.Mutex // held while recognising or changing a Project
+	smu      sync.Mutex // held while registering or changing a Session
 }
 
 func newProjects(db *sql.DB, ps *pings, dir string) (*projects, error) {

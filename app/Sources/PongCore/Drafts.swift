@@ -49,8 +49,24 @@ public final class Drafts {
         save()
     }
 
-    /// What was sent has been taken: the draft goes.
-    public func sent(_ key: Key) { set("", key) }
+    /// The Files added to a draft, by path.
+    public func files(_ key: Key) -> [String] {
+        (texts["files:" + key.raw] ?? "").split(separator: "\n").map(String.init)
+    }
+
+    /// Keeps the draft's Files; none removes them.
+    public func setFiles(_ paths: [String], _ key: Key) {
+        let joined = paths.joined(separator: "\n")
+        guard texts["files:" + key.raw, default: ""] != joined else { return }
+        texts["files:" + key.raw] = joined.isEmpty ? nil : joined
+        save()
+    }
+
+    /// What was sent has been taken: the draft and its Files go.
+    public func sent(_ key: Key) {
+        set("", key)
+        setFiles([], key)
+    }
 
     private func save() {
         guard let file else { return }

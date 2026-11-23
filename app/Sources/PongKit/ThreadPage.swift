@@ -60,7 +60,10 @@ public struct ThreadPage: View {
                 }
             }
             if let t = model.thread {
-                ThreadReply(target: t.replyTarget, session: t.session.ref, sending: model.sending, refusal: model.refusal) { await model.send($0) }
+                ThreadReply(target: t.replyTarget, session: t.session.ref, sending: model.sending, refusal: model.refusal,
+                            skills: SkillNames.Place(harness: t.session.harness ?? t.session.ref.harness, project: t.session.project,
+                                                     folder: t.session.project == nil ? t.session.folder : nil),
+                            sendFiles: { await model.send($0, files: $1) }) { await model.send($0) }
                     .id(t.session.ref) // each Session's Thread shows its own draft
                     // Its own surface, floating clear of the Thread scrolling under it.
                     .brandShadow()

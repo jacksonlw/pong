@@ -73,6 +73,35 @@ public struct CardView: View {
     @State private var ticked: Set<String> = []
     @State private var choosing = false
     @FocusState private var typing: Bool
+    /// Where the reply box's caret is, for Speak to write at.
+    @State private var caret: Int?
+    /// Files added to the reply, by path, kept with the draft.
+    @State private var files: [String] = []
+    @State private var filesProblem: String?
+
+    private func addFiles(_ paths: [String]) {
+        let r = DraftFiles.adding(paths, to: files)
+        files = r.paths
+        filesProblem = r.problem
+        Drafts.shared.setFiles(files, .ping(ping.id))
+    }
+
+    private func removeFile(_ path: String) {
+        files.removeAll { $0 == path }
+        filesProblem = nil
+        Drafts.shared.setFiles(files, .ping(ping.id))
+    }
+    @Environment(Speak.self) private var speak: Speak?
+    @Environment(SkillNames.self) private var skillNames: SkillNames?
+
+    /// Where this Ping's Session's Skills are read.
+    private var skillPlace: SkillNames.Place? {
+        let card = ctx.directory.card(for: ping)
+        guard let harness = card.session?.harness ?? card.ping?.harness else { return nil }
+        let project = card.project?.id
+        return SkillNames.Place(harness: harness, project: project, folder: project == nil ? ping.folder : nil,
+                                computer: ping.computer?.id)
+    }
     @State private var questionHover = false
     /// The question starts unfolded, for tests.
     private var unfolded = false
@@ -110,6 +139,7 @@ public struct CardView: View {
         self.actions = actions
         // What was typed here before the card closed, the app quit or the human moved on.
         _draft = State(initialValue: ListText.bulleted(Drafts.shared.text(.ping(ping.id))))
+        _files = State(initialValue: Drafts.shared.files(.ping(ping.id)))
     }
 
     /// A card as it stands with text typed and the caret's choices open or not, for tests.
@@ -345,7 +375,7 @@ public struct CardView: View {
             .allowsHitTesting(false)
             IconButton(symbol: "chevron.right", label: "Next Ping", enabled: position < count - 1, action: actions.next)
             if let voice, voice.on {
-                IconButton(symbol: voice.listening ? "mic.fill" : "mic", label: "Listen",
+                IconButton(symbol: voice.listening ? "speaker.wave.2.fill" : "speaker.wave.2", label: "Listen",
                            help: "Read this Ping aloud, then listen for your answer.",
                            enabled: ping.isWaiting && !voice.listening, action: { voice.start() })
             }
@@ -461,13 +491,20 @@ public struct CardView: View {
         return t.isEmpty ? nil : t
     }
 
-    private var canSend: Bool { canReply && (typed != nil || !ticked.isEmpty) }
+    private var canSend: Bool { canReply && (typed != nil || !ticked.isEmpty || !files.isEmpty) }
 
     private func sendReply(newSession: Bool = false) {
         choosing = false
         guard canSend else { return }
+        speak?.stop(.ping(ping.id))
+        let (sending, problem) = PongFile.sending(files)
+        if let problem {
+            filesProblem = problem
+            return
+        }
         let ticks = (ping.answers ?? []).map(\.label).filter(ticked.contains)
-        actions.send(Ping.Pong(answers: ticks.isEmpty ? nil : ticks, text: typed, newSession: newSession ? true : nil))
+        actions.send(Ping.Pong(answers: ticks.isEmpty ? nil : ticks, text: typed, newSession: newSession ? true : nil,
+                               files: sending.isEmpty ? nil : sending))
     }
 
     /// The caret's send choices need typed text: a new Session starts from it. Hand back
@@ -480,15 +517,29 @@ public struct CardView: View {
         return several ? "Add text (optional)" : "Write a reply"
     }
 
+    private func attachSpeak(_ can: Bool) {
+        guard let speak else { return }
+        let box = SpeakBox.ping(ping.id)
+        guard can else { speak.detach(box); return }
+        let text = shownDraft
+        speak.attach(box, read: { text.wrappedValue }, write: { text.wrappedValue = $0 }, caret: { caret })
+    }
+
     private func replyRow() -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .bottom, spacing: 8) {
                 ReplyField(text: shownDraft, placeholder: placeholder, enabled: canReply, typing: $typing,
                            escape: {
+                               if speak?.box == .ping(ping.id) {
+                                   speak?.stop()
+                                   return true
+                               }
                                guard choosing else { return false }
                                choosing = false
                                return true
-                           }) { sendReply() }
+                           }, caret: { caret = $0 }, skills: skillNames?.offer(skillPlace) ?? .none,
+                           addFiles: canReply ? { addFiles($0) } : nil) { sendReply() }
+                    .task(id: skillPlace) { await skillNames?.load(skillPlace) }
                     // A draft written on another Device shows here while nobody types here.
                     .onChange(of: ping.draft?.text, initial: true) { before, theirs in
                         guard let theirs, !typing, ListText.bulleted(theirs) != draft else { return }
@@ -501,6 +552,18 @@ public struct CardView: View {
                     }
                 SendGroup(canSend: canSend, canOpen: canReply, typed: canChoose,
                           send: { sendReply() }, caret: { choosing.toggle() })
+                if let speak {
+                    SpeakButton(speak: speak, box: .ping(ping.id), enabled: canReply) {
+                        speak.toggle(.ping(ping.id), text: shownDraft, caret: caret)
+                    }
+                }
+            }
+            AddedFiles(paths: files, problem: filesProblem, remove: removeFile)
+            if let problem = speak?.problem, problem.box == .ping(ping.id) {
+                Label(problem.text, systemImage: "exclamationmark.circle").inlineIcon(.secondary)
+                    .brandStyle(.secondary)
+                    .foregroundStyle(Brand.text)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let refusal {
                 Label(refusal, systemImage: "exclamationmark.circle").inlineIcon(.secondary)
@@ -513,6 +576,15 @@ public struct CardView: View {
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 14)
+        // The Speak shortcut writes here while the box can be written in; closing the box, or
+        // the card moving to another Ping, ends Speak in it.
+        .onChange(of: canReply, initial: true) { _, can in attachSpeak(can) }
+        .onChange(of: ping.id) { old, _ in
+            speak?.detach(.ping(old))
+            attachSpeak(canReply)
+        }
+        .onChange(of: typing) { _, now in speak?.focus(.ping(ping.id), now) }
+        .onDisappear { speak?.detach(.ping(ping.id)) }
         .overlay(alignment: .top) {
             // Hangs from the top of the reply row over the card's answers, as in the prototype.
             Color.clear.frame(height: 0).overlay(alignment: .bottomTrailing) {

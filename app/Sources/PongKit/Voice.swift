@@ -10,6 +10,8 @@ public enum Heard: Equatable, Sendable {
     case level(Float)
     /// One finished utterance, as text.
     case words(String)
+    /// The utterance still being heard, as far as it goes; it ends as `words`.
+    case partial(String)
     /// Recognition stopped working, in macOS's words.
     case failed(String)
 }
@@ -174,6 +176,7 @@ public final class VoiceSession {
         guard listening else { return }
         switch h {
         case .level(let l): level = l
+        case .partial: break // Voice mode acts on finished utterances only
         case .failed(let why): fail("Speech recognition stopped: \(why)")
         case .words(let w):
             guard !speaking else { return }

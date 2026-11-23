@@ -21,11 +21,14 @@ type StartSession struct {
 	// Computer is the computer to start it on, by Device identifier; empty
 	// lets Pong choose among the computers that can take it.
 	Computer string `json:"computer,omitempty"`
+	// Files reach the Session as paths after the prompt (files.go).
+	Files []PongFile `json:"files,omitempty"`
 }
 
 // FollowUp is the body of POST /session/follow-up.
 type FollowUp struct {
-	Prompt string `json:"prompt"`
+	Prompt string     `json:"prompt"`
+	Files  []PongFile `json:"files,omitempty"`
 }
 
 // starter opens the Sessions the human starts or continues from Pong, where
@@ -352,6 +355,14 @@ func (s *starter) routes(mux *http.ServeMux) {
 			return
 		}
 		if s.comp != nil && in.Project != "" && in.Folder == "" && (in.Computer != "" || s.comp.a.node.Computers() > 1) {
+			if len(in.Files) > 0 {
+				files, err := inlineFiles(in.Files)
+				if err != nil {
+					writeStart(w, nil, err)
+					return
+				}
+				in.Files = files
+			}
 			raw, err := s.comp.startPlaced(in)
 			if p, ok := asNoComputer(err); ok {
 				writeJSON(w, http.StatusConflict, map[string]any{"error": err.Error(), "computers": p.Candidates})
@@ -384,7 +395,12 @@ func (s *starter) routes(mux *http.ServeMux) {
 			writeError(w, http.StatusBadRequest, "project or folder is required: say where the Session runs")
 			return
 		}
-		sess, err := s.start(in.Harness, folder, in.Prompt, nil)
+		prompt, err := s.promptWithFiles(in.Prompt, "start-"+randomID(), in.Files)
+		if err != nil {
+			writeStart(w, nil, err)
+			return
+		}
+		sess, err := s.start(in.Harness, folder, prompt, nil)
 		if err == nil {
 			writeJSON(w, http.StatusCreated, sess)
 			return
@@ -401,7 +417,21 @@ func (s *starter) routes(mux *http.ServeMux) {
 			writeError(w, http.StatusBadRequest, "prompt is required: say what the Session should do next")
 			return
 		}
-		sess, err := s.followUp(ref(r), in.Prompt)
+		at := ref(r)
+		prompt := in.Prompt
+		if len(in.Files) > 0 {
+			var err error
+			if _, local := s.pr.session(at.Harness, at.ID); local == nil {
+				prompt, err = s.promptWithFiles(prompt, at.ID, in.Files)
+			} else {
+				err = errState{"Files reach only a Session on this computer from a Thread, so nothing was sent"}
+			}
+			if err != nil {
+				writeStart(w, nil, err)
+				return
+			}
+		}
+		sess, err := s.followUp(at, prompt)
 		writeStart(w, sess, err)
 	})
 	s.deliveryRoutes(mux)
@@ -438,4 +468,14 @@ func (s *pings) wait(id string, hold time.Duration, done <-chan struct{}, holds 
 		}
 	}
 	return p, err
+}
+
+// promptWithFiles places Files for a Session on this computer, in the
+// folder named, and gives the prompt with their paths after it.
+func (s *starter) promptWithFiles(prompt, folder string, files []PongFile) (string, error) {
+	paths, err := placeFiles(s.dir, folder, files)
+	if err != nil {
+		return "", err
+	}
+	return withFiles(prompt, paths), nil
 }

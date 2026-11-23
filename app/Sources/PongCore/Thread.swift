@@ -99,11 +99,13 @@ extension EngineClient {
 
     /// `POST /session/follow-up`: text for the Session. The Engine keeps it until the Session's
     /// Harness takes it, or opens an ended Session again with it where the human works.
-    public func followUp(_ ref: SessionThread.SessionRef, prompt: String) async throws {
+    public func followUp(_ ref: SessionThread.SessionRef, prompt: String, files: [PongFile] = []) async throws {
+        struct Body: Encodable { var prompt: String; var files: [PongFile]? }
         var c = URLComponents()
         c.path = "/session/follow-up"
         c.queryItems = [URLQueryItem(name: "harness", value: ref.harness), URLQueryItem(name: "id", value: ref.id)]
-        _ = try await send(request(c.string!, method: "POST", body: JSONEncoder().encode(["prompt": prompt])), timeout: 60)
+        let body = Body(prompt: prompt, files: files.isEmpty ? nil : files)
+        _ = try await send(request(c.string!, method: "POST", body: JSONEncoder().encode(body)), timeout: 60)
     }
 
     /// `POST /session/stop`: asks for the turn the Session is in to be stopped. The Session
@@ -246,6 +248,8 @@ public struct ThreadSending: Sendable {
     public var followUp: @Sendable (SessionThread.SessionRef, _ prompt: String) async throws -> Void
     /// Asks for the Session's turn to be stopped; throws `CannotReach` when it cannot be delivered.
     public var stop: @Sendable (SessionThread.SessionRef) async throws -> Void
+    /// Text with Files for the Session, where the Device can send Files; nil where it cannot.
+    public var followUpWithFiles: (@Sendable (SessionThread.SessionRef, _ prompt: String, [PongFile]) async throws -> Void)?
 
     public init(pong: @escaping @Sendable (String, Ping.Pong) async throws -> Void,
                 followUp: @escaping @Sendable (SessionThread.SessionRef, String) async throws -> Void,
@@ -285,13 +289,19 @@ public final class ThreadModel {
     /// Sends text written in the Thread: as the Pong of the Ping that waits, else as the
     /// Session's next prompt. True when it went; a refusal is kept to show, with the text.
     @discardableResult
-    public func send(_ text: String) async -> Bool {
+    public func send(_ text: String, files: [PongFile] = []) async -> Bool {
         guard let sender, let target = thread?.replyTarget, !sending else { return false }
         sending = true
         defer { sending = false }
         do {
             switch target {
-            case .ping(let p): try await sender.pong(p.id, Ping.Pong(text: text))
+            case .ping(let p): try await sender.pong(p.id, Ping.Pong(text: text, files: files.isEmpty ? nil : files))
+            case .session where !files.isEmpty:
+                guard let withFiles = sender.followUpWithFiles else {
+                    refusal = "Files cannot be sent to this Session from here."
+                    return false
+                }
+                try await withFiles(ref, text, files)
             case .session: try await sender.followUp(ref, text)
             case .none: return false
             }

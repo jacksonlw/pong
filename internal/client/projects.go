@@ -68,6 +68,12 @@ func (c *Client) Thread(harness, id string) (engine.Thread, error) {
 	return out, c.do(c.HTTP, "GET", "/thread?harness="+url.QueryEscape(harness)+"&id="+url.QueryEscape(id), nil, &out)
 }
 
+// RecentPrompts reads the first prompts of a Project's Sessions, newest first.
+func (c *Client) RecentPrompts(project string) ([]string, error) {
+	var out engine.RecentPrompts
+	return out.Prompts, c.do(c.HTTP, "GET", "/prompts?project="+url.QueryEscape(project), nil, &out)
+}
+
 // rawBody is a request body sent as it is, not as JSON.
 type rawBody []byte
 
@@ -89,4 +95,21 @@ func (c *Client) LinkProject(id, to string) (engine.Project, error) {
 func (c *Client) ProjectFor(folder string) (engine.Project, error) {
 	var p engine.Project
 	return p, c.do(c.HTTP, http.MethodGet, "/projects?folder="+url.QueryEscape(folder), nil, &p)
+}
+
+// Skills reads the names of a Harness's Skills in a Project (by id) or a
+// folder; computer, when not "", names the computer whose Skills are meant.
+func (c *Client) Skills(harness, project, folder, computer string) ([]string, error) {
+	q := url.Values{"harness": {harness}}
+	if project != "" {
+		q.Set("project", project)
+	}
+	if folder != "" {
+		q.Set("folder", folder)
+	}
+	if computer != "" {
+		q.Set("computer", computer)
+	}
+	var out engine.Skills
+	return out.Skills, c.do(c.HTTP, "GET", "/skills?"+q.Encode(), nil, &out)
 }

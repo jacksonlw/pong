@@ -277,7 +277,8 @@ final class CardController {
         panel = CardPanel(contentRect: NSRect(x: 0, y: 0, width: cardWidth, height: 100),
                           styleMask: CardPanelConfiguration.style, backing: .buffered, defer: false)
         CardPanelConfiguration.apply(to: panel)
-        let voice = VoiceSession(io: SystemVoiceIO())
+        let voice = VoiceSession(io: Hearing.io)
+        Hearing.speak.voice = voice
         self.voice = voice
         let faces = faces
         let start = BarStart(client: client, window: panel, changed: { faces.set(starting: $0) })
@@ -294,7 +295,7 @@ final class CardController {
                             pointing: { [weak self] in self?.pointing($0) },
                             settled: { [weak self] in self?.panel.invalidateShadow() },
                             start: start, settings: settings)
-        let host = Zoom.shared.host(root)
+        let host = Zoom.shared.host(root.environment(Hearing.speak).environment(SharedSkills.names))
         host.sizingOptions = [] // the panel's size is set here, from the card's
         panel.contentView = host
         track()
@@ -413,6 +414,12 @@ final class CardController {
 
     /// The human hid Pong from the menu bar: no window shows until they show it again.
     private(set) var hidden = false
+
+    /// Shows Pong with the start panel open, for the Speak shortcut.
+    func openStart() {
+        if hidden { set(hidden: false) }
+        Task { await start.open() }
+    }
 
     func set(hidden: Bool) {
         self.hidden = hidden

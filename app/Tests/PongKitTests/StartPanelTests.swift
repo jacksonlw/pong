@@ -58,6 +58,9 @@ actor FakeStarter: StartAPI {
     }
 
     func startProjects() async throws -> [StartProject] { projectList }
+    var prompts: [String: [String]] = [:]
+    func setPrompts(_ p: [String], for project: String) { prompts[project] = p }
+    func recentPrompts(project: String) async throws -> [String] { prompts[project] ?? [] }
     func logo(_ path: String) async throws -> Data { try Data(contentsOf: Self.dir.appendingPathComponent("shop-logo.png")) }
     func startHarnesses() async throws -> [StartHarness] { harnessList }
     func cannotStart(_ id: String) {
@@ -163,19 +166,24 @@ final class StartPanelTests: XCTestCase {
         let engine = try FakeStarter()
         var model = StartPanelModel(api: engine, drafts: kept)
         model.text = "Add invoices\n• to the export"
-        model.add(files: ["/tmp/spec.md", "/tmp/spec.md", "/tmp/shot.png"])
-        model.remove(file: "/tmp/shot.png")
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("start-files-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let spec = folder.appendingPathComponent("spec.md").path, shot = folder.appendingPathComponent("shot.png").path
+        try Data("spec".utf8).write(to: URL(fileURLWithPath: spec))
+        model.add(files: [spec, spec, shot])
+        model.remove(file: shot)
 
         model = StartPanelModel(api: engine, drafts: kept) // the panel opened again, or Pong did
         XCTAssertEqual(model.text, "Add invoices\n• to the export")
-        XCTAssertEqual(model.files, ["/tmp/spec.md"])
+        XCTAssertEqual(model.files, [spec])
 
         await model.load()
         model.choose(project: id(model, "billing-api"))
         let ok = await model.start()
         XCTAssertTrue(ok)
         let calls = await engine.started
-        XCTAssertEqual(calls.last?.hasSuffix("Add invoices\n- to the export\n\nFiles:\n- /tmp/spec.md"), true, "bullets go as Markdown, files by path")
+        XCTAssertEqual(calls.last?.hasSuffix("Add invoices\n- to the export\n\nFiles:\n- \(spec)"), true, "bullets go as Markdown, files by path")
         model = StartPanelModel(api: engine, drafts: kept)
         XCTAssertEqual(model.text, "")
         XCTAssertEqual(model.files, [])
@@ -319,5 +327,77 @@ final class StartPanelTests: XCTestCase {
                 XCTFail("\(name)-\(theme): \(String(format: "%.2f", diff * 100))% of pixels differ; actual in \(failed.path)", file: file, line: line)
             }
         }
+    }
+
+    // MARK: Recent prompts
+
+    func testUpStepsBackThroughTheProjectsRecentPromptsAndDownReturnsToWhatWasTyped() async throws {
+        let (model, engine) = try await loaded()
+        let shop = id(model, "shop")
+        await engine.setPrompts(["Fix the cart total", "Add a coupon field"], for: shop)
+        model.choose(project: shop)
+        await model.loadRecent(project: shop)
+        model.text = "half typed"
+        XCTAssertTrue(model.recallOlder())
+        XCTAssertEqual(model.text, "Fix the cart total")
+        XCTAssertTrue(model.recallOlder())
+        XCTAssertEqual(model.text, "Add a coupon field")
+        XCTAssertTrue(model.recallOlder(), "the oldest stays")
+        XCTAssertEqual(model.text, "Add a coupon field")
+        XCTAssertTrue(model.recallNewer())
+        XCTAssertEqual(model.text, "Fix the cart total")
+        XCTAssertTrue(model.recallNewer())
+        XCTAssertEqual(model.text, "half typed", "past the newest is what was typed")
+        XCTAssertFalse(model.recallNewer(), "↓ moves the caret again")
+    }
+
+    func testARecalledPromptIsTheDraft() async throws {
+        let engine = try FakeStarter()
+        let defaults = UserDefaults(suiteName: "recall-\(UUID())")!
+        let model = StartPanelModel(api: engine, drafts: defaults)
+        await model.load()
+        let shop = id(model, "shop")
+        await engine.setPrompts(["Fix the cart total"], for: shop)
+        model.choose(project: shop)
+        await model.loadRecent(project: shop)
+        model.recallOlder()
+        let reopened = StartPanelModel(api: engine, drafts: defaults)
+        XCTAssertEqual(reopened.text, "Fix the cart total")
+    }
+
+    func testNoRecentPromptsLeavesUpToTheCaret() async throws {
+        let (model, _) = try await loaded()
+        model.choose(project: id(model, "billing-api"))
+        XCTAssertFalse(model.recallOlder())
+        model.choose(folder: "/tmp")
+        XCTAssertFalse(model.recallOlder(), "a folder has no Project's prompts")
+    }
+
+    func testChangingProjectForgetsWhereUpWas() async throws {
+        let (model, engine) = try await loaded()
+        let shop = id(model, "shop"), billing = id(model, "billing-api")
+        await engine.setPrompts(["Fix the cart total"], for: shop)
+        await engine.setPrompts(["Add invoices"], for: billing)
+        model.choose(project: shop)
+        await model.loadRecent(project: shop)
+        model.recallOlder()
+        model.choose(project: billing)
+        await model.loadRecent(project: billing)
+        XCTAssertNil(model.recalled)
+        model.recallOlder()
+        XCTAssertEqual(model.text, "Add invoices")
+    }
+
+    func testAFileThatCannotBeReadKeepsTheDraftAndSaysWhich() async throws {
+        let (model, engine) = try await loaded()
+        model.choose(project: id(model, "billing-api"))
+        model.text = "Add invoices"
+        model.add(files: ["/nowhere/spec.md"])
+        let ok = await model.start()
+        XCTAssertFalse(ok)
+        XCTAssertEqual(model.problem, "The File spec.md cannot be read, so nothing was sent. Remove it or add it again.")
+        XCTAssertEqual(model.text, "Add invoices")
+        let calls = await engine.started
+        XCTAssertEqual(calls, [])
     }
 }

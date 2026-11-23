@@ -47,7 +47,7 @@ final class ThreadWindowController {
             return
         }
         let client = self.client
-        let sender = ThreadSending(
+        var sender = ThreadSending(
             pong: { id, pong in
                 guard let c = await client() else { throw CancellationError() }
                 try await c.pong(id, pong)
@@ -60,6 +60,10 @@ final class ThreadWindowController {
                 guard let c = await client() else { throw CancellationError() }
                 try await c.stop(ref)
             })
+        sender.followUpWithFiles = { ref, prompt, files in
+            guard let c = await client() else { throw CancellationError() }
+            try await c.followUp(ref, prompt: prompt, files: files)
+        }
         let model = ThreadModel(ref: ref, sender: sender) { ref in
             guard let c = await client() else { throw CancellationError() }
             return try await c.thread(ref)
@@ -78,7 +82,7 @@ final class ThreadWindowController {
             showInQueue: showInQueue,
             stop: { Task { await model.stopTurn() } }),
             moved: { dock.dropped(key) }, putBack: { dock.putBack(key) }, close: { [weak self] in self?.close(ref) })
-        let host = Zoom.shared.host(root)
+        let host = Zoom.shared.host(root.environment(Hearing.speak).environment(SharedSkills.names))
         host.sizingOptions = [] // the human sizes the panel by its edges
         p.host(host, minimum: CGSize(width: 360, height: 320))
         let live = Task {

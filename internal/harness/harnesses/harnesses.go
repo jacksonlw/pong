@@ -96,3 +96,16 @@ func (f ForEngine) Repair(id string) (engine.HarnessStatus, error) {
 	}
 	return Report(e, f.Home), nil
 }
+
+var _ engine.SkillReader = ForEngine{}
+
+// Skills names the Skills a Harness offers the human, in their home folder
+// and in the Project at root; none for a Harness that cannot name them.
+func (f ForEngine) Skills(id, root string) (user, project []string) {
+	for _, e := range all(f.EngineDir, f.Env) {
+		if r, ok := e.Adapter.(harness.SkillReader); ok && e.ID == id {
+			return r.Skills(f.Home, root)
+		}
+	}
+	return nil, nil
+}

@@ -50,6 +50,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         switch a {
         case .toggleShown: card.set(hidden: !card.hidden)
         case .toggleMuted: toggleMute()
+        case .speak: Hearing.speak.shortcut(openStart: { [card] in card.openStart() })
         }
     }
 

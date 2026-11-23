@@ -68,12 +68,21 @@ public struct Shortcut: Codable, Equatable, Sendable {
 
 /// What a shortcut does.
 public enum ShortcutAction: String, CaseIterable, Sendable {
-    case toggleShown, toggleMuted
+    case toggleShown, toggleMuted, speak
 
     public var title: String {
         switch self {
         case .toggleShown: "Show or hide Pong"
         case .toggleMuted: "Mute Ping sounds"
+        case .speak: "Speak into Pong"
+        }
+    }
+
+    /// The shortcut an action has until the human sets or clears one.
+    public var standard: Shortcut? {
+        switch self {
+        case .speak: Shortcut(keyCode: UInt16(kVK_Space), modifiers: [.option, .command], key: "Space")
+        default: nil
         }
     }
 }
@@ -91,11 +100,15 @@ public final class ShortcutStore {
         for a in ShortcutAction.allCases {
             if let data = defaults.data(forKey: Self.key(a)), let s = try? JSONDecoder().decode(Shortcut.self, from: data) {
                 shortcuts[a] = s
+            } else if !defaults.bool(forKey: Self.clearedKey(a)), let s = a.standard, !shortcuts.values.contains(s) {
+                shortcuts[a] = s
             }
         }
     }
 
     static func key(_ a: ShortcutAction) -> String { "shortcut.\(a.rawValue)" }
+    /// Set once the human clears a shortcut, so its standard one does not come back.
+    static func clearedKey(_ a: ShortcutAction) -> String { "shortcut.\(a.rawValue).cleared" }
 
     public subscript(_ a: ShortcutAction) -> Shortcut? { shortcuts[a] }
 
@@ -112,8 +125,10 @@ public final class ShortcutStore {
         shortcuts[a] = s
         if let s, let data = try? JSONEncoder().encode(s) {
             defaults.set(data, forKey: Self.key(a))
+            defaults.removeObject(forKey: Self.clearedKey(a))
         } else {
             defaults.removeObject(forKey: Self.key(a))
+            defaults.set(true, forKey: Self.clearedKey(a))
         }
     }
 }

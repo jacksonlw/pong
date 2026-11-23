@@ -60,6 +60,9 @@ type SendPong struct {
 	Answers    []string `json:"answers,omitempty"`
 	Text       string   `json:"text,omitempty"`
 	NewSession bool     `json:"new_session,omitempty"`
+	// Files go to the Session's computer and reach it as paths after the
+	// text (files.go).
+	Files []PongFile `json:"files,omitempty"`
 }
 
 // validate returns what to fix in n, or "" when it is a well-formed Ping or

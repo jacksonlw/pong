@@ -68,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { Zoom.shared.handle(e) } ? nil : e
         }
         zoomControl = ZoomControlWindow() // shows the zoom above the Bar as it changes
+        SharedSkills.names = SkillNames(fetch: { place in try? await engine.client()?.skills(place) })
         // The Bar is Pong's place on screen: it starts Sessions and leads to Settings and Quit.
         card = CardController(inbox: inbox, directory: CardContext.live.directory, client: { await engine.client() },
                               settings: { settings.show() }, openThread: { [weak self] in self?.threads.show($0) })

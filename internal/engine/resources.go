@@ -260,6 +260,9 @@ func (s *pings) sweep(retention time.Duration) error {
 		return err
 	}
 	now := time.Now().UTC()
+	if s.dir != "" {
+		sweepFiles(s.dir, s.sessionLive, now)
+	}
 	if _, err := s.db.Exec(`DELETE FROM events WHERE kind IN (?,?,?) AND at < ?`,
 		EventSessionChanged, EventProjectChanged, EventSettingsChanged, now.Add(-stateEventRetention).Format(time.RFC3339Nano)); err != nil {
 		return err
@@ -320,4 +323,12 @@ func (s *pings) createWithResources(n NewPing) (Ping, error) {
 		s.removeResources(res)
 	}
 	return p, err
+}
+
+// sessionLive reports whether the Session a Files folder is named for has
+// not ended.
+func (s *pings) sessionLive(id string) bool {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE id = ? AND json_extract(body, '$.state') != ?`, id, SessionEnded).Scan(&n)
+	return err == nil && n > 0
 }

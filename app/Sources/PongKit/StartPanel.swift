@@ -120,6 +120,10 @@ public protocol StartAPI: Sendable {
     func startSession(harness: String, at place: StartPlace, prompt: String, computer: String?) async throws
     /// Where a Session in the Project would go; nil when this Mac is on its own.
     func placement(project: String, harness: String) async throws -> Placement?
+    /// The first prompts of the Project's Sessions, newest first.
+    func recentPrompts(project: String) async throws -> [String]
+    /// Starts it with Files, which the Engine gives the Session as paths after the prompt.
+    func startSession(harness: String, at place: StartPlace, prompt: String, computer: String?, files: [PongFile]) async throws
 }
 
 public extension StartAPI {
@@ -127,6 +131,12 @@ public extension StartAPI {
         try await startSession(harness: harness, at: place, prompt: prompt)
     }
     func placement(project: String, harness: String) async throws -> Placement? { nil }
+    func recentPrompts(project: String) async throws -> [String] { [] }
+    func startSession(harness: String, at place: StartPlace, prompt: String, computer: String?, files: [PongFile]) async throws {
+        let paths = files.compactMap(\.path)
+        let withFiles = paths.isEmpty ? prompt : prompt + "\n\nFiles:\n" + paths.map { "- " + $0 }.joined(separator: "\n")
+        try await startSession(harness: harness, at: place, prompt: withFiles, computer: computer)
+    }
     func setEnabled(_ id: String, _ on: Bool) async throws -> Project { throw EngineClient.Failure(description: "not supported") }
 }
 
@@ -174,12 +184,27 @@ extension EngineClient: StartAPI {
         try await startSession(harness: harness, at: place, prompt: prompt, computer: nil)
     }
 
+    public func recentPrompts(project: String) async throws -> [String] {
+        struct Body: Decodable { var prompts: [String] }
+        var c = URLComponents()
+        c.path = "/prompts"
+        c.queryItems = [URLQueryItem(name: "project", value: project)]
+        let b: Body = try await json(c.string ?? "")
+        return b.prompts
+    }
+
     public func startSession(harness: String, at place: StartPlace, prompt: String, computer: String?) async throws {
-        var body = ["harness": harness, "prompt": prompt]
-        if let computer { body["computer"] = computer }
+        try await startSession(harness: harness, at: place, prompt: prompt, computer: computer, files: [])
+    }
+
+    public func startSession(harness: String, at place: StartPlace, prompt: String, computer: String?, files: [PongFile]) async throws {
+        struct Body: Encodable {
+            var harness: String, prompt: String, computer: String?, project: String?, folder: String?, files: [PongFile]?
+        }
+        var body = Body(harness: harness, prompt: prompt, computer: computer, project: nil, folder: nil, files: files.isEmpty ? nil : files)
         switch place {
-        case .project(let id): body["project"] = id
-        case .folder(let path): body["folder"] = path
+        case .project(let id): body.project = id
+        case .folder(let path): body.folder = path
         }
         var r = request("/sessions/start", method: "POST", body: try JSONEncoder().encode(body))
         r.timeoutInterval = 30
@@ -205,7 +230,7 @@ public final class StartPanelModel {
     /// The Harnesses offered: the installed ones the Engine can start Sessions in.
     public private(set) var harnesses: [HarnessStatus] = []
     /// Kept with the draft, so the panel opens on the Project or folder it was closed on.
-    public private(set) var place: StartPlace? { didSet { if place != oldValue { keepPlace() } } }
+    public private(set) var place: StartPlace? { didSet { if place != oldValue { keepPlace(); recentChanged() } } }
     public var harness: String? { didSet { if harness != oldValue { placementChanged() } } }
     @ObservationIgnored private var placing: Task<Void, Never>?
 
@@ -258,6 +283,59 @@ public final class StartPanelModel {
         drafts?.set(folder, forKey: Self.folderKey)
     }
 
+    // MARK: Recent prompts
+
+    /// The Project's recent first prompts, newest first, that ↑ steps back through.
+    public private(set) var recent: [String] = []
+    /// Which recent prompt the box shows, or nil for what the human typed.
+    public private(set) var recalled: Int?
+    /// What the human had typed before stepping back, given back by stepping past the newest.
+    @ObservationIgnored private var typed = ""
+    @ObservationIgnored private var recentLoading: Task<Void, Never>?
+
+    private func recentChanged() {
+        recalled = nil
+        recent = []
+        recentLoading?.cancel()
+        guard case .project(let id)? = place else { return }
+        recentLoading = Task { await loadRecent(project: id) }
+    }
+
+    public func loadRecent(project id: String) async {
+        let found = (try? await api.recentPrompts(project: id)) ?? []
+        guard !Task.isCancelled, place == .project(id) else { return }
+        recent = found
+    }
+
+    /// Steps back to an older prompt; false when there is none to show, so ↑ moves the caret.
+    @discardableResult
+    public func recallOlder() -> Bool {
+        guard !recent.isEmpty else { return false }
+        let next: Int
+        switch recalled {
+        case nil: typed = text; next = 0
+        case let i? where i + 1 < recent.count: next = i + 1
+        default: return true
+        }
+        recalled = next
+        text = recent[next]
+        return true
+    }
+
+    /// Steps forward to a newer prompt, and past the newest to what was typed.
+    @discardableResult
+    public func recallNewer() -> Bool {
+        guard let i = recalled else { return false }
+        if i == 0 {
+            recalled = nil
+            text = typed
+        } else {
+            recalled = i - 1
+            text = recent[i - 1]
+        }
+        return true
+    }
+
     public init(api: StartAPI, drafts: UserDefaults? = nil) {
         self.api = api
         self.drafts = drafts
@@ -298,7 +376,10 @@ public final class StartPanelModel {
             problem = "\(error)"
         }
         if harness == nil || !harnesses.contains(where: { $0.id == harness }) { harness = harnesses.first?.id }
-        if case .project(let id)? = place { harness = offeredLastHarness(in: id) ?? harness }
+        if case .project(let id)? = place {
+            harness = offeredLastHarness(in: id) ?? harness
+            if recent.isEmpty { await loadRecent(project: id) }
+        }
         for p in projects where logos[p.id] == nil {
             if let path = p.logo { logos[p.id] = try? await api.logo(path) }
         }
@@ -333,11 +414,17 @@ public final class StartPanelModel {
         defer { starting = false }
         let sent = text
         do {
-            try await api.startSession(harness: harness, at: place, prompt: Self.prompt(text: sent, files: files), computer: computer)
+            let (sending, fileProblem) = PongFile.sending(files)
+            if let fileProblem {
+                problem = fileProblem
+                return false
+            }
+            try await api.startSession(harness: harness, at: place, prompt: Self.prompt(text: sent, files: []), computer: computer, files: sending)
             problem = nil
             // Text typed while the Session was starting is not what went, so it stays.
             if text == sent { text = "" }
             files = []
+            recalled = nil
             self.place = nil
             return true
         } catch let r as StartRefused {

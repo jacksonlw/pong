@@ -20,6 +20,11 @@ type HarnessStatus struct {
 	Version string `json:"version,omitempty"`
 	Warning string `json:"warning,omitempty"` // untested version or a manual step outstanding
 	Note    string `json:"note"`              // the whole status in a sentence or two
+	// Skills are the names of the Skills the human can call in it from any
+	// folder, and ProjectSkills each Project's own, by Project key. Given only
+	// in a computer's state, for its other Devices (skills.go).
+	Skills        []string            `json:"skills,omitempty"`
+	ProjectSkills map[string][]string `json:"project_skills,omitempty"`
 }
 
 // Harnesses reports on and repairs Pong's integration in each Harness. The

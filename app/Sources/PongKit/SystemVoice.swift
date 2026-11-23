@@ -131,6 +131,7 @@ public final class SystemVoiceIO: NSObject, VoiceIO, AVSpeechSynthesizerDelegate
         if let text, !text.isEmpty {
             failures = 0
             latest = text
+            onHeard?(.partial(text))
             pause?.cancel()
             pause = Task {
                 try? await Task.sleep(for: .milliseconds(1200))

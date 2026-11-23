@@ -17,9 +17,18 @@ struct ReplyField: View {
     var typing: FocusState<Bool>.Binding
     /// Escape in the box; true when the caller used it.
     var escape: () -> Bool = { false }
+    /// Told where the caret is, in UTF-16 units, as it moves: where Speak starts writing.
+    var caret: (Int) -> Void = { _ in }
+    /// The Session's Skills and the trigger that calls them in its Harness, for the menu and
+    /// to draw known names; none when the Harness has no trigger.
+    var skills: SkillOffer = .none
+    /// Files pasted or dropped on the box, by path; nil where a box takes none.
+    var addFiles: (([String]) -> Void)?
     var send: () -> Void
     @State private var hover = false
     @State private var editing = false
+    @State private var menu: SkillMenuState?
+    @State private var picked: String?
 
     static let lines = 1...5
     static let inset = NSSize(width: 12, height: 10)
@@ -29,8 +38,9 @@ struct ReplyField: View {
                   focus: { now in
                       editing = now
                       typing.wrappedValue = now
+                      if !now { menu = nil }
                   },
-                  send: send, escape: escape)
+                  send: send, escape: escape, caret: caret, skills: skills, menu: $menu, picked: $picked, addFiles: addFiles)
             .focused(typing)
             .overlay(alignment: .topLeading) {
                 Color.clear
@@ -46,6 +56,60 @@ struct ReplyField: View {
             .background(hover && enabled && !editing ? Brand.rowHover : Brand.row, in: Rectangle())
             .hoverHighlight($hover)
             .brandFocus(editing)
+            // The Skill menu stands on the box's top edge, over what is above it.
+            .overlay(alignment: .topLeading) {
+                if let menu, !menu.items.isEmpty {
+                    SkillMenu(state: menu, trigger: skills.trigger ?? "/") { picked = $0 }
+                        .alignmentGuide(.top) { $0[.bottom] + 4 }
+                }
+            }
+    }
+}
+
+/// The Skills a box offers and draws, and the trigger that calls them.
+public struct SkillOffer: Equatable {
+    public var trigger: Character?
+    public var names: [String]
+    public static let none = SkillOffer(trigger: nil, names: [])
+    public init(trigger: Character?, names: [String]) { self.trigger = trigger; self.names = names }
+}
+
+/// The menu's matches for what is typed and which one ↑ and ↓ have reached.
+struct SkillMenuState: Equatable {
+    var query: SkillCompletion.Query
+    var items: [String]
+    var index = 0
+}
+
+/// The Skill menu: the matching names, the one reached drawn selected. A click picks one.
+struct SkillMenu: View {
+    var state: SkillMenuState
+    var trigger: Character
+    var pick: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(state.items.enumerated()), id: \.element) { i, name in
+                let on = i == state.index
+                Button { pick(name) } label: {
+                    Text(String(trigger) + name)
+                        .brandStyle(.body)
+                        .foregroundStyle(on ? Brand.onSelected : Brand.text)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(on ? Brand.selected : Brand.row)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .frame(width: 260)
+        .background(Brand.row)
+        .brandShadow()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Skills")
     }
 }
 
@@ -58,6 +122,11 @@ private struct ReplyText: NSViewRepresentable {
     var focus: (Bool) -> Void
     var send: () -> Void
     var escape: () -> Bool
+    var caret: (Int) -> Void
+    var skills: SkillOffer
+    @Binding var menu: SkillMenuState?
+    @Binding var picked: String?
+    var addFiles: (([String]) -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -87,6 +156,12 @@ private struct ReplyText: NSViewRepresentable {
         tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
         tv.string = text
         tv.delegate = context.coordinator
+        context.coordinator.paint(tv)
+        tv.filesAdded = { [weak coordinator = context.coordinator] paths in
+            guard let add = coordinator?.parent.addFiles else { return false }
+            add(paths)
+            return true
+        }
         tv.focusChanged = { [weak coordinator = context.coordinator] now in
             DispatchQueue.main.async { coordinator?.parent.focus(now) }
         }
@@ -109,6 +184,11 @@ private struct ReplyText: NSViewRepresentable {
             tv.setSelectedRange(NSRange(location: min(at.location, n), length: min(at.length, n - min(at.location, n))))
             tv.scrollRangeToVisible(tv.selectedRange())
         }
+        if let name = picked {
+            DispatchQueue.main.async { picked = nil }
+            context.coordinator.pick(name, in: tv)
+        }
+        context.coordinator.paint(tv)
         if focused, enabled, let w = tv.window, w.firstResponder !== tv {
             DispatchQueue.main.async { w.makeFirstResponder(tv) }
         }
@@ -137,9 +217,71 @@ private struct ReplyText: NSViewRepresentable {
             guard let tv = n.object as? NSTextView else { return }
             parent.text = tv.string
             tv.scrollRangeToVisible(tv.selectedRange())
+            paint(tv)
+        }
+
+        func textViewDidChangeSelection(_ n: Notification) {
+            guard let tv = n.object as? NSTextView else { return }
+            let at = tv.selectedRange().location
+            let next = offer(tv)
+            DispatchQueue.main.async {
+                self.parent.caret(at)
+                if next?.query != self.parent.menu?.query || next?.items != self.parent.menu?.items { self.parent.menu = next }
+            }
+        }
+
+        /// The menu for what is typed before the caret, or nil when no name is being typed.
+        private func offer(_ tv: NSTextView) -> SkillMenuState? {
+            guard let trigger = parent.skills.trigger, !parent.skills.names.isEmpty, tv.selectedRange().length == 0,
+                  let q = SkillCompletion.query(in: tv.string, caret: tv.selectedRange().location, trigger: trigger) else { return nil }
+            let items = SkillCompletion.matches(q.typed, in: parent.skills.names)
+            return items.isEmpty ? nil : SkillMenuState(query: q, items: items)
+        }
+
+        /// Puts the picked name in place of what was typed, with the caret after it.
+        func pick(_ name: String, in tv: NSTextView) {
+            guard let trigger = parent.skills.trigger, let m = parent.menu ?? offer(tv) else { return }
+            let (new, at) = SkillCompletion.pick(name, for: m.query, in: tv.string, trigger: trigger)
+            tv.string = new
+            tv.setSelectedRange(NSRange(location: at, length: 0))
+            parent.text = new
+            DispatchQueue.main.async { self.parent.menu = nil }
+            paint(tv)
+        }
+
+        /// Draws known Skills in their colour; everything else in the text's own.
+        func paint(_ tv: NSTextView) {
+            guard let storage = tv.textStorage, !tv.hasMarkedText() else { return }
+            let all = NSRange(location: 0, length: storage.length)
+            let ink = NSColor(parent.enabled ? Brand.text : Brand.secondary)
+            storage.beginEditing()
+            storage.addAttribute(.foregroundColor, value: ink, range: all)
+            if let trigger = parent.skills.trigger {
+                for r in SkillCompletion.known(in: tv.string, trigger: trigger, names: Set(parent.skills.names)) {
+                    storage.addAttribute(.foregroundColor, value: NSColor(Brand.statusRunning), range: r)
+                }
+            }
+            storage.endEditing()
+        }
+
+        /// ↑, ↓, Tab, Return and Escape belong to the menu while it is open.
+        private func menuKey(_ sel: Selector, _ tv: NSTextView) -> Bool {
+            guard var m = parent.menu, !m.items.isEmpty else { return false }
+            switch sel {
+            case #selector(NSResponder.moveUp(_:)): m.index = (m.index - 1 + m.items.count) % m.items.count
+            case #selector(NSResponder.moveDown(_:)): m.index = (m.index + 1) % m.items.count
+            case #selector(NSResponder.insertTab(_:)), #selector(NSResponder.insertNewline(_:)):
+                pick(m.items[m.index], in: tv)
+                return true
+            case #selector(NSResponder.cancelOperation(_:)): parent.menu = nil; return true
+            default: return false
+            }
+            parent.menu = m
+            return true
         }
 
         func textView(_ tv: NSTextView, doCommandBy sel: Selector) -> Bool {
+            if menuKey(sel, tv) { return true }
             switch sel {
             case #selector(NSResponder.insertNewline(_:)):
                 if (tv as? Editor)?.keyFlags.contains(.shift) == true {
@@ -180,6 +322,19 @@ private struct ReplyText: NSViewRepresentable {
 /// key by itself, and the pointer shows the text cursor over it even while Pong is inactive.
 private final class Editor: NSTextView, PointerCursorOwner {
     var focusChanged: (Bool) -> Void = { _ in }
+    /// Takes Files pasted or dropped here; false where the box takes none.
+    var filesAdded: ([String]) -> Bool = { _ in false }
+
+    override func paste(_ sender: Any?) {
+        let files = DraftFiles.from(.general)
+        if files.isEmpty || !filesAdded(files) { super.paste(sender) }
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let files = DraftFiles.from(sender.draggingPasteboard)
+        if !files.isEmpty, filesAdded(files) { return true }
+        return super.performDragOperation(sender)
+    }
     /// The modifiers held for the key being handled, which tells Return from Shift-Return.
     private(set) var keyFlags: NSEvent.ModifierFlags = []
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -59,6 +60,7 @@ type computers struct {
 	st      *starter
 	h       Harnesses
 	runners []Runner
+	skills  *skillNames // set once made; may be nil
 
 	rmu     sync.Mutex
 	mu      sync.Mutex
@@ -130,6 +132,14 @@ func (c *computers) harnesses(fresh bool) []HarnessStatus {
 func (c *computers) self(fresh bool) ComputerState {
 	me, _, _ := c.a.node.Member(c.a.node.ID())
 	s := ComputerState{ID: me.ID, Name: me.Name, Platform: me.Platform, This: true, Reachable: true, Harnesses: c.harnesses(fresh), Projects: []string{}}
+	if c.skills != nil {
+		hs := make([]HarnessStatus, len(s.Harnesses))
+		for i, h := range s.Harnesses {
+			h.Skills, h.ProjectSkills = c.skills.of(h.ID)
+			hs[i] = h
+		}
+		s.Harnesses = hs
+	}
 	if all, err := c.a.pr.list(); err == nil {
 		for _, p := range all {
 			if p.Enabled {
@@ -267,9 +277,10 @@ const startWait = 30 * time.Second
 // remoteStart is the start body one computer sends another: the Project by
 // its key, since each computer has its own id and folder for it.
 type remoteStart struct {
-	Harness    string `json:"harness"`
-	ProjectKey string `json:"project_key"`
-	Prompt     string `json:"prompt"`
+	Harness    string     `json:"harness"`
+	ProjectKey string     `json:"project_key"`
+	Prompt     string     `json:"prompt"`
+	Files      []PongFile `json:"files,omitempty"`
 }
 
 // startOn starts a Session on another computer and waits for its answer.
@@ -318,7 +329,11 @@ func (c *computers) onStart(from string, m wire.Message) {
 	case !proj.Enabled:
 		reply.Reasons = []string{"the Project is not enabled on this computer"}
 	default:
-		sess, err := c.st.start(in.Harness, proj.Root, in.Prompt, nil)
+		prompt, err := c.st.promptWithFiles(in.Prompt, "start-"+randomID(), in.Files)
+		var sess Session
+		if err == nil {
+			sess, err = c.st.start(in.Harness, proj.Root, prompt, nil)
+		}
 		if err != nil {
 			reply.Reasons = []string{err.Error()}
 		} else {
@@ -411,12 +426,47 @@ func (c *computers) startPlaced(in StartSession) (json.RawMessage, error) {
 		if err != nil {
 			return nil, err
 		}
-		sess, err := c.st.start(in.Harness, proj.Root, in.Prompt, nil)
+		prompt, err := c.st.promptWithFiles(in.Prompt, "start-"+randomID(), in.Files)
+		if err != nil {
+			return nil, err
+		}
+		sess, err := c.st.start(in.Harness, proj.Root, prompt, nil)
 		if err != nil {
 			return nil, err
 		}
 		go c.report("")
 		return json.Marshal(sess)
 	}
-	return c.startOn(target, remoteStart{Harness: in.Harness, ProjectKey: key, Prompt: in.Prompt})
+	return c.startOn(target, remoteStart{Harness: in.Harness, ProjectKey: key, Prompt: in.Prompt, Files: in.Files})
+}
+
+// remoteSkills gives the Skill names another computer reported for a Harness
+// in a Project, by the Project's id: the computer's chosen, else the first
+// that knows the Project.
+func (c *computers) remoteSkills(harness, project, computer string) ([]string, bool) {
+	key, err := c.keyOf(project)
+	if err != nil {
+		return nil, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ids := make([]string, 0, len(c.remote))
+	for id := range c.remote {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if computer != "" && id != computer {
+			continue
+		}
+		for _, h := range c.remote[id].Harnesses {
+			if h.ID != harness {
+				continue
+			}
+			if names, ok := h.ProjectSkills[key]; ok || computer != "" || slices.Contains(c.remote[id].Projects, key) {
+				return sortedNames(append(slices.Clone(h.Skills), names...)), true
+			}
+		}
+	}
+	return nil, false
 }

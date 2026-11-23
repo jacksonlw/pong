@@ -40,9 +40,10 @@ final class ShortcutsTests: XCTestCase {
         XCTAssertEqual(ShortcutStore(defaults: d)[.toggleShown], s)
         store.set(s, for: .toggleMuted)
         XCTAssertNil(store[.toggleShown])
-        XCTAssertEqual(ShortcutStore(defaults: d).shortcuts, [.toggleMuted: s])
+        let speak = try XCTUnwrap(ShortcutAction.speak.standard)
+        XCTAssertEqual(ShortcutStore(defaults: d).shortcuts, [.toggleMuted: s, .speak: speak])
         store.set(nil, for: .toggleMuted)
-        XCTAssertEqual(ShortcutStore(defaults: d).shortcuts, [:])
+        XCTAssertEqual(ShortcutStore(defaults: d).shortcuts, [.speak: speak])
         XCTAssertEqual(changes, 3)
     }
 
@@ -55,5 +56,28 @@ final class ShortcutsTests: XCTestCase {
         XCTAssertEqual(menu.items[0].keyEquivalent, "p")
         XCTAssertEqual(menu.items[0].keyEquivalentModifierMask, [.control, .command])
         XCTAssertEqual(menu.items[1].keyEquivalent, "")
+    }
+
+    /// Speak has ⌥⌘Space until the human changes or clears it; cleared, it stays cleared.
+    func testSpeakHasAStandardShortcutThatCanBeCleared() throws {
+        let d = defaults()
+        let store = ShortcutStore(defaults: d)
+        XCTAssertEqual(store[.speak]?.title, "⌥⌘Space")
+        XCTAssertNil(store[.toggleShown], "other actions have none until set")
+        store.set(nil, for: .speak)
+        XCTAssertNil(ShortcutStore(defaults: d)[.speak])
+        let s = Shortcut(keyCode: UInt16(kVK_ANSI_S), modifiers: [.control, .option], key: "S")
+        store.set(s, for: .speak)
+        XCTAssertEqual(ShortcutStore(defaults: d)[.speak], s)
+    }
+
+    /// The standard shortcut steps aside when the human gave the same keys to another action.
+    func testSpeaksStandardShortcutNeverTakesAnothersKeys() throws {
+        let d = defaults()
+        let store = ShortcutStore(defaults: d)
+        store.set(ShortcutAction.speak.standard, for: .toggleShown)
+        let again = ShortcutStore(defaults: d)
+        XCTAssertEqual(again[.toggleShown], ShortcutAction.speak.standard)
+        XCTAssertNil(again[.speak])
     }
 }
