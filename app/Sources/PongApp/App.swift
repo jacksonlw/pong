@@ -41,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var rightClicks: Any?
     private var statusItem: StatusItem?
     private var zoomKeys: Any?
+    private var zoomControl: ZoomControlWindow?
     private var threads: ThreadWindowController!
     private var joins: JoinWindowController!
     private let arrivals = PingArrivals()
@@ -66,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         zoomKeys = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
             MainActor.assumeIsolated { Zoom.shared.handle(e) } ? nil : e
         }
+        zoomControl = ZoomControlWindow() // shows the zoom above the Bar as it changes
         // The Bar is Pong's place on screen: it starts Sessions and leads to Settings and Quit.
         card = CardController(inbox: inbox, directory: CardContext.live.directory, client: { await engine.client() },
                               settings: { settings.show() }, openThread: { [weak self] in self?.threads.show($0) })

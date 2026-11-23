@@ -56,7 +56,7 @@ final class JoinWindowController {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Brand.page)
         let p = DockPanel.make(size: CGSize(width: JoinRequestView.width, height: JoinRequestView.height))
-        let host = FirstMouseHostingView(rootView: view)
+        let host = Zoom.shared.host(view)
         host.sizingOptions = [] // the human sizes the panel by its edges
         p.host(host, minimum: CGSize(width: JoinRequestView.width, height: JoinRequestView.height))
         panel = p

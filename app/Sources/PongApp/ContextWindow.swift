@@ -18,7 +18,7 @@ final class ContextWindowController {
 
     private let ctx: CardContext
     private let panel: NSPanel
-    private let host: FirstMouseHostingView<AnyView?>
+    private let host: ZoomedHostingView<AnyView?>
     private var shown: ContextHover.Target?
     private var pendingHide: DispatchWorkItem?
     /// How long the context stays while the pointer crosses from the card to it.
@@ -30,9 +30,9 @@ final class ContextWindowController {
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: ContextPanel.width, height: 100),
                         styleMask: CardPanelConfiguration.style, backing: .buffered, defer: false)
         CardPanelConfiguration.apply(to: panel)
-        host = FirstMouseHostingView(rootView: nil)
+        host = Zoom.shared.host(AnyView?.none)
         host.sizingOptions = [] // sized here, from the content's size at Pong's zoom
-        panel.contentView = ZoomBox(host)
+        panel.contentView = host
         track()
     }
 
@@ -63,7 +63,7 @@ final class ContextWindowController {
             return
         }
         let hover = ctx.hover
-        host.rootView = AnyView(content
+        host.content = AnyView(content
             .background(HoverTracker(onChange: { hover.overPanel = $0 }))
             .environment(\.cardContext, ctx))
         // The shown host takes the size it is given, so it reports none (0 by 0, an invisible
@@ -93,6 +93,6 @@ final class ContextWindowController {
         ctx.hover.overPanel = false
         panel.parent?.removeChildWindow(panel)
         panel.orderOut(nil)
-        host.rootView = nil
+        host.content = nil
     }
 }

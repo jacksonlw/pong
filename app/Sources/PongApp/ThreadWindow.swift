@@ -78,7 +78,7 @@ final class ThreadWindowController {
             showInQueue: showInQueue,
             stop: { Task { await model.stopTurn() } }),
             moved: { dock.dropped(key) }, putBack: { dock.putBack(key) }, close: { [weak self] in self?.close(ref) })
-        let host = FirstMouseHostingView(rootView: root)
+        let host = Zoom.shared.host(root)
         host.sizingOptions = [] // the human sizes the panel by its edges
         p.host(host, minimum: CGSize(width: 360, height: 320))
         let live = Task {

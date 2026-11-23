@@ -51,7 +51,7 @@ final class PreviewPanels {
     private let dock: Dock
     /// Keeps these panels' places in the row apart from other stores' previews of the same Resource.
     private let prefix: String
-    private var panels: [String: (panel: DockPanel, host: FirstMouseHostingView<ResourcePreview?>)] = [:]
+    private var panels: [String: (panel: DockPanel, host: ZoomedHostingView<ResourcePreview?>)] = [:]
 
     init(store: ResourceStore, dock: Dock, prefix: String) {
         self.store = store
@@ -94,14 +94,14 @@ final class PreviewPanels {
             let key = key(r.id)
             let (p, host) = panels[r.id] ?? {
                 let p = DockPanel.make(size: previewSize)
-                let host = FirstMouseHostingView<ResourcePreview?>(rootView: nil)
+                let host = Zoom.shared.host(ResourcePreview?.none)
                 host.sizingOptions = [] // the human sizes the panel by its edges
                 p.host(host, minimum: CGSize(width: 280, height: 220))
                 panels[r.id] = (p, host)
                 print("preview shows \(r.id)")
                 return (p, host)
             }()
-            host.rootView = ResourcePreview(
+            host.content = ResourcePreview(
                 resource: r, data: store.contents[r.id],
                 moved: { [dock] in dock.dropped(key) },
                 putBack: { [dock] in dock.putBack(key) },

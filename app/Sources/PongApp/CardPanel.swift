@@ -285,9 +285,9 @@ final class CardController {
                             pointing: { [weak self] in self?.pointing($0) },
                             settled: { [weak self] in self?.panel.invalidateShadow() },
                             start: start, settings: settings)
-        let host = FirstMouseHostingView(rootView: root)
+        let host = Zoom.shared.host(root)
         host.sizingOptions = [] // the panel's size is set here, from the card's
-        panel.contentView = ZoomBox(host)
+        panel.contentView = host
         track()
         trackStage()
         trackCorner()

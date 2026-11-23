@@ -42,7 +42,7 @@ final class SettingsWindowController {
         .background(Brand.page)
         .task { await model.load() }
         let p = DockPanel.make(size: CGSize(width: SettingsView.width, height: Self.height))
-        let host = FirstMouseHostingView(rootView: view)
+        let host = Zoom.shared.host(view)
         host.sizingOptions = [] // the human sizes the panel by its edges
         p.host(host, minimum: CGSize(width: 360, height: 320))
         panel = p
