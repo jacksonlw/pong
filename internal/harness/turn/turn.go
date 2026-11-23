@@ -109,7 +109,10 @@ func onItsWay(p engine.Ping) bool {
 }
 
 // turnsPings lists the Pings (not Notes) the Session sent since its turn
-// began, and earlier ones whose Pong is still on its way, oldest first.
+// began, earlier ones whose Pong is still on its way, and earlier questions
+// still waiting for the human, oldest first. A question still waiting is
+// already in the human's Queue, so a turn that ends while it waits, such as
+// one a background task's report started, is not nudged for another Ping.
 // noted reports whether it also sent a Note, not a Thought, in its turn.
 func turnsPings(c *client.Client, t Turn) (out []engine.Ping, noted bool, err error) {
 	sess, err := c.Session(t.Harness, t.Session)
@@ -131,7 +134,7 @@ func turnsPings(c *client.Client, t Turn) (out []engine.Ping, noted bool, err er
 			noted = noted || (inTurn && !p.Thought)
 			continue
 		}
-		if !inTurn && !onItsWay(p) {
+		if !inTurn && !onItsWay(p) && !(p.BlocksAgent && p.State == engine.StateWaiting) {
 			continue
 		}
 		out = append(out, p)

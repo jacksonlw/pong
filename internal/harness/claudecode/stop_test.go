@@ -387,6 +387,30 @@ func TestAnEarlierTurnsPongOnItsWayWakesTheNextTurn(t *testing.T) {
 	}
 }
 
+// A question an earlier turn ended on still waits for the human when a turn
+// nobody typed, such as a background task's report, ends with no Ping of its
+// own. That turn is not nudged for a finished Ping or a Note: the question is
+// already in the human's Queue, so the hook waits for its Pong instead.
+func TestAQuestionStillWaitingFromAnEarlierTurnIsNotNudged(t *testing.T) {
+	c, dir := enginetest.Start(t)
+	run(t, dir, "prompt/typed.json")
+	q := round(t, c, recordedSession, "Lead with these three?")[0]
+	if _, err := c.RegisterSession(engine.RegisterSession{Harness: "claude-code", ID: recordedSession, State: engine.SessionIdle}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(5 * time.Millisecond)
+	report(t, dir, recordedSession) // a turn nobody typed
+	wait := stopHook(t, dir, "stop/first.json")
+	time.Sleep(20 * time.Millisecond)
+	if ps, _ := c.Pings(""); len(ps) != 1 {
+		t.Fatalf("Pings = %+v; want only the waiting question", ps)
+	}
+	pong(t, c, q.ID, engine.SendPong{Answer: "Yes"})
+	if _, wake := wait(); wake == turn.Nudge || !strings.Contains(wake, "\n- Lead with these three?: Yes\n") {
+		t.Fatalf("woke with %q; want the question's Pong, not the nudge", wake)
+	}
+}
+
 func TestTypingInTheTerminalAnswersARoundInTheHarness(t *testing.T) {
 	c, dir := enginetest.Start(t)
 	run(t, dir, "prompt/woken.json")
