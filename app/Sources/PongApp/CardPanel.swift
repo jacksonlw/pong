@@ -97,7 +97,7 @@ struct EdgeArea: NSViewRepresentable {
         v.reset = reset
     }
 
-    final class Area: NSView {
+    final class Area: NSView, PointerCursorOwner {
         var edge = CardEdge.left
         var drag: (CGFloat) -> Void = { _ in }
         var ended: () -> Void = {}
@@ -141,13 +141,20 @@ struct EdgeArea: NSViewRepresentable {
         override func updateTrackingAreas() {
             super.updateTrackingAreas()
             trackingAreas.forEach(removeTrackingArea)
-            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .cursorUpdate, .activeAlways, .inVisibleRect],
                                            owner: self))
         }
 
         /// The cursor a resizable window shows on that side.
+        private var resizeCursor: NSCursor? {
+            edge.isSide ? NSCursor.frameResize(position: edge == .left ? .left : .right, directions: .all) : nil
+        }
+
+        func pointerCursor(at point: NSPoint) -> NSCursor? { resizeCursor }
+
+        /// Shows the window's cursor for the pointer, unless a drag holds it.
         private func point() {
-            if edge.isSide { NSCursor.frameResize(position: edge == .left ? .left : .right, directions: .all).set() }
+            if start == nil { window?.showPointerCursor() } else { resizeCursor?.set() }
         }
 
         override func mouseEntered(with e: NSEvent) {
@@ -156,10 +163,11 @@ struct EdgeArea: NSViewRepresentable {
             active(true)
         }
         override func mouseMoved(with e: NSEvent) { point() }
+        override func cursorUpdate(with e: NSEvent) { point() }
         override func mouseExited(with e: NSEvent) {
             inside = false
             guard start == nil else { return }
-            if edge.isSide { NSCursor.arrow.set() }
+            point()
             active(false)
         }
 
@@ -179,7 +187,8 @@ struct EdgeArea: NSViewRepresentable {
             guard start != nil else { return }
             start = nil
             inside = bounds.contains(convert(e.locationInWindow, from: nil))
-            if inside { point() } else { NSCursor.arrow.set(); active(false) }
+            point()
+            if !inside { active(false) }
             ended()
         }
     }

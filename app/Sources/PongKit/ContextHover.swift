@@ -69,17 +69,13 @@ private struct ContextHoverHook: ViewModifier {
 }
 
 /// Pointer enter and exit from a tracking area with `.activeAlways`, which fires while the app
-/// is inactive and the card is not key. Takes no clicks.
-/// With a cursor, it shows that cursor while the pointer is inside; it sets it on every move,
-/// since an inactive app gets no `cursorUpdate`.
+/// is inactive and the card is not key. Takes no clicks and leaves the cursor alone.
 public struct HoverTracker: NSViewRepresentable {
-    var cursor: NSCursor?
     var entered: ((NSRect) -> Void)?
     var onChange: (Bool) -> Void
 
     /// `entered` gets the view's frame on screen as the pointer comes in, before `onChange`.
-    public init(cursor: NSCursor? = nil, entered: ((NSRect) -> Void)? = nil, onChange: @escaping (Bool) -> Void = { _ in }) {
-        self.cursor = cursor
+    public init(entered: ((NSRect) -> Void)? = nil, onChange: @escaping (Bool) -> Void = { _ in }) {
         self.entered = entered
         self.onChange = onChange
     }
@@ -93,31 +89,24 @@ public struct HoverTracker: NSViewRepresentable {
     public func updateNSView(_ v: TrackingView, context: Context) {
         v.onChange = onChange
         v.entered = entered
-        v.cursor = cursor
     }
 
     public final class TrackingView: NSView {
         var onChange: (Bool) -> Void = { _ in }
         var entered: ((NSRect) -> Void)?
-        var cursor: NSCursor?
 
         override public func updateTrackingAreas() {
             super.updateTrackingAreas()
             trackingAreas.forEach(removeTrackingArea)
-            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
                                            owner: self))
         }
 
         override public func mouseEntered(with event: NSEvent) {
-            cursor?.set()
             if let entered, let window { entered(window.convertToScreen(convert(bounds, to: nil))) }
             onChange(true)
         }
-        override public func mouseMoved(with event: NSEvent) { cursor?.set() }
-        override public func mouseExited(with event: NSEvent) {
-            if cursor != nil { NSCursor.arrow.set() }
-            onChange(false)
-        }
+        override public func mouseExited(with event: NSEvent) { onChange(false) }
         override public func hitTest(_ point: NSPoint) -> NSView? { nil }
         override public var acceptsFirstResponder: Bool { false }
     }
@@ -128,11 +117,6 @@ extension View {
     /// hover look in and out (at once with Reduce Motion). Every clickable control uses it.
     func hoverHighlight(_ hover: Binding<Bool>) -> some View {
         modifier(HoverHighlight(hover: hover))
-    }
-
-    /// Shows `cursor` while the pointer is over this view, even while Pong is inactive.
-    func hoverCursor(_ cursor: NSCursor) -> some View {
-        background(HoverTracker(cursor: cursor))
     }
 }
 

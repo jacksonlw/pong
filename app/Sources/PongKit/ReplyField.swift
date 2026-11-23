@@ -178,7 +178,7 @@ private struct ReplyText: NSViewRepresentable {
 
 /// The reply's text view: a click on it makes its window key, even on the card, which is never
 /// key by itself, and the pointer shows the text cursor over it even while Pong is inactive.
-private final class Editor: NSTextView {
+private final class Editor: NSTextView, PointerCursorOwner {
     var focusChanged: (Bool) -> Void = { _ in }
     /// The modifiers held for the key being handled, which tells Return from Shift-Return.
     private(set) var keyFlags: NSEvent.ModifierFlags = []
@@ -216,10 +216,13 @@ private final class Editor: NSTextView {
                                        owner: self, userInfo: ["pointer": true]))
     }
 
-    override func mouseEntered(with e: NSEvent) { if isEditable { NSCursor.iBeam.set() } }
+    /// Text that can be edited or selected shows the text cursor.
+    func pointerCursor(at point: NSPoint) -> NSCursor? { isSelectable ? .iBeam : nil }
+
+    override func mouseEntered(with e: NSEvent) { window?.showPointerCursor() }
     override func mouseMoved(with e: NSEvent) {
         super.mouseMoved(with: e)
-        if isEditable { NSCursor.iBeam.set() }
+        window?.showPointerCursor()
     }
-    override func mouseExited(with e: NSEvent) { NSCursor.arrow.set() }
+    override func mouseExited(with e: NSEvent) { window?.showPointerCursor() }
 }

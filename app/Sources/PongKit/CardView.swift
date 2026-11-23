@@ -694,7 +694,7 @@ struct WindowDragArea: NSViewRepresentable {
         v.clicked = clicked
     }
 
-    final class Area: NSView {
+    final class Area: NSView, PointerCursorOwner {
         var moved: () -> Void = {}
         var putBack: () -> Void = {}
         var contextMenu: (() -> NSMenu)?
@@ -716,25 +716,19 @@ struct WindowDragArea: NSViewRepresentable {
                                            owner: self))
         }
 
-        /// The bar's buttons sit on the area; over them the pointer is an arrow.
-        private func point(_ e: NSEvent) {
-            guard start == nil else { return }
-            let over = window?.contentView?.hitTest(e.locationInWindow).map { $0 === self } ?? false
-            (over ? NSCursor.openHand : NSCursor.arrow).set()
-        }
+        /// The bar's buttons sit on the area and hit-test before it, so over them the pointer is an arrow.
+        func pointerCursor(at point: NSPoint) -> NSCursor? { .openHand }
 
-        private func inside(_ e: NSEvent) -> Bool { bounds.contains(convert(e.locationInWindow, from: nil)) }
+        private func point(_ e: NSEvent) {
+            if start == nil { window?.showPointerCursor() }
+        }
 
         override func mouseEntered(with e: NSEvent) { point(e) }
         override func mouseMoved(with e: NSEvent) { point(e) }
         /// AppKit asks the view under the pointer for its cursor as the pointer moves; left to
         /// NSView this is the arrow, which then fights the open hand set on each move.
         override func cursorUpdate(with e: NSEvent) { point(e) }
-        /// Rebuilding the tracking areas, as the window grows or shrinks under the pointer, can
-        /// report an exit while the pointer is still on the area: that one keeps the hand.
-        override func mouseExited(with e: NSEvent) {
-            if start == nil, !inside(e) { NSCursor.arrow.set() }
-        }
+        override func mouseExited(with e: NSEvent) { point(e) }
 
         override func menu(for event: NSEvent) -> NSMenu? { contextMenu?() }
 
@@ -767,8 +761,7 @@ struct WindowDragArea: NSViewRepresentable {
         override func mouseUp(with e: NSEvent) {
             guard let s = start else { return }
             start = nil
-            let inside = bounds.contains(convert(e.locationInWindow, from: nil))
-            (inside ? NSCursor.openHand : NSCursor.arrow).set()
+            window?.showPointerCursor()
             (window as? GrabbedWindow)?.grabbed(at: nil)
             if let w = window, NSPoint(x: w.frame.minX, y: w.frame.maxY) != s.topLeft { moved() } else if let clicked { reported = true; clicked() }
         }

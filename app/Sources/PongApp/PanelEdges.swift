@@ -46,7 +46,7 @@ struct PanelHandle: Equatable {
 /// system's resize cursor and a line along the edge while the pointer rests on it or drags it,
 /// and a drag resizes the panel from there. Tracking areas set the cursor, since cursor rects
 /// only work in the key window.
-final class PanelEdges: NSView {
+final class PanelEdges: NSView, PointerCursorOwner {
     static let thickness: CGFloat = 6
     static let corner: CGFloat = 14
 
@@ -116,20 +116,28 @@ final class PanelEdges: NSView {
         }
     }
 
-    private func point(_ h: PanelHandle) { NSCursor.frameResize(position: h.position, directions: .all).set() }
+    private func cursor(_ h: PanelHandle) -> NSCursor { NSCursor.frameResize(position: h.position, directions: .all) }
+    private func point(_ h: PanelHandle) { cursor(h).set() }
+
+    func pointerCursor(at point: NSPoint) -> NSCursor? {
+        handle(at: convert(point, from: nil)).map(cursor)
+    }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .cursorUpdate, .activeAlways, .inVisibleRect],
                                        owner: self))
     }
 
+    /// Lights the edge the pointer is on, and shows the window's cursor for where it is.
+    /// Only the cursor of a pointer that was on an edge is set here: elsewhere, what is under the
+    /// pointer shows its own.
     private func track(_ e: NSEvent) {
         guard pressed == nil else { return }
         let h = handle(at: convert(e.locationInWindow, from: nil))
-        guard h != hovered else { if let h { point(h) }; return }
-        if let h { point(h) } else if hovered != nil { NSCursor.arrow.set() }
+        if h != nil || hovered != nil { window?.showPointerCursor() }
+        guard h != hovered else { return }
         hovered = h
         show(h)
     }
@@ -137,6 +145,11 @@ final class PanelEdges: NSView {
     override func mouseEntered(with e: NSEvent) { track(e) }
     override func mouseMoved(with e: NSEvent) { track(e) }
     override func mouseExited(with e: NSEvent) { track(e) }
+    /// The tracking area covers the whole panel; inside the border, the content's own cursor stands.
+    override func cursorUpdate(with e: NSEvent) {
+        guard pressed == nil else { return }
+        if handle(at: convert(e.locationInWindow, from: nil)) != nil { window?.showPointerCursor() } else { super.cursorUpdate(with: e) }
+    }
 
     override func mouseDown(with e: NSEvent) {
         guard let w = window, let h = handle(at: convert(e.locationInWindow, from: nil)) else { return }
@@ -158,7 +171,7 @@ final class PanelEdges: NSView {
         pressed = nil
         hovered = nil
         track(e)
-        if hovered == nil { NSCursor.arrow.set() }
+        window?.showPointerCursor()
         resizing(false)
     }
 }
