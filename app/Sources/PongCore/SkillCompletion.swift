@@ -10,7 +10,7 @@ public enum SkillCompletion {
         public var typed: String
     }
 
-    /// How many names the menu offers at once.
+    /// How many names the menu shows at once; it scrolls to the rest.
     public static let shown = 8
 
     /// What calls a Skill in a Harness: `/` in Claude Code, `$` in Codex; nil in others.
@@ -44,10 +44,10 @@ public enum SkillCompletion {
     /// ignoring case, each group in order.
     public static func matches(_ typed: String, in names: [String]) -> [String] {
         let t = typed.lowercased()
-        guard !t.isEmpty else { return Array(names.prefix(shown)) }
+        guard !t.isEmpty else { return names }
         let starts = names.filter { $0.lowercased().hasPrefix(t) }
         let holds = names.filter { !$0.lowercased().hasPrefix(t) && $0.lowercased().contains(t) }
-        return Array((starts + holds).prefix(shown))
+        return starts + holds
     }
 
     /// The text with the query replaced by the picked name and a space, and where the caret goes.

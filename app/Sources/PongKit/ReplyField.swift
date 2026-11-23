@@ -37,6 +37,14 @@ struct ReplyField: View {
     @State private var picked: String?
 
     static let lines = 1...5
+
+    /// A known Skill: the body face in semibold, so it stands apart in both schemes.
+    static let skillFont: NSFont = {
+        let body = Brand.Style.bodyNSFont
+        // Inter is a variable font: its weight axis ("wght") is set to semibold's 600.
+        let d = body.fontDescriptor.addingAttributes([NSFontDescriptor.AttributeName(rawValue: "NSCTFontVariationAttribute"): [0x7767_6874: 600]])
+        return NSFont(descriptor: d, size: body.pointSize) ?? body
+    }()
     static let inset = NSSize(width: 12, height: 10)
 
     var body: some View {
@@ -81,7 +89,29 @@ struct SkillMenu: View {
     var trigger: Character
     var pick: (String) -> Void
 
+    /// One name's height: the body line and its padding.
+    static let rowHeight: CGFloat = Brand.Style.body.size * Brand.Style.body.lineHeight + 12
+
     var body: some View {
+        ScrollViewReader { scroll in
+            ScrollView(.vertical) {
+                rows
+            }
+            .scrollIndicators(state.items.count > SkillCompletion.shown ? .visible : .hidden)
+            .frame(height: Self.rowHeight * CGFloat(min(state.items.count, SkillCompletion.shown)))
+            .onChange(of: state.index, initial: true) { _, i in
+                guard state.items.indices.contains(i) else { return }
+                scroll.scrollTo(state.items[i])
+            }
+        }
+        .frame(width: 260)
+        .background(Brand.row)
+        .brandShadow()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Skills")
+    }
+
+    private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(state.items.enumerated()), id: \.element) { i, name in
                 let on = i == state.index
@@ -90,20 +120,15 @@ struct SkillMenu: View {
                         .brandStyle(.body)
                         .foregroundStyle(on ? Brand.onSelected : Brand.text)
                         .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, minHeight: Self.rowHeight, maxHeight: Self.rowHeight, alignment: .leading)
                         .background(on ? Brand.selected : Brand.row)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(on ? .isSelected : [])
+                .id(name)
             }
         }
-        .frame(width: 260)
-        .background(Brand.row)
-        .brandShadow()
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Skills")
     }
 }
 
@@ -125,6 +150,7 @@ private struct ReplyText: NSViewRepresentable {
     var recall: ((Bool) -> Bool)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
+
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
@@ -261,9 +287,11 @@ private struct ReplyText: NSViewRepresentable {
             let ink = NSColor(parent.enabled ? Brand.text : Brand.secondary)
             storage.beginEditing()
             storage.addAttribute(.foregroundColor, value: ink, range: all)
+            storage.addAttribute(.font, value: Brand.Style.bodyNSFont, range: all)
             if let trigger = parent.skills.trigger {
                 for r in SkillCompletion.known(in: tv.string, trigger: trigger, names: Set(parent.skills.names)) {
                     storage.addAttribute(.foregroundColor, value: NSColor(Brand.statusRunning), range: r)
+                    storage.addAttribute(.font, value: ReplyField.skillFont, range: r)
                 }
             }
             storage.endEditing()

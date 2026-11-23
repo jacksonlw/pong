@@ -554,6 +554,7 @@ struct SentText: View {
             guard let range = Range(r, in: text), let lower = AttributedString.Index(range.lowerBound, within: a),
                   let upper = AttributedString.Index(range.upperBound, within: a) else { continue }
             a[lower..<upper].foregroundColor = Brand.statusRunning
+            a[lower..<upper].font = Brand.Style.body.font.weight(.semibold)
         }
         return a
     }

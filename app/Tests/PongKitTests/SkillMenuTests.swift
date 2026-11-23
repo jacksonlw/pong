@@ -29,4 +29,12 @@ final class SkillMenuTests: XCTestCase {
         XCTAssertEqual(names.offer(shop), SkillOffer(trigger: "/", names: ["grilling", "tdd"]))
         XCTAssertEqual(names.offer(SkillNames.Place(harness: "zed", project: "p1")), .none, "a Harness without a trigger")
     }
+
+    func testAKnownSkillIsDrawnSemibold() {
+        let word = "/grilling" as NSString
+        let regular = word.size(withAttributes: [.font: Brand.Style.bodyNSFont]).width
+        let skill = word.size(withAttributes: [.font: ReplyField.skillFont]).width
+        XCTAssertGreaterThan(skill, regular, "the Skill face is heavier, so wider")
+        XCTAssertEqual(ReplyField.skillFont.pointSize, Brand.Style.bodyNSFont.pointSize)
+    }
 }
