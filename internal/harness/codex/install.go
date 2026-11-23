@@ -155,8 +155,15 @@ func (a Adapter) Install(home, pong string) error {
 	if !a.Detect(home) {
 		return errors.New("Codex is not installed (no ~/.codex)")
 	}
-	if _, ok := load(home); ok {
-		return nil
+	if r, ok := load(home); ok {
+		// Installed already: bring its instruction up to this Pong's.
+		done, err := harness.RefreshInstruction(filepath.Join(home, instructionFile), r.Instruction, instructionBlock())
+		if err != nil || !done {
+			return err
+		}
+		r.Instruction = instructionBlock()
+		rb, _ := json.MarshalIndent(r, "", "  ")
+		return os.WriteFile(recordPath(home), rb, 0o644)
 	}
 	cfgPath := filepath.Join(home, configFile)
 	cfg, err := os.ReadFile(cfgPath)

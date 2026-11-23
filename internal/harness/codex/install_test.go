@@ -174,3 +174,40 @@ func TestCodexTablesAfterTheBlock(t *testing.T) {
 		t.Fatalf("after install over the old block:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+// An install made by an older Pong gets this Pong's instruction when setup
+// runs again, and removing it still leaves AGENTS.md as it was found.
+func TestInstallAgainRefreshesAnOlderInstruction(t *testing.T) {
+	home := codexHome(t, map[string]string{"AGENTS.md": "# Mine\nBe brief.\n"})
+	if err := (codex.Adapter{}).Install(home, pongPath); err != nil {
+		t.Fatal(err)
+	}
+	// Make it look as an older Pong left it.
+	ins, _ := read(t, home, "AGENTS.md")
+	recPath := filepath.Join(home, "Library", "Application Support", "Pong", "harnesses", "codex.json")
+	rec, err := os.ReadFile(recPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var r map[string]any
+	json.Unmarshal(rec, &r)
+	block := r["instruction"].(string)
+	old := strings.Replace(block, "Write every message as you would without Pong", "Send every question with send_ping", 1)
+	os.WriteFile(filepath.Join(home, ".codex", "AGENTS.md"), []byte(strings.Replace(ins, block, old, 1)), 0o600)
+	r["instruction"] = old
+	rec, _ = json.Marshal(r)
+	os.WriteFile(recPath, rec, 0o644)
+
+	if err := (codex.Adapter{}).Install(home, pongPath); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := read(t, home, "AGENTS.md"); !strings.Contains(got, block) || strings.Contains(got, "Send every question with send_ping") {
+		t.Fatalf("AGENTS.md after setup again:\n%s", got)
+	}
+	if err := (codex.Adapter{}).Remove(home); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := read(t, home, "AGENTS.md"); got != "# Mine\nBe brief.\n" {
+		t.Fatalf("after remove: %q", got)
+	}
+}

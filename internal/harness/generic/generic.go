@@ -110,8 +110,15 @@ func (h Harness) Install(home, pong string) error {
 	if !h.Detect(home) {
 		return fmt.Errorf("%s is not installed (no %s)", h.Title, filepath.Dir(filepath.Join("~", h.MCPConfig)))
 	}
-	if _, ok := h.load(home); ok {
-		return nil
+	if r, ok := h.load(home); ok {
+		// Installed already: bring its instruction up to this Pong's.
+		done, err := harness.RefreshInstruction(filepath.Join(home, h.Instruction), r.Instruction, InstructionBlock())
+		if err != nil || !done {
+			return err
+		}
+		r.Instruction = InstructionBlock()
+		rb, _ := json.MarshalIndent(r, "", "  ")
+		return os.WriteFile(h.recordPath(home), rb, 0o644)
 	}
 	cfgPath := filepath.Join(home, h.MCPConfig)
 	cfg, cfgErr := os.ReadFile(cfgPath)
