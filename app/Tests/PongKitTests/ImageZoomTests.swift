@@ -6,7 +6,7 @@ import XCTest
 /// pointer, or the one full screen, before Pong's own zoom.
 @MainActor
 final class ImageZoomTests: XCTestCase {
-    func testStepsGoFromWhereTheImageIs() {
+    func testStepsGoFromWhereTheImageIs() throws {
         let z = ImageZoom()
         z.fit = 0.6
         XCTAssertNil(z.scale, "an image starts fitted")
@@ -20,6 +20,14 @@ final class ImageZoomTests: XCTestCase {
         XCTAssertEqual(z.scale, 8)
         z.toFit()
         XCTAssertNil(z.scale)
+        z.pinch(0.5)
+        XCTAssertEqual(try XCTUnwrap(z.scale), 0.9, accuracy: 0.0001, "a pinch grows the image from where it is")
+        z.pinch(-0.5)
+        XCTAssertEqual(try XCTUnwrap(z.scale), 0.45, accuracy: 0.0001)
+        z.toggleActual()
+        XCTAssertNil(z.scale, "a two-finger double tap fits a zoomed image")
+        z.toggleActual()
+        XCTAssertEqual(z.scale, 1, "and shows a fitted one at its actual size")
     }
 
     func testTheKeysGoToTheImageWhenThereIsOne() throws {

@@ -18,6 +18,10 @@ final class ImageZoom {
     func zoomIn() { scale = Self.steps.first { $0 > shown + 0.001 } ?? shown }
     func zoomOut() { scale = Self.steps.last { $0 < shown - 0.001 } ?? shown }
     func toFit() { scale = nil }
+    /// A trackpad pinch: the magnification AppKit reports for one step of it.
+    func pinch(_ m: CGFloat) { set(shown * (1 + m)) }
+    /// A two-finger double tap: between fitted and actual size.
+    func toggleActual() { scale = scale == nil ? 1 : nil }
     func set(_ s: CGFloat) { scale = min(max(s, Self.range.lowerBound), Self.range.upperBound) }
 }
 
@@ -58,6 +62,35 @@ public enum ZoomKey {
     }
 }
 
+/// Catches a trackpad's pinch and two-finger double tap over the area it sits behind, in its
+/// window, and gives them to the image's zoom.
+private struct Pinch: NSViewRepresentable {
+    var zoom: ImageZoom
+
+    func makeNSView(context: Context) -> Area { Area() }
+    func updateNSView(_ v: Area, context: Context) { v.zoom = zoom }
+
+    final class Area: NSView {
+        weak var zoom: ImageZoom?
+        private var monitor: Any?
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.magnify, .smartMagnify]) { [weak self] e in
+                guard let self, let zoom = self.zoom, e.window === self.window,
+                      self.convert(self.bounds, to: nil).contains(e.locationInWindow) else { return e }
+                if e.type == .magnify { zoom.pinch(e.magnification) } else { zoom.toggleActual() }
+                return nil
+            }
+        }
+    }
+}
+
 /// An image that fits its room until zoomed, then scrolls both ways. The zoom controls sit in its
 /// corner; a pinch zooms too, and so do ⌘+ and ⌘− while the pointer is over it.
 struct ZoomableImage: View {
@@ -71,7 +104,6 @@ struct ZoomableImage: View {
     var click: (() -> Void)?
     var fullScreen = false
     @State private var zoom = ImageZoom()
-    @State private var pinchFrom: CGFloat?
 
     var body: some View {
         GeometryReader { room in
@@ -91,13 +123,9 @@ struct ZoomableImage: View {
             .scrollIndicators(zoom.scale == nil ? .never : .automatic)
             .onChange(of: fit, initial: true) { zoom.fit = fit }
         }
-        .gesture(MagnifyGesture()
-            .onChanged { v in
-                let from = pinchFrom ?? zoom.shown
-                pinchFrom = from
-                zoom.set(from * v.magnification)
-            }
-            .onEnded { _ in pinchFrom = nil })
+        // The scroll view takes a trackpad's pinch before a SwiftUI gesture can, so it is caught
+        // from AppKit over the image's area.
+        .background { Pinch(zoom: zoom) }
         .overlay(alignment: .bottomTrailing) { controls.padding(8) }
         .onContinuousHover { phase in
             switch phase {
