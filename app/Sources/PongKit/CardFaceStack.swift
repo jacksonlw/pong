@@ -27,14 +27,16 @@ public struct CardFaceStack<Edges: View>: View {
     var start: StartPanelView?
     var newSession: () -> Void
     var settings: () -> Void
-    var edges: Edges
+    /// The edges that resize the window, on every face. The Bar's are its sides alone (false),
+    /// so its row keeps the clicks and double-click along its top and bottom.
+    var edges: (_ onCard: Bool) -> Edges
 
     public init(inbox: Inbox, stage: CardStage, faces: CardFaces, directory: Directory, voice: VoiceSession? = nil,
                 bottom: Bool = false, trailing: Bool = false, width: CGFloat = cardWidth,
                 moved: @escaping () -> Void = {}, putBack: @escaping () -> Void = {},
                 openThread: @escaping (SessionThread.SessionRef) -> Void = { _ in }, pointing: @escaping (Bool) -> Void = { _ in },
                 settled: @escaping () -> Void = {}, start: StartPanelView? = nil,
-                newSession: @escaping () -> Void = {}, settings: @escaping () -> Void = {}, edges: Edges) {
+                newSession: @escaping () -> Void = {}, settings: @escaping () -> Void = {}, edges: @escaping (_ onCard: Bool) -> Edges) {
         self.inbox = inbox
         self.stage = stage
         self.faces = faces
@@ -145,7 +147,7 @@ public struct CardFaceStack<Edges: View>: View {
         .environment(\.chosenCardWidth, width)
         .fixedSize()
         .scaleEffect(press)
-        .overlay { if shown == .card { edges } }
+        .overlay { if shown != .none { edges(shown == .card) } }
         .onChange(of: faces.stuck) { _, now in pressed(deep: now) }
         .onAppear { edge = faces.stuck ? Self.stuckEdge : 0 }
         .onChange(of: stage.height) { _, h in if let h, h > 0 { cardHeight = h } }

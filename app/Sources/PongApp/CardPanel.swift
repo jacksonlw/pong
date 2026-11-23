@@ -56,18 +56,20 @@ enum CardEdge: CaseIterable {
     }
 }
 
-/// A thin strip along each edge of the card. Dragging a side changes the card's width, and a
-/// double-click on any of them puts the standard size back.
+/// A thin strip along each edge of the card, or along the Bar's sides. Dragging a side changes
+/// the window's width, and a double-click on any of them puts the standard size back.
 struct CardEdges: View {
     /// A side and how far outwards the pointer has gone since it was pressed.
     var drag: (CardEdge, CGFloat) -> Void
     var ended: () -> Void
     var reset: () -> Void
+    /// False on the Bar, the Threads list and the start panel: only the sides are strips there.
+    var onCard = true
     static let thickness: CGFloat = 8
 
     var body: some View {
         ZStack {
-            ForEach(CardEdge.allCases, id: \.self) { edge in
+            ForEach(onCard ? CardEdge.allCases : [.left, .right], id: \.self) { edge in
                 EdgeArea(edge: edge, drag: { drag(edge, $0) }, ended: ended, reset: reset)
                     .frame(width: edge.isSide ? Self.thickness : nil, height: edge.isSide ? nil : Self.thickness)
                     .help(edge.isSide ? "Drag to resize. Double-click for the standard size." : "Double-click for the standard size.")
@@ -218,7 +220,11 @@ struct CardRoot: View {
                       bottom: anchor.bottom, trailing: anchor.trailing, width: anchor.width,
                       moved: moved, putBack: putBack, openThread: openThread, pointing: pointing, settled: settled,
                       start: start.view, newSession: { start.toggle() }, settings: settings,
-                      edges: edges)
+                      edges: { onCard in
+                          var e = edges
+                          e.onCard = onCard
+                          return e
+                      })
             .onGeometryChange(for: CGSize.self, of: { $0.size }) { resize($0) }
             .frame(maxWidth: .infinity, maxHeight: .infinity,
                    alignment: anchor.bottom ? (anchor.trailing ? .bottomTrailing : .bottomLeading)
