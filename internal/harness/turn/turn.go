@@ -25,14 +25,17 @@ type Turn struct {
 	Harness, Session, Folder string
 	LastMessage              string // the agent's last message in the turn
 	Nudged                   bool   // the agent was already nudged in this turn
+	// Background is true when work the agent started in the background,
+	// such as a subagent or a command, still runs as the turn ends. The
+	// Harness shows the Session running until it reports, and so does Pong.
+	Background bool
 }
 
 // End decides what an ended turn needs. nudge is true when the agent sent no
 // Ping in the turn and has not been nudged yet: the adapter holds the turn
 // with Nudge and does nothing else. A nudged turn with a Note in it (not a
-// Thought) has nothing to wait on and leaves the Session working, awaiting
-// its own work: the agent said it is waiting on work it started, and the
-// report of that work begins the next turn. Otherwise waits lists the Pings to wait
+// Thought) ends idle with nothing to wait on: the agent said it is waiting on
+// its own work. Otherwise waits lists the Pings to wait
 // on, oldest first: the questions the agent ended its turn on (blocking Pings
 // it did not wait for itself) and its finished Ping, or a plain one built
 // from its last message. A question the human answered before the turn ended
@@ -54,15 +57,8 @@ func End(c *client.Client, t Turn) (nudge bool, waits []engine.Ping, err error) 
 	if len(sent) == 0 && !t.Nudged {
 		return true, nil, nil
 	}
-	if noted && len(sent) == 0 {
-		// The agent said it waits on work it started: the Harness shows the
-		// Session running until that work reports, and so does Pong.
-		_, err := c.RegisterSession(engine.RegisterSession{Harness: t.Harness, ID: t.Session, Folder: t.Folder,
-			State: engine.SessionWorking, AwaitsOwnWork: true})
-		return false, nil, err
-	}
 	if len(sent) == 0 {
-		if err := idle(c, t); err != nil {
+		if err := idle(c, t); err != nil || noted {
 			return false, nil, err
 		}
 		p, err := Plain(c, t)
@@ -97,8 +93,14 @@ func End(c *client.Client, t Turn) (nudge bool, waits []engine.Ping, err error) 
 	return false, waits, nil
 }
 
+// idle marks the Session's turn over: idle, or still working while its
+// background work runs.
 func idle(c *client.Client, t Turn) error {
-	_, err := c.RegisterSession(engine.RegisterSession{Harness: t.Harness, ID: t.Session, Folder: t.Folder, State: engine.SessionIdle})
+	r := engine.RegisterSession{Harness: t.Harness, ID: t.Session, Folder: t.Folder, State: engine.SessionIdle}
+	if t.Background {
+		r.State, r.AwaitsOwnWork = engine.SessionWorking, true
+	}
+	_, err := c.RegisterSession(r)
 	return err
 }
 

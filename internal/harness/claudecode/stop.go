@@ -27,6 +27,9 @@ func (w Wake) Error() string { return w.Text }
 type stopEvent struct {
 	StopHookActive       bool   `json:"stop_hook_active"`
 	LastAssistantMessage string `json:"last_assistant_message"`
+	// BackgroundTasks are the Session's background tasks still running or
+	// about to (subagents, commands, monitors): Claude Code lists only those.
+	BackgroundTasks []json.RawMessage `json:"background_tasks"`
 }
 
 func stop(c *client.Client, e Event) (any, error) {
@@ -46,7 +49,7 @@ func stop(c *client.Client, e Event) (any, error) {
 		return listenIdle(c, e)
 	}
 	nudge, waits, err := turn.End(c, turn.Turn{Harness: HarnessName, Session: e.SessionID, Folder: e.Cwd,
-		LastMessage: s.LastAssistantMessage, Nudged: s.StopHookActive})
+		LastMessage: s.LastAssistantMessage, Nudged: s.StopHookActive, Background: len(s.BackgroundTasks) > 0})
 	if err != nil {
 		return nil, err
 	}

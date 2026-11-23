@@ -48,6 +48,12 @@ func stopHook(t *testing.T, dir, fixture string) func() (out, wake string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return stopHookOn(t, dir, in)
+}
+
+// stopHookOn is stopHook on the payload in.
+func stopHookOn(t *testing.T, dir string, in []byte) func() (out, wake string) {
+	t.Helper()
 	type result struct{ out, wake string }
 	done := make(chan result, 1)
 	go func() {
@@ -132,9 +138,8 @@ func TestNoPingAfterTheNudgeGetsAPlainPing(t *testing.T) {
 }
 
 // An agent whose work is not finished, because it waits on work it started,
-// answers the nudge with a Note saying so. Its turn ends with no plain Ping,
-// so the human is not asked about a message that asks nothing, and the
-// Session stays working, as Claude Code shows it, until that work reports.
+// answers the nudge with a Note saying so. Its turn ends idle with no plain
+// Ping, so the human is not asked about a message that asks nothing.
 func TestNoteAfterTheNudgeEndsTheTurnWithNoPlainPing(t *testing.T) {
 	c, dir := enginetest.Start(t)
 	run(t, dir, "prompt/woken.json") // the turn the nudge woke
@@ -147,10 +152,38 @@ func TestNoteAfterTheNudgeEndsTheTurnWithNoPlainPing(t *testing.T) {
 	if ps, _ := c.Pings(engine.StateWaiting); len(ps) != 1 || !ps[0].IsNote {
 		t.Fatalf("waiting = %+v; want only the agent's Note", ps)
 	}
+	if s := state(t, c, woken); s != engine.SessionIdle {
+		t.Fatalf("Session is %s, want idle", s)
+	}
+	typeIn(t, dir, woken) // ends the hook's listening
+	if out, wake := wait(); out != "" || wake != "" {
+		t.Fatalf("wrote %q and woke with %q", out, wake)
+	}
+}
+
+// Claude Code shows a Session running while work it started in the
+// background still runs, and lists that work in the Stop hook's
+// background_tasks. Such a turn leaves the Session working, awaiting its own
+// work, whatever the agent sent; the report of that work begins the next
+// turn. A Note alone, with nothing in the background, leaves it idle.
+func TestATurnEndingWithBackgroundWorkLeavesTheSessionWorking(t *testing.T) {
+	c, dir := enginetest.Start(t)
+	run(t, dir, "prompt/woken.json")
+	if _, err := c.CreatePing(engine.NewPing{IsNote: true, Session: woken, Folder: "/tmp",
+		Question: "The research runs in the background; I report when it ends."}); err != nil {
+		t.Fatal(err)
+	}
+	in, err := os.ReadFile(filepath.Join("testdata", "stop/woken.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in = bytes.Replace(in, []byte(`"background_tasks":[]`), []byte(`"background_tasks":[{"id":"ac3563b1b7329362c","type":"local_agent","status":"running","description":"Research macOS cursors","agent_type":"general-purpose"}]`), 1)
+	wait := stopHookOn(t, dir, in)
+	time.Sleep(50 * time.Millisecond)
 	if s, _ := c.Session("claude-code", woken); s.State != engine.SessionWorking || !s.AwaitsOwnWork {
 		t.Fatalf("Session is %s (awaits own work: %v); want working and awaiting", s.State, s.AwaitsOwnWork)
 	}
-	report(t, dir, woken) // the work it waited on reports
+	report(t, dir, woken) // the background work reports
 	if s, _ := c.Session("claude-code", woken); s.State != engine.SessionWorking || s.AwaitsOwnWork {
 		t.Fatalf("after the report the Session is %s (awaits own work: %v); want working, no longer awaiting", s.State, s.AwaitsOwnWork)
 	}

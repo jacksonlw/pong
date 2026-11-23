@@ -82,8 +82,8 @@ func TestATurnThatEndedUnseenLeavesItsSessionIdle(t *testing.T) {
 	}
 }
 
-// A turn that ended on a Note saying the agent waits on work it started,
-// such as a background subagent, leaves its Session working, as its Harness
+// A turn that ended while work the agent started in the background still
+// runs, such as a subagent, leaves its Session working, as its Harness
 // shows it, though the transcript shows the turn ended. It becomes idle only
 // once the transcript has been quiet for the quiet time.
 func TestASessionAwaitingItsOwnWorkStaysWorking(t *testing.T) {

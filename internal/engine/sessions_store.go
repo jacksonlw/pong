@@ -49,10 +49,10 @@ type Session struct {
 	StartedBy   string `json:"started_by"`
 	State       string `json:"state"`
 	// AwaitsOwnWork is true while the Session is working only because its
-	// last turn ended on a Note saying it waits on work it started, such as a
-	// background subagent or command. Its Harness shows it running until that
-	// work reports; the Engine does not take the ended turn as over
-	// (sessions_gone.go). Any later state given clears it.
+	// last turn ended with work it started in the background, such as a
+	// subagent or a command, still running. Its Harness shows it running
+	// until that work reports; the Engine does not take the ended turn as
+	// over (sessions_gone.go). Any later state given clears it.
 	AwaitsOwnWork bool        `json:"awaits_own_work,omitempty"`
 	ContinuedFrom *SessionRef `json:"continued_from,omitempty"`
 	Context       *Context    `json:"context,omitempty"`
