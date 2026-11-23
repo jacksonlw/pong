@@ -81,3 +81,16 @@ public enum SkillCompletion {
         return out
     }
 }
+
+/// The Skills a box offers and draws, and the trigger that calls them.
+public struct SkillOffer: Equatable, Sendable {
+    public var trigger: Character?
+    public var names: [String]
+    public static let none = SkillOffer(trigger: nil, names: [])
+    public init(trigger: Character?, names: [String]) { self.trigger = trigger; self.names = names }
+
+    /// What the harness offers with these names: none for a Harness without a trigger.
+    public init(harness: String?, names: [String]) {
+        self.init(trigger: SkillCompletion.trigger(for: harness), names: SkillCompletion.trigger(for: harness) == nil ? [] : names)
+    }
+}

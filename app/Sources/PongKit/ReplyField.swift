@@ -66,14 +66,6 @@ struct ReplyField: View {
     }
 }
 
-/// The Skills a box offers and draws, and the trigger that calls them.
-public struct SkillOffer: Equatable {
-    public var trigger: Character?
-    public var names: [String]
-    public static let none = SkillOffer(trigger: nil, names: [])
-    public init(trigger: Character?, names: [String]) { self.trigger = trigger; self.names = names }
-}
-
 /// The menu's matches for what is typed and which one ↑ and ↓ have reached.
 struct SkillMenuState: Equatable {
     var query: SkillCompletion.Query
