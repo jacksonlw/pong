@@ -197,6 +197,7 @@ func TestEveryMessageKindRoundTripsThroughSealAndOpen(t *testing.T) {
 		&wire.Stop{RequestID: "q", Harness: "h", SessionID: "s"},
 		&wire.StartResult{RequestID: "q", Reasons: []string{"not enabled"}},
 		&wire.State{State: raw}, &wire.Project{Project: raw}, &wire.CloudGrant{Grant: "g", Expires: 9},
+		&wire.FilePart{File: "abc", Offset: 0, Total: 3, Data: []byte("abc")},
 	}
 	covered := map[string]bool{}
 	for _, msg := range msgs {

@@ -20,8 +20,12 @@ public struct PongFile: Codable, Equatable, Sendable {
     public static func at(_ path: String) -> PongFile? {
         let url = URL(fileURLWithPath: path)
         guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
-        let sum = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        return PongFile(name: url.lastPathComponent, size: Int64(data.count), sha256: sum, path: path)
+        return PongFile(name: url.lastPathComponent, size: Int64(data.count), sha256: sum(data), path: path)
+    }
+
+    /// The SHA-256 of the bytes, in hex, as the Engine checks a File by.
+    public static func sum(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     /// The size of the Files at these paths, together.

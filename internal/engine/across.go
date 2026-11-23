@@ -218,6 +218,7 @@ func newAcross(node *devices.Node, s *pings) *across {
 		fmt.Fprintln(os.Stderr, "pong-engine: Pongs sent from other Devices could not be read back:", err)
 	}
 	node.Handle("ping", a.onPing)
+	node.Handle("file_part", a.onFilePart)
 	node.Handle("snapshot", a.onSnapshot)
 	node.Handle("pong", a.onPong)
 	node.Handle("delivery", a.onDelivery)
@@ -621,7 +622,7 @@ func (a *across) forwardPong(id string, in SendPong) (Ping, error) {
 		return p, errState{"this Ping is already " + p.State + "; only a waiting Ping can change"}
 	}
 	if len(in.Files) > 0 {
-		files, err := inlineFiles(in.Files)
+		files, err := sendable(in.Files, a.partsTo(owner))
 		if err != nil {
 			return p, err
 		}

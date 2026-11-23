@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,4 +41,44 @@ func TestWithFilesPutsPathsAfterTheText(t *testing.T) {
 	if got := withFiles("Fix it", nil); got != "Fix it" {
 		t.Fatalf("%q", got)
 	}
+}
+
+func TestPartsAreKeptInOrderAndCheckedWhole(t *testing.T) {
+	dir := t.TempDir()
+	data := []byte("hello world")
+	h := sha256Hex(data)
+	if err := takePart(dir, h, 6, int64(len(data)), data[6:]); err == nil {
+		t.Fatal("a part out of order was kept")
+	}
+	if err := takePart(dir, h, 0, int64(len(data)), data[:6]); err != nil {
+		t.Fatal(err)
+	}
+	if arrivedNow(dir, h) {
+		t.Fatal("half a File counts as arrived")
+	}
+	if err := takePart(dir, h, 6, int64(len(data)), data[6:]); err != nil || !arrivedNow(dir, h) {
+		t.Fatalf("the whole File did not arrive: %v", err)
+	}
+	bad := sha256Hex([]byte("other"))
+	if err := takePart(dir, bad, 0, int64(len(data)), data); err == nil || arrivedNow(dir, bad) {
+		t.Fatal("a damaged File was kept")
+	}
+	for _, c := range []struct {
+		sum           string
+		offset, total int64
+	}{{"nothex", 0, 3}, {h, 0, MaxFilesBytes + 1}, {h, -1, 3}, {h, 2, 3}} {
+		if takePart(dir, c.sum, c.offset, c.total, []byte("ab")) == nil {
+			t.Errorf("%+v was kept", c)
+		}
+	}
+}
+
+func sha256Hex(b []byte) string {
+	s := sha256.Sum256(b)
+	return hex.EncodeToString(s[:])
+}
+
+func arrivedNow(dir, sum string) bool {
+	_, err := os.Stat(filepath.Join(dir, FilesDir, incomingDir, sum))
+	return err == nil
 }

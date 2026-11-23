@@ -437,7 +437,11 @@ func (c *computers) startPlaced(in StartSession) (json.RawMessage, error) {
 		go c.report("")
 		return json.Marshal(sess)
 	}
-	return c.startOn(target, remoteStart{Harness: in.Harness, ProjectKey: key, Prompt: in.Prompt, Files: in.Files})
+	files, err := sendable(in.Files, c.a.partsTo(target))
+	if err != nil {
+		return nil, err
+	}
+	return c.startOn(target, remoteStart{Harness: in.Harness, ProjectKey: key, Prompt: in.Prompt, Files: files})
 }
 
 // remoteSkills gives the Skill names another computer reported for a Harness

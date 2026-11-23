@@ -78,6 +78,20 @@ func placeFiles(dataDir, folder string, files []PongFile) ([]string, error) {
 				}
 			}
 			out = append(out, f.Path)
+		case f.Path == "" && len(f.Data) == 0 && f.SHA256 != "":
+			// Sent ahead in parts from another Device (onFilePart).
+			in := arrived(dataDir, f.SHA256)
+			if in == "" {
+				return nil, errState{"the File " + f.Name + " did not reach the Session's computer, so nothing was sent"}
+			}
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				return nil, err
+			}
+			p := freePath(dir, f.Name)
+			if err := os.Rename(in, p); err != nil {
+				return nil, err
+			}
+			out = append(out, p)
 		case len(f.Data) > 0:
 			sum := sha256.Sum256(f.Data)
 			if f.SHA256 != "" && hex.EncodeToString(sum[:]) != f.SHA256 {
@@ -207,32 +221,110 @@ func newestWithin(dir string, cutoff time.Time) bool {
 	return recent
 }
 
-// maxFilesAcross is the most Files that go with a Pong, follow-up or first
-// prompt to a Session on another computer: they travel inside the message,
-// which the set carries whole.
-const maxFilesAcross = 128 << 10
+// incomingDir holds Files arriving in parts from other Devices, by SHA-256,
+// until the Pong, start or follow-up naming them takes them.
+const incomingDir = "incoming"
 
-// inlineFiles reads each File given by path on this computer, so its bytes
-// go with a message to another computer.
-func inlineFiles(files []PongFile) ([]PongFile, error) {
+// arrivalWait is how long a Pong waits for a File whose parts it overtook.
+var arrivalWait = 5 * time.Second
+
+// arrived gives the path of a File that has arrived whole, waiting a little
+// for the rest of one whose parts are still arriving; "" when it has not.
+func arrived(dataDir, sum string) string {
+	if !validSum(sum) {
+		return ""
+	}
+	p := filepath.Join(dataDir, FilesDir, incomingDir, sum)
+	for end := time.Now().Add(arrivalWait); ; time.Sleep(100 * time.Millisecond) {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+		// Waits only for a File whose parts have begun to arrive.
+		if _, err := os.Stat(p + ".part"); err != nil || time.Now().After(end) {
+			return ""
+		}
+	}
+}
+
+func validSum(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(s)
+	return err == nil
+}
+
+// takePart writes one part of a File arriving from another Device. Parts
+// come in order; a part at offset 0 starts the File again. Once all of it is
+// in and its SHA-256 matches, it is kept under its sum for placeFiles.
+func takePart(dataDir, sum string, offset, total int64, data []byte) error {
+	if !validSum(sum) || total <= 0 || total > MaxFilesBytes || offset < 0 || offset+int64(len(data)) > total {
+		return errState{"a File part out of bounds"}
+	}
+	dir := filepath.Join(dataDir, FilesDir, incomingDir)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	whole := filepath.Join(dir, sum)
+	if _, err := os.Stat(whole); err == nil {
+		return nil // already here, from an earlier send
+	}
+	part := whole + ".part"
+	flags := os.O_WRONLY | os.O_CREATE
+	if offset == 0 {
+		flags |= os.O_TRUNC
+	}
+	f, err := os.OpenFile(part, flags, 0o600)
+	if err != nil {
+		return err
+	}
+	fi, _ := f.Stat()
+	if fi != nil && fi.Size() != offset {
+		f.Close()
+		return errState{"a File part out of order"}
+	}
+	_, err = f.WriteAt(data, offset)
+	f.Close()
+	if err != nil || offset+int64(len(data)) < total {
+		return err
+	}
+	if got, err := fileSum(part); err != nil || got != sum {
+		os.Remove(part)
+		return errState{"a File arrived damaged"}
+	}
+	return os.Rename(part, whole)
+}
+
+// sendable reads each File given by path on this computer and gives it as it
+// goes to another computer: by name, size and sum, its bytes sent ahead in
+// parts by send.
+func sendable(files []PongFile, send func(sum string, offset, total int64, data []byte) error) ([]PongFile, error) {
 	if err := checkFiles(files); err != nil {
 		return nil, err
 	}
 	out := make([]PongFile, len(files))
-	var total int
 	for i, f := range files {
-		if len(f.Data) == 0 && f.Path != "" {
+		data := f.Data
+		if len(data) == 0 && f.Path != "" {
 			b, err := os.ReadFile(f.Path)
 			if err != nil {
 				return nil, errState{"the File " + f.Name + " cannot be read, so nothing was sent"}
 			}
-			f.Data, f.Path = b, ""
+			data = b
 		}
-		total += len(f.Data)
-		out[i] = f
-	}
-	if total > maxFilesAcross {
-		return nil, errState{fmt.Sprintf("Files of more than %d kilobytes in all reach only a Session on this computer, so nothing was sent", maxFilesAcross>>10)}
+		if len(data) == 0 {
+			out[i] = f // sent ahead already, by its sum
+			continue
+		}
+		h := sha256.Sum256(data)
+		sum := hex.EncodeToString(h[:])
+		for off := 0; off < len(data); off += partSize {
+			end := min(off+partSize, len(data))
+			if err := send(sum, int64(off), int64(len(data)), data[off:end]); err != nil {
+				return nil, err
+			}
+		}
+		out[i] = PongFile{Name: f.Name, Size: int64(len(data)), SHA256: sum}
 	}
 	return out, nil
 }

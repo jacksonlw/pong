@@ -21,7 +21,9 @@ func (c *computers) onFollowUp(from string, m wire.Message) {
 		var in FollowUp
 		if json.Unmarshal(req.FollowUp, &in) != nil || strings.TrimSpace(in.Prompt) == "" {
 			reply.Reasons = []string{"prompt is required: say what the Session should do next"}
-		} else if sess, err := c.st.followUp(SessionRef{req.Harness, req.SessionID}, in.Prompt); errors.Is(err, errNotFound) {
+		} else if prompt, err := c.st.promptWithFiles(in.Prompt, req.SessionID, in.Files); err != nil {
+			reply.Reasons = []string{err.Error()}
+		} else if sess, err := c.st.followUp(SessionRef{req.Harness, req.SessionID}, prompt); errors.Is(err, errNotFound) {
 			reply.Reasons = []string{"no such Session on this computer"}
 		} else if err != nil {
 			reply.Reasons = []string{err.Error()}

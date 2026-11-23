@@ -16,6 +16,9 @@ public final class CardState {
 
     public func draft(for ping: Ping) -> String { drafts.text(.ping(ping.id)) }
     public func setDraft(_ text: String, for ping: Ping) { drafts.set(text, .ping(ping.id)) }
+    /// The Files added to the reply, by path.
+    public func files(for ping: Ping) -> [String] { drafts.files(.ping(ping.id)) }
+    public func setFiles(_ paths: [String], for ping: Ping) { drafts.setFiles(paths, .ping(ping.id)) }
 
     public func isTicked(_ label: String, on ping: Ping) -> Bool { ticked[ping.id]?.contains(label) == true }
 
@@ -32,8 +35,10 @@ public final class CardState {
         let text = draft(for: ping).trimmingCharacters(in: .whitespacesAndNewlines)
         let order = (ping.answers ?? []).map(\.label)
         let answers = order.filter { isTicked($0, on: ping) }
-        guard !text.isEmpty || !answers.isEmpty else { return nil }
-        return Ping.Pong(answers: answers.isEmpty ? nil : answers, text: text.isEmpty ? nil : text, newSession: newSession)
+        let files = files(for: ping).compactMap(PongFile.at)
+        guard !text.isEmpty || !answers.isEmpty || !files.isEmpty else { return nil }
+        return Ping.Pong(answers: answers.isEmpty ? nil : answers, text: text.isEmpty ? nil : text, newSession: newSession,
+                         files: files.isEmpty ? nil : files)
     }
 
     /// The human sent this Pong; the card's ticks are cleared. Its text stays until the Pong is

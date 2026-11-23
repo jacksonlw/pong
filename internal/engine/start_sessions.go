@@ -355,14 +355,6 @@ func (s *starter) routes(mux *http.ServeMux) {
 			return
 		}
 		if s.comp != nil && in.Project != "" && in.Folder == "" && (in.Computer != "" || s.comp.a.node.Computers() > 1) {
-			if len(in.Files) > 0 {
-				files, err := inlineFiles(in.Files)
-				if err != nil {
-					writeStart(w, nil, err)
-					return
-				}
-				in.Files = files
-			}
 			raw, err := s.comp.startPlaced(in)
 			if p, ok := asNoComputer(err); ok {
 				writeJSON(w, http.StatusConflict, map[string]any{"error": err.Error(), "computers": p.Candidates})

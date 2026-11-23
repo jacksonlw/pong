@@ -106,6 +106,17 @@ type Delivery struct {
 	Reason string          `json:"reason,omitempty"` // why it was not applied, in words a human reads
 }
 
+// FilePart is one part of a File the human sends to a Session on another
+// computer, at most MaxResourcePart bytes, sent before the Pong, start or
+// follow-up that names it. File is the whole File's SHA-256, in hex, which
+// the receiver checks once every part is in.
+type FilePart struct {
+	File   string `json:"file"`
+	Offset int64  `json:"offset"`
+	Total  int64  `json:"total"`
+	Data   []byte `json:"data"`
+}
+
 // ResourceGet asks for a Resource's bytes from Offset.
 type ResourceGet struct {
 	PingID     string `json:"ping_id"`
@@ -201,6 +212,7 @@ func (Dismiss) Kind() string      { return "dismiss" }
 func (Delivery) Kind() string     { return "delivery" }
 func (ResourceGet) Kind() string  { return "resource_get" }
 func (Resource) Kind() string     { return "resource" }
+func (FilePart) Kind() string     { return "file_part" }
 func (ThreadGet) Kind() string    { return "thread_get" }
 func (Thread) Kind() string       { return "thread" }
 func (Start) Kind() string        { return "start" }
@@ -226,7 +238,7 @@ func init() {
 		func() Message { return &FollowUp{} }, func() Message { return &Stop{} },
 		func() Message { return &StartResult{} }, func() Message { return &State{} },
 		func() Message { return &Project{} }, func() Message { return &CloudGrant{} },
-		func() Message { return &Session{} },
+		func() Message { return &Session{} }, func() Message { return &FilePart{} },
 	} {
 		kinds[f().Kind()] = f
 	}
@@ -248,6 +260,10 @@ func Encode(m Message) ([]byte, error) {
 	case *Resource:
 		data = r.Data
 	case Resource:
+		data = r.Data
+	case *FilePart:
+		data = r.Data
+	case FilePart:
 		data = r.Data
 	}
 	if len(data) > MaxResourcePart {

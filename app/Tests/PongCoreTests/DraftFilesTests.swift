@@ -39,4 +39,19 @@ final class DraftFilesTests: XCTestCase {
         XCTAssertNil(PongFile.problem(with: []))
         XCTAssertNotNil(PongFile.sending(["/nowhere/x"]).problem)
     }
+
+    func testACardsPongCarriesTheFilesOfItsDraftEvenWithNoText() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("card-files-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let path = try PongFile.keep(Data("shot".utf8), ext: "png")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let ping = Ping(id: "p1", session: "s", question: "What do you see?", state: "waiting")
+        let card = CardState(drafts: Drafts(file: file))
+        XCTAssertNil(card.pong(for: ping), "nothing to send yet")
+        card.setFiles([path], for: ping)
+        let pong = try XCTUnwrap(card.pong(for: ping))
+        XCTAssertNil(pong.text)
+        XCTAssertEqual(pong.files?.map(\.path), [path])
+        XCTAssertEqual(CardState(drafts: Drafts(file: file)).files(for: ping), [path], "kept on disk with the draft")
+    }
 }

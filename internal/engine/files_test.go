@@ -94,3 +94,32 @@ func TestAStartsFilesFollowItsPrompt(t *testing.T) {
 		t.Fatalf("prompts %q", prompts)
 	}
 }
+
+func TestAFileGoesInPartsToASessionOnAnotherComputer(t *testing.T) {
+	desk, laptop, _ := threeComputers(t)
+	p := newPing(t, desk.C)
+	shows(t, laptop, "the desktop's Ping", func(p engine.Ping) bool { return p.State == engine.StateWaiting }, p.ID)
+
+	big := make([]byte, 400<<10) // three parts
+	for i := range big {
+		big[i] = byte(i * 7)
+	}
+	path := filepath.Join(t.TempDir(), "trace.log")
+	os.WriteFile(path, big, 0o644)
+	waited := make(chan engine.Ping, 1)
+	go func() { w, _ := desk.C.Wait(p.ID); waited <- w }()
+	if _, err := laptop.C.Pong(p.ID, client.SendPong{Text: "the trace", Files: []engine.PongFile{{Name: "trace.log", Path: path}}}); err != nil {
+		t.Fatal(err)
+	}
+	w := <-waited
+	if w.Pong == nil {
+		t.Fatalf("no Pong on the desktop: %+v", w)
+	}
+	paths := filesIn(t, w.Pong.Text)
+	if len(paths) != 1 || filepath.Base(paths[0]) != "trace.log" || strings.Contains(paths[0], "incoming") {
+		t.Fatalf("placed at %q", paths)
+	}
+	if got, err := os.ReadFile(paths[0]); err != nil || sum(got) != sum(big) {
+		t.Fatalf("the desktop's copy differs: %d bytes, %v", len(got), err)
+	}
+}
