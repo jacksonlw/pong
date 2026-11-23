@@ -58,20 +58,26 @@ final class ContextWindowController {
             return
         }
         guard let card = NSApp.windows.first(where: { $0 is CardPanel && $0.isVisible }),
-              let content = ContextPanel(topic: target.topic, card: ctx.directory.card(for: target.ping)) else {
+              var content = ContextPanel(topic: target.topic, card: ctx.directory.card(for: target.ping)) else {
             hide()
             return
+        }
+        // The shown host takes the size it is given, so it reports none (0 by 0, an invisible
+        // window): the content is measured apart, by a host that sizes itself.
+        var fit = NSHostingView(rootView: content.environment(\.cardContext, ctx)).fittingSize
+        let z = Zoom.shared.scale
+        let screen = card.screen?.visibleFrame ?? card.frame
+        // Past the tallest it may be, or the screen's height, the context scrolls.
+        let tallest = min(ContextPanel.tallest, (screen.height / z).rounded(.down))
+        if fit.height > tallest {
+            content.maxHeight = tallest
+            fit.height = tallest
         }
         let hover = ctx.hover
         host.content = AnyView(content
             .background(HoverTracker(onChange: { hover.overPanel = $0 }))
             .environment(\.cardContext, ctx))
-        // The shown host takes the size it is given, so it reports none (0 by 0, an invisible
-        // window): the content is measured apart, by a host that sizes itself.
-        let fit = NSHostingView(rootView: content.environment(\.cardContext, ctx)).fittingSize
-        let z = Zoom.shared.scale
         let size = CGSize(width: (fit.width * z).rounded(), height: (fit.height * z).rounded())
-        let screen = card.screen?.visibleFrame ?? card.frame
         var x = card.frame.minX - size.width - Self.gap
         if x < screen.minX { x = card.frame.maxX + Self.gap } // card at the left edge: show it on the right
         // Starts level with what the pointer rests on, so the eye moves straight across.

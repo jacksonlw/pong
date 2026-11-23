@@ -84,6 +84,16 @@ final class ContextTests: XCTestCase {
             .environment(\.cardContext, ctx), named: name)
     }
 
+    func testTallContextScrollsAtItsTallest() throws {
+        var panel = try XCTUnwrap(ContextPanel(topic: .question, card: try card("s-migrate").1))
+        let natural = NSHostingView(rootView: panel).fittingSize
+        XCTAssertGreaterThan(natural.height, 60)
+        panel.maxHeight = 60
+        let capped = NSHostingView(rootView: panel).fittingSize
+        XCTAssertEqual(capped.height, 60, "taller content scrolls inside the cap")
+        XCTAssertEqual(capped.width, ContextPanel.width)
+    }
+
     func assertPanel(_ session: String, _ topic: ContextHover.Topic, named name: String) throws {
         let panel = try XCTUnwrap(ContextPanel(topic: topic, card: try card(session).1))
         try assertSnapshot(panel.padding(8), named: name)

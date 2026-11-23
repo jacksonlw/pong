@@ -5,8 +5,12 @@ import SwiftUI
 /// why the agent asks and what each answer leads to; one answer's meaning; or the ring's figures.
 public struct ContextPanel: View {
     var sections: [Section]
+    /// The tallest the context may be; taller content scrolls inside it. Nil takes the content's height.
+    public var maxHeight: CGFloat?
 
     public static let width: CGFloat = 350
+    /// The tallest the context grows beside the card before its content scrolls.
+    public static let tallest: CGFloat = 480
 
     typealias Section = ContextSection
 
@@ -22,13 +26,23 @@ public struct ContextPanel: View {
     static func tokens(_ n: Int) -> String { ContextFigures.tokens(n) }
 
     public var body: some View {
+        if let maxHeight {
+            ScrollView(.vertical) { list }
+                .scrollIndicators(.automatic)
+                .frame(width: Self.width, height: maxHeight)
+                .background(Brand.surface, in: Rectangle())
+        } else {
+            list.background(Brand.surface, in: Rectangle())
+        }
+    }
+
+    private var list: some View {
         ContextSectionList(sections: sections)
             .padding(.horizontal, 14)
             .padding(.top, 2)
             .padding(.bottom, 14)
             .frame(width: Self.width, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
-            .background(Brand.surface, in: Rectangle())
     }
 }
 
