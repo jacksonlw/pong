@@ -37,7 +37,9 @@ type Turn struct {
 // from its last message. A question the human answered before the turn ended
 // is among them while its Pong is still on its way: waiting on it delivers
 // the Pong at once. The Session is now idle, unless every Pong in waits is
-// already sent: then it wakes at once and was never done. waits is empty when
+// already sent and one of them continues it: then it wakes at once and was
+// never done. A Pong that wakes nothing, such as "Nothing more", leaves it
+// idle. waits is empty when
 // the agent's Pings in the turn are all answered and delivered already.
 //
 // A Pong still on its way to a Ping from before the turn began is among
@@ -62,13 +64,14 @@ func End(c *client.Client, t Turn) (nudge bool, waits []engine.Ping, err error) 
 		return false, []engine.Ping{p}, nil
 	}
 	var finished *engine.Ping
-	asking := false
+	asking, waking := false, false
 	for i := range sent {
 		p := sent[i]
 		if p.State != engine.StateWaiting && !onItsWay(p) {
 			continue
 		}
 		asking = asking || p.State == engine.StateWaiting
+		waking = waking || (onItsWay(p) && continues(p.Pong))
 		if p.BlocksAgent {
 			waits = append(waits, p)
 		} else {
@@ -78,7 +81,7 @@ func End(c *client.Client, t Turn) (nudge bool, waits []engine.Ping, err error) 
 	if finished != nil {
 		waits = append(waits, *finished)
 	}
-	if asking || len(waits) == 0 {
+	if asking || !waking {
 		if err := idle(c, t); err != nil {
 			return false, nil, err
 		}
@@ -154,13 +157,17 @@ func turnsPings(c *client.Client, t Turn) (out []engine.Ping, noted bool, err er
 // engine.NothingMore with no text, or when the Pong asks for a new Session.
 func Wait(c *client.Client, id string) (continueWith *engine.Pong, err error) {
 	p, err := c.Wait(id)
-	if err != nil || p.Pong == nil || p.Pong.NewSession {
+	if err != nil || !continues(p.Pong) {
 		return nil, err
 	}
-	if p.Pong.Answer == engine.NothingMore && strings.TrimSpace(p.Pong.Text) == "" {
-		return nil, nil
-	}
 	return p.Pong, nil
+}
+
+// continues reports whether pong wakes the Session: not when the human chose
+// engine.NothingMore with no text, or asked for a new Session.
+func continues(pong *engine.Pong) bool {
+	return pong != nil && !pong.NewSession &&
+		!(pong.Answer == engine.NothingMore && strings.TrimSpace(pong.Text) == "")
 }
 
 // Answered is a Pong that continues the Session, beside its Ping.

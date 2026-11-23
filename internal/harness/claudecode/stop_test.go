@@ -327,6 +327,25 @@ func TestPongSentBeforeTheTurnEndsWakesTheSession(t *testing.T) {
 	}
 }
 
+// The human may answer the finished Ping with "Nothing more" before the turn
+// ends. Nothing wakes the Session then, so it is idle as the turn ends, not
+// left running until the Engine sees its transcript fall quiet.
+func TestNothingMoreSentBeforeTheTurnEndsLeavesTheSessionIdle(t *testing.T) {
+	c, dir := enginetest.Start(t)
+	run(t, dir, "prompt/typed.json")
+	mine := agentPing(t, c, recordedSession)
+	pong(t, c, mine.ID, engine.SendPong{Answer: engine.NothingMore})
+	wait := stopHook(t, dir, "stop/first.json")
+	time.Sleep(50 * time.Millisecond)
+	if s := state(t, c, recordedSession); s != engine.SessionIdle {
+		t.Fatalf("Session is %s, want idle", s)
+	}
+	typeIn(t, dir, recordedSession) // ends the hook's listening
+	if out, wake := wait(); out != "" || wake != "" {
+		t.Fatalf("wrote %q and woke with %q", out, wake)
+	}
+}
+
 // report plays a background subagent's report reaching session: the
 // recorded framed prompt, with its Session changed.
 func report(t *testing.T, dir, session string) {
