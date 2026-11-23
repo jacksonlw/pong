@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/jacksonlw/pong/internal/client"
@@ -26,8 +27,12 @@ func init() {
 	on("PostToolUseFailure", settleCall)
 }
 
+// safeName matches an id that can name a file: Claude Code's session and
+// tool call ids, and nothing that could leave the held folder.
+var safeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
+
 func heldDir(e Event) string {
-	if e.Dir == "" || e.SessionID == "" || strings.ContainsAny(e.SessionID, `/\`) {
+	if e.Dir == "" || !safeName.MatchString(e.SessionID) {
 		return ""
 	}
 	return filepath.Join(e.Dir, "held", e.SessionID)
@@ -37,7 +42,7 @@ func heldDir(e Event) string {
 // event has one, and its tool and input.
 func callKeys(e Event) []string {
 	var keys []string
-	if e.ToolUseID != "" && !strings.ContainsAny(e.ToolUseID, `/\`) {
+	if safeName.MatchString(e.ToolUseID) {
 		keys = append(keys, "id-"+e.ToolUseID)
 	}
 	if e.ToolName != "" {
@@ -102,6 +107,10 @@ func settle(c *client.Client, path string) {
 	}
 	os.Remove(path)
 	for _, id := range strings.Fields(string(b)) {
-		c.AnsweredInHarness(id) // a Ping already answered is left as it is
+		if _, err := c.AnsweredInHarness(id); err != nil {
+			// Answered in Pong already: the terminal's answer came first to
+			// the Session, so that Pong must not wake it again.
+			c.AnsweredFirst(id)
+		}
 	}
 }

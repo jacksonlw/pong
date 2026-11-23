@@ -106,7 +106,13 @@ func TestMCPListsItsTools(t *testing.T) {
 		}
 		var names []string
 		for _, tool := range conn(t, "tools/list", nil)["tools"].([]any) {
-			names = append(names, tool.(map[string]any)["name"].(string))
+			m := tool.(map[string]any)
+			names = append(names, m["name"].(string))
+			// Only send_thought, used most, is loaded upfront in Claude Code.
+			meta, _ := m["_meta"].(map[string]any)
+			if upfront := meta["anthropic/alwaysLoad"] == true; upfront != (m["name"] == "send_thought") {
+				t.Errorf("%s loaded upfront: %v", m["name"], upfront)
+			}
 		}
 		if strings.Join(names, ",") != "send_ping,wait_for_pong,send_note,send_thought,withdraw_ping" {
 			t.Fatalf("tools = %v", names)

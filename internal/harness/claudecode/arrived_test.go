@@ -84,3 +84,32 @@ func TestNothingMoreIsDeliveredAsItIsTaken(t *testing.T) {
 		t.Fatalf("Nothing more is %q; want delivered", d)
 	}
 }
+
+// A Pong's time to arrive starts when its hook wakes the Session, not when it
+// was taken: a hook waiting on a later Pong first does not send it back.
+func TestAPongWaitingBesideAnotherIsNotSentBack(t *testing.T) {
+	c, dir := enginetest.StartWithDir(t, engine.Config{DeliveryGrace: 200 * time.Millisecond})
+	run(t, dir, "prompt/woken.json")
+	q, err := c.CreatePing(engine.NewPing{Session: woken, Harness: "claude-code", Folder: "/tmp", Question: "Which one?", BlocksAgent: true, Answers: []engine.Answer{{Label: "This"}, {Label: "That"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := c.CreatePing(engine.NewPing{Finished: true, Session: woken, Harness: "claude-code", Folder: "/tmp", Question: "Done the first part."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wait := stopHook(t, dir, "stop/woken.json")
+	pong(t, c, q.ID, engine.SendPong{Answer: "This"})
+	time.Sleep(600 * time.Millisecond) // well past the grace, while the hook waits on the other
+	if d := deliveryOf(t, c, q.ID); d != engine.DeliveryDelivering {
+		t.Fatalf("while its hook waits on another Pong, the first is %q", d)
+	}
+	pong(t, c, f.ID, engine.SendPong{Text: "go on"})
+	_, wake := wait()
+	callBytes(t, dir, wokenWith(t, wake))
+	for _, id := range []string{q.ID, f.ID} {
+		if d := deliveryOf(t, c, id); d != engine.DeliveryDelivered {
+			t.Fatalf("Pong %s is %q after the woken turn", id, d)
+		}
+	}
+}

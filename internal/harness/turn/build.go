@@ -43,6 +43,10 @@ func Build(message string, f Facts) engine.NewPing {
 	for i, b := range blocks {
 		switch b.kind {
 		case blockCode:
+			if strings.TrimSpace(b.text) == "" {
+				used[i] = true
+				continue
+			}
 			title := titleFrom(intro(blocks, i), "Code")
 			kind := engine.KindText
 			if looksLikeOutput(intro(blocks, i)) {
@@ -85,6 +89,11 @@ func Build(message string, f Facts) engine.NewPing {
 		n.Finished = true
 		n.Question = firstSentence(message)
 	}
+	// A sentence that introduces a list ends in a colon; as a question it
+	// ends as a sentence does, and the list stays in the context.
+	if q := strings.TrimSpace(n.Question); strings.HasSuffix(q, ":") {
+		n.Question = strings.TrimSuffix(q, ":") + "."
+	}
 
 	// The context is the prose and lists left over; a Finished Ping's first
 	// sentence is already its question.
@@ -93,8 +102,13 @@ func Build(message string, f Facts) engine.NewPing {
 			continue
 		}
 		t := strings.TrimSpace(b.text)
-		if n.Finished && strings.HasPrefix(t, n.Question) {
-			t = strings.TrimSpace(t[len(n.Question):])
+		if n.Finished {
+			for _, q := range []string{n.Question, strings.TrimSuffix(n.Question, ".") + ":"} {
+				if strings.HasPrefix(t, q) {
+					t = strings.TrimSpace(t[len(q):])
+					break
+				}
+			}
 		}
 		if t != "" {
 			context = append(context, t)
@@ -118,13 +132,47 @@ func Build(message string, f Facts) engine.NewPing {
 		n.Resources = append(n.Resources, engine.NewResource{Title: "Test output", Kind: engine.KindOutput, Content: out})
 	}
 	for _, d := range f.Documents {
-		n.Resources = append(n.Resources, engine.NewResource{Title: titleFrom(strings.TrimSuffix(filepath.Base(d), filepath.Ext(d)), "Document"), Kind: engine.KindDocument, File: d})
+		name := strings.NewReplacer("-", " ", "_", " ").Replace(strings.TrimSuffix(filepath.Base(d), filepath.Ext(d)))
+		n.Resources = append(n.Resources, engine.NewResource{Title: titleFrom(name, "Document"), Kind: engine.KindDocument, File: d})
 	}
 
 	if strings.TrimSpace(n.Question) == "" {
 		n.Question = "The agent finished its turn without a message."
 	}
+	for i := range n.Resources {
+		n.Resources[i].Title = fitTitle(n.Resources[i].Title, n.Resources[i].Kind)
+	}
 	return n
+}
+
+// kindNoun is the word a short title is filled out with, so a Resource's
+// title is never a single word, which the Engine refuses.
+var kindNoun = map[string]string{
+	engine.KindText: "code", engine.KindOutput: "output", engine.KindSheet: "table",
+	engine.KindLink: "link", engine.KindDocument: "document",
+}
+
+// fitTitle makes title two to four words, as the Engine takes a Resource's.
+func fitTitle(title, kind string) string {
+	ws := strings.Fields(title)
+	if len(ws) > 4 {
+		ws = ws[:4]
+	}
+	noun := kindNoun[kind]
+	if noun == "" {
+		noun = "file"
+	}
+	switch len(ws) {
+	case 0:
+		ws = []string{strings.ToUpper(noun[:1]) + noun[1:], "attached"}
+	case 1:
+		if strings.EqualFold(ws[0], noun) {
+			ws = append([]string{"The"}, ws...)
+		} else {
+			ws = append(ws, noun)
+		}
+	}
+	return strings.Join(ws, " ")
 }
 
 type blockKind int
@@ -291,9 +339,10 @@ func tableCSV(rows []string) string {
 
 var offerRE = regexp.MustCompile(`(?i)\b(want me to|should i|shall i|do you want|would you like|would you prefer|if you'd like|if you’d like|if you want me to|which (?:one|would)|ok to|okay to)\b`)
 
-// asks reports whether a paragraph asks the human something.
+// asks reports whether a paragraph asks the human something. A question mark
+// inside code or a link asks nothing.
 func asks(s string) bool {
-	s = strings.TrimSpace(stripCode(s))
+	s = strings.TrimSpace(linkRE.ReplaceAllString(stripCode(s), ""))
 	return strings.Contains(s, "?") || offerRE.MatchString(s)
 }
 

@@ -455,8 +455,9 @@ func writeStart(w http.ResponseWriter, v any, err error) {
 // A caller that hands the Pong to a wake (toWake) has not delivered it yet:
 // the Harness may drop the wake, as Claude Code did once for a Session moving
 // into its app. Such a Pong is delivering until the woken turn shows it
-// (arrived), and comes back to the human if that does not happen within
-// s.grace. A Pong that wakes nothing is delivered as it is taken.
+// (arrived). Its time to arrive starts when the hook wakes the Session
+// (woke), not now: a hook may wait on more Pongs first. A Pong that wakes
+// nothing is delivered as it is taken.
 func (s *pings) wait(id string, hold time.Duration, done <-chan struct{}, holds, toWake bool) (Ping, error) {
 	p, err := s.waitOnce(id, hold, done, holds)
 	if err == nil && p.Pong != nil && p.Pong.Delivery == DeliverySent {
@@ -466,9 +467,6 @@ func (s *pings) wait(id string, hold time.Duration, done <-chan struct{}, holds,
 		}
 		if q, ok, derr := s.deliver(p.ID, []string{DeliverySent}, to, ""); derr == nil && ok {
 			p = q
-			if to == DeliveryDelivering {
-				s.watchArrival(p.ID)
-			}
 		}
 	}
 	return p, err
@@ -493,9 +491,29 @@ func (s *pings) watchArrival(id string) {
 	})
 }
 
-// arrived marks a Pong handed to a wake delivered: the woken turn showed it.
+// answeredFirst sets aside a Pong still on its way to a prompt the Harness
+// has since settled itself, as when the human answered a mirrored question
+// in Pong and then in the terminal: the Session has its answer, so the Pong
+// wakes nothing.
+func (s *pings) answeredFirst(id string) (Ping, error) {
+	p, _, err := s.deliver(id, []string{DeliverySent}, DeliveryLeft, "")
+	return p, err
+}
+
+// woke starts the time a Pong handed to a wake has to arrive: its hook is
+// waking the Session with it now.
+func (s *pings) woke(id string) (Ping, error) {
+	p, err := s.get(id)
+	if err == nil && p.Pong != nil && p.Pong.Delivery == DeliveryDelivering {
+		s.watchArrival(id)
+	}
+	return p, err
+}
+
+// arrived marks a Pong delivered once a woken turn shows it, even one the
+// Engine had already given back to the human as never taken.
 func (s *pings) arrived(id string) (Ping, error) {
-	p, _, err := s.deliver(id, []string{DeliveryDelivering}, DeliveryDelivered, "")
+	p, _, err := s.deliver(id, []string{DeliveryDelivering, DeliveryUndelivered, DeliveryUnconfirmed}, DeliveryDelivered, "")
 	return p, err
 }
 

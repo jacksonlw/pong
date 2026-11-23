@@ -59,6 +59,14 @@ func (c *Client) waitOnce(id string, held, toWake bool) (engine.Ping, error) {
 	return out, c.do(&hc, "GET", path, nil, &out)
 }
 
+// AnsweredFirst sets aside a Pong still on its way to a prompt the Harness
+// settled itself first.
+func (c *Client) AnsweredFirst(id string) (engine.Ping, error) { return c.end(id, "answered-first") }
+
+// Woke tells the Engine the hook is waking the Session with the Pong now, so
+// its time to arrive starts.
+func (c *Client) Woke(id string) (engine.Ping, error) { return c.end(id, "woke") }
+
 // Arrived tells the Engine a Pong handed to a wake reached the woken turn.
 func (c *Client) Arrived(id string) (engine.Ping, error) { return c.end(id, "arrived") }
 

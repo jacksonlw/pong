@@ -46,7 +46,9 @@ func stop(c *client.Client, e Event) (any, error) {
 	if sess, err := c.Session(HarnessName, e.SessionID); err == nil && sess.Stop != nil && sess.Stop.State == engine.StopStopped {
 		return listenIdle(c, e)
 	}
-	settleTurn(c, e)    // held.go: no prompt of the turn waits any more
+	if len(s.BackgroundTasks) == 0 {
+		settleTurn(c, e) // held.go: no prompt of the turn waits any more
+	}
 	markTurnEnded(c, e) // move.go: with no nudge, every Stop ends its turn
 	waits, err := turn.End(c, turn.Turn{Harness: HarnessName, Session: e.SessionID, Folder: e.Cwd,
 		LastMessage: s.LastAssistantMessage, Facts: turnFacts(e.TranscriptPath), Background: len(s.BackgroundTasks) > 0})
@@ -59,6 +61,7 @@ func stop(c *client.Client, e Event) (any, error) {
 			return nil, err
 		}
 		if len(as) > 0 {
+			turn.Woke(c, as)
 			return wakeWith(c, e, turn.WakeText(as, answerText))
 		}
 	}

@@ -100,7 +100,7 @@ func TestTheTurnsTestOutputAndDocumentsAreAttached(t *testing.T) {
 	for _, r := range n.Resources {
 		kinds = append(kinds, r.Kind+":"+r.Title)
 	}
-	if strings.Join(kinds, ",") != "output:Test output,document:Release-notes" {
+	if strings.Join(kinds, ",") != "output:Test output,document:Release notes" {
 		t.Errorf("resources = %v", kinds)
 	}
 }
@@ -108,5 +108,40 @@ func TestTheTurnsTestOutputAndDocumentsAreAttached(t *testing.T) {
 func TestAnEmptyMessageStillSaysSomething(t *testing.T) {
 	if n := Build("  \n", Facts{}); n.Question == "" || !n.Finished {
 		t.Errorf("ping = %#v", n)
+	}
+}
+
+func TestASentenceIntroducingAListEndsAsASentence(t *testing.T) {
+	n := Build("I renamed `add` to `add_todo` in both places it's used:\n\n- `todo.py:20`, the definition\n- `todo.py:40`, in `main`\n\nThe tests pass.", Facts{})
+	if !n.Finished || n.Question != "I renamed `add` to `add_todo` in both places it's used." {
+		t.Fatalf("question = %q", n.Question)
+	}
+	if !strings.HasPrefix(n.Context, "- `todo.py:20`, the definition") || strings.Contains(n.Context, "both places it's used") {
+		t.Fatalf("context = %q", n.Context)
+	}
+}
+
+// Every Resource title is two to four words, as the Engine requires, however
+// short the line that introduced it.
+func TestResourceTitlesAreTwoToFourWords(t *testing.T) {
+	msg := "Done.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nSee https://github.com and https://code.claude.com/docs/en/a/very/long/path/name/here for more.\n\n```\n```\n\n```\nx := 1\n```"
+	n := Build(msg, Facts{Documents: []string{"/p/README.md"}})
+	for _, r := range n.Resources {
+		if w := len(strings.Fields(r.Title)); w < 2 || w > 4 {
+			t.Errorf("%s title %q has %d words", r.Kind, r.Title, w)
+		}
+		if r.Kind != engine.KindDocument && strings.TrimSpace(r.Content) == "" {
+			t.Errorf("empty %s resource %q", r.Kind, r.Title)
+		}
+	}
+	if len(n.Resources) != 5 { // the table, two links, one code block, the document
+		t.Errorf("resources = %+v", n.Resources)
+	}
+}
+
+// A question mark in a link asks nothing.
+func TestAQuestionMarkInALinkAsksNothing(t *testing.T) {
+	if n := Build("Fixed it. See https://example.com/search?q=1 for details.", Facts{}); !n.Finished {
+		t.Fatalf("a link made it a question: %+v", n)
 	}
 }

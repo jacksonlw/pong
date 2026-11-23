@@ -136,6 +136,7 @@ func Listen(dir string, in io.Reader) error {
 			return err
 		}
 		if len(as) > 0 {
+			turn.Woke(c, as)
 			_, err := wakeWith(c, e, turn.WakeText(as, answerText))
 			return err
 		}

@@ -543,3 +543,18 @@ func TestASettledApprovalStillLeavesTheBuiltPing(t *testing.T) {
 		t.Fatalf("built Ping = %+v", b)
 	}
 }
+
+// A closing message whose Resources come out short, such as a table after
+// "Done." and a bare link, still gives the turn its Ping: the Engine takes
+// every title the builder makes.
+func TestShortResourceTitlesStillGiveTheTurnItsPing(t *testing.T) {
+	c, dir := enginetest.Start(t)
+	in, _ := os.ReadFile(filepath.Join("testdata", "stop/woken.json"))
+	msg, _ := json.Marshal("Done.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nSee https://github.com for more.")
+	in = bytes.Replace(in, []byte(`"BANANA"`), msg, 1)
+	stopHookOn(t, dir, in)
+	p := waiting(t, c, 1)[0]
+	if !p.Finished || len(p.Resources) != 2 {
+		t.Fatalf("built Ping = %+v", p)
+	}
+}

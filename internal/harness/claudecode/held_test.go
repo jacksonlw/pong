@@ -27,6 +27,18 @@ func after(t *testing.T, fixture, event string) []byte {
 	return out
 }
 
+// heldOn waits until the hook has recorded its Pings for a call, which it
+// does just after making them.
+func heldOn(t *testing.T, dir string) {
+	t.Helper()
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		if fs, _ := filepath.Glob(filepath.Join(dir, "held", "*", "*")); len(fs) > 0 {
+			return
+		}
+	}
+	t.Fatal("the hook recorded no Pings for its call")
+}
+
 func stateOf(t *testing.T, c interface {
 	Ping(string) (engine.Ping, error)
 }, id string) string {
@@ -44,6 +56,7 @@ func TestAPermissionAnsweredInTheTerminalLeavesPongAtOnce(t *testing.T) {
 	c, dir := enginetest.Start(t)
 	out := call(t, dir, "permission/bash.json")
 	p := waiting(t, c, 1)[0]
+	heldOn(t, dir)
 	if got := callBytes(t, dir, after(t, "permission/bash.json", "PostToolUse")); got != "" {
 		t.Fatalf("PostToolUse wrote %q", got)
 	}
@@ -60,6 +73,7 @@ func TestAFailedCallSettlesItsPrompt(t *testing.T) {
 	c, dir := enginetest.Start(t)
 	out := call(t, dir, "permission/write.json")
 	p := waiting(t, c, 1)[0]
+	heldOn(t, dir)
 	callBytes(t, dir, after(t, "permission/write.json", "PostToolUseFailure"))
 	if s := stateOf(t, c, p.ID); s != engine.StateAnsweredInHarness {
 		t.Fatalf("the Ping is %s", s)
@@ -89,5 +103,20 @@ func TestAQuestionAtTheMacIsMirroredNotHeld(t *testing.T) {
 	callBytes(t, dir, after(t, "question/single.json", "PostToolUse"))
 	if s := stateOf(t, c, p.ID); s != engine.StateAnsweredInHarness {
 		t.Fatalf("the mirror is %s after the dialog was answered", s)
+	}
+}
+
+// A mirrored question answered in Pong and then in the terminal does not wake
+// the Session again: its Pong is set aside.
+func TestAMirrorAnsweredInBothPlacesWakesNothing(t *testing.T) {
+	defer claudecode.SetAway(false)()
+	c, dir := enginetest.Start(t)
+	call(t, dir, "question/single.json")()
+	p := waiting(t, c, 1)[0]
+	pong(t, c, p.ID, engine.SendPong{Answer: "Blue"})
+	callBytes(t, dir, after(t, "question/single.json", "PostToolUse"))
+	got, err := c.Ping(p.ID)
+	if err != nil || got.Pong == nil || got.Pong.Delivery != engine.DeliveryLeft {
+		t.Fatalf("the Pong is %+v, %v; want it set aside", got.Pong, err)
 	}
 }

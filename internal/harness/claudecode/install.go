@@ -292,17 +292,47 @@ func (a Adapter) update(home, pong string) error {
 	if same, _ := sameMarketplace(fresh, mkt); same {
 		return nil
 	}
+	// Written beside the old one and swapped in, so a failure leaves a
+	// marketplace in place.
+	next := mkt + ".next"
+	os.RemoveAll(next)
+	if err := writeMarketplace(next, pong, newerVersion()); err != nil {
+		os.RemoveAll(next)
+		return err
+	}
 	if err := os.RemoveAll(mkt); err != nil {
 		return err
 	}
-	if err := writeMarketplace(mkt, pong, fmt.Sprintf("0.1.%d", now().Unix())); err != nil {
+	if err := os.Rename(next, mkt); err != nil {
 		return err
 	}
-	if _, err := a.claude(home, "plugin", "marketplace", "update", "pong", "--json"); err != nil {
-		return err
+	_, err = a.claude(home, "plugin", "marketplace", "update", "pong", "--json")
+	if err == nil {
+		_, err = a.claude(home, "plugin", "update", Plugin, "--json")
 	}
-	_, err = a.claude(home, "plugin", "update", Plugin, "--json")
+	if err != nil {
+		// Marked, so the next setup finds it differs and tries again.
+		os.WriteFile(filepath.Join(mkt, updateFailed), []byte(err.Error()), 0o644)
+	}
 	return err
+}
+
+// updateFailed marks a marketplace Claude Code did not take up.
+const updateFailed = ".pong-update-failed"
+
+// newerVersion is the plugin's own major and minor version with a patch
+// that only grows, so Claude Code takes each update as newer.
+func newerVersion() string {
+	b, _ := integrations.ClaudeCode.ReadFile("claude-code/plugin/.claude-plugin/plugin.json")
+	var v struct {
+		Version string `json:"version"`
+	}
+	json.Unmarshal(b, &v)
+	parts := strings.SplitN(v.Version, ".", 3)
+	if len(parts) < 2 {
+		parts = []string{"0", "1"}
+	}
+	return fmt.Sprintf("%s.%s.%d", parts[0], parts[1], now().Unix())
 }
 
 // now is the clock update versions the plugin by. Tests replace it.

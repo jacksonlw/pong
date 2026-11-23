@@ -104,7 +104,15 @@ func idle(c *client.Client, t Turn) error {
 func Built(c *client.Client, t Turn) (engine.Ping, error) {
 	n := Build(t.LastMessage, t.Facts)
 	n.Session, n.Harness, n.Folder = t.Session, t.Harness, t.Folder
-	return c.CreatePing(n)
+	p, err := c.CreatePing(n)
+	var ce *client.Error
+	if errors.As(err, &ce) && ce.Status == 400 && len(n.Resources) > 0 {
+		// A Resource the Engine will not take, such as a file gone since the
+		// turn wrote it, must not cost the turn its Ping.
+		n.Resources = nil
+		return c.CreatePing(n)
+	}
+	return p, err
 }
 
 func onItsWay(p engine.Ping) bool {
@@ -222,6 +230,13 @@ func WakeText(as []Answered, answer func(*engine.Pong) string) string {
 	return s
 }
 
+// Woke tells the Engine each of as is being woken in now (Client.Woke).
+func Woke(c *client.Client, as []Answered) {
+	for _, a := range as {
+		c.Woke(a.Ping.ID)
+	}
+}
+
 // Arrived marks delivered each of session's Pongs handed to a wake whose
 // line, as WakeText writes it, is in prompt: the prompt of a turn the
 // Harness woke. A wake the Harness dropped leaves its Pongs delivering, and
@@ -233,11 +248,13 @@ func Arrived(c *client.Client, harness, session, prompt string, answer func(*eng
 	}
 	for _, p := range ps {
 		if p.Session != session || (p.Harness != "" && p.Harness != harness) || p.Pong == nil ||
-			p.Pong.Delivery != engine.DeliveryDelivering {
+			(p.Pong.Delivery != engine.DeliveryDelivering && p.Pong.Delivery != engine.DeliveryUndelivered && p.Pong.Delivery != engine.DeliveryUnconfirmed) {
 			continue
 		}
+		// Each Pong's line, whole: it ends where the wake's line does.
 		a := answer(p.Pong)
-		if strings.Contains(prompt, "\n- "+p.Question+": "+a) || strings.Contains(prompt, "finished Ping in Pong: "+a) {
+		lines := "\n" + strings.ReplaceAll(prompt, "\r", "") + "\n"
+		if strings.Contains(lines, "\n- "+p.Question+": "+a+"\n") || strings.Contains(lines, "finished Ping in Pong: "+a+"\n") {
 			if _, err := c.Arrived(p.ID); err != nil {
 				return err
 			}

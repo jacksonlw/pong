@@ -22,7 +22,7 @@ func TestStandingInstructionKeepsPongOutOfTheAgentsWords(t *testing.T) {
 
 // Thoughts are taught with the rule that keeps them rare and concrete.
 func TestStandingInstructionTeachesThoughts(t *testing.T) {
-	for _, want := range []string{"send a Thought with send_thought for each real finding or decision", "One to three a turn."} {
+	for _, want := range []string{"send a Thought with send_thought for each real finding or decision", "One to three a turn.", "A Thought goes beside what you write in the Session, never instead of it"} {
 		if !strings.Contains(StandingInstruction, want) {
 			t.Errorf("the standing instruction lacks %q", want)
 		}

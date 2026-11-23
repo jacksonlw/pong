@@ -314,6 +314,14 @@ func (s *pings) routes(mux *http.ServeMux, hold time.Duration) {
 		p, err := s.wait(r.PathValue("id"), hold, r.Context().Done(), q.Get("held") == "1", q.Get("wake") == "1")
 		writePing(w, p, err)
 	})
+	mux.HandleFunc("POST /pings/{id}/answered-first", func(w http.ResponseWriter, r *http.Request) {
+		p, err := s.answeredFirst(r.PathValue("id"))
+		writePing(w, p, err)
+	})
+	mux.HandleFunc("POST /pings/{id}/woke", func(w http.ResponseWriter, r *http.Request) {
+		p, err := s.woke(r.PathValue("id"))
+		writePing(w, p, err)
+	})
 	mux.HandleFunc("POST /pings/{id}/arrived", func(w http.ResponseWriter, r *http.Request) {
 		p, err := s.arrived(r.PathValue("id"))
 		writePing(w, p, err)

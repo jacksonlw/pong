@@ -24,7 +24,12 @@ type mcpTool struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	InputSchema map[string]any `json:"inputSchema"`
+	Meta        map[string]any `json:"_meta,omitempty"`
 }
+
+// alwaysLoad asks Claude Code to load a tool upfront rather than defer it
+// behind its tool search, so using it costs the agent no extra call.
+var alwaysLoad = map[string]any{"anthropic/alwaysLoad": true}
 
 func str(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
 func boolean(desc string) map[string]any {
@@ -173,9 +178,11 @@ var mcpTools = []mcpTool{
 	},
 	{
 		Name: ToolSendThought,
-		Description: "As you work, tell your human in one sentence each thing you find, decide or change, so they can follow the Session " +
+		Meta: alwaysLoad, // the tool an agent uses most, so it costs no tool search
+		Description: "As you work, tell your human in one sentence each real thing you find or decide, so they can follow the Session " +
 			"without opening it, in words they understand without the code open: never what you are running, never output, never " +
-			"the same news twice. Most turns need three to six. It shows only in the Session's Thread, never asks anything, and returns at once.",
+			"the same news twice. One to three a turn, beside what you write in the Session, never instead of it. It shows only in " +
+			"the Session's Thread, never asks anything, and returns at once.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": props(map[string]any{
