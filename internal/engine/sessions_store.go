@@ -45,9 +45,15 @@ type Session struct {
 	Summary string `json:"summary,omitempty"`
 	// FirstPrompt is the prompt the Session began on, from Pong or from the
 	// human in the Harness: the first one recorded is kept.
-	FirstPrompt   string      `json:"first_prompt,omitempty"`
-	StartedBy     string      `json:"started_by"`
-	State         string      `json:"state"`
+	FirstPrompt string `json:"first_prompt,omitempty"`
+	StartedBy   string `json:"started_by"`
+	State       string `json:"state"`
+	// AwaitsOwnWork is true while the Session is working only because its
+	// last turn ended on a Note saying it waits on work it started, such as a
+	// background subagent or command. Its Harness shows it running until that
+	// work reports; the Engine does not take the ended turn as over
+	// (sessions_gone.go). Any later state given clears it.
+	AwaitsOwnWork bool        `json:"awaits_own_work,omitempty"`
 	ContinuedFrom *SessionRef `json:"continued_from,omitempty"`
 	Context       *Context    `json:"context,omitempty"`
 	TurnStartedAt *time.Time  `json:"turn_started_at,omitempty"` // when its current turn began
@@ -96,6 +102,9 @@ type RegisterSession struct {
 	// as when a Pong wakes it. Otherwise a turn begins only when it becomes
 	// working, and a prompt folded into a running turn leaves its start.
 	NewTurn bool `json:"new_turn,omitempty"`
+	// AwaitsOwnWork, with a state, says the Session's turn ended waiting on
+	// work it started. A state given without it clears it.
+	AwaitsOwnWork bool `json:"awaits_own_work,omitempty"`
 }
 
 // Context is how full a Session's context window is, and the figures behind
@@ -219,6 +228,7 @@ func (s *projects) registerLocked(n RegisterSession) (Session, error) {
 	}
 	if n.State != "" {
 		sess.State = n.State
+		sess.AwaitsOwnWork = n.AwaitsOwnWork
 	}
 	if n.ContinuedFrom != nil {
 		sess.ContinuedFrom = n.ContinuedFrom

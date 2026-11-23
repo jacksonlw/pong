@@ -82,6 +82,38 @@ func TestATurnThatEndedUnseenLeavesItsSessionIdle(t *testing.T) {
 	}
 }
 
+// A turn that ended on a Note saying the agent waits on work it started,
+// such as a background subagent, leaves its Session working, as its Harness
+// shows it, though the transcript shows the turn ended. It becomes idle only
+// once the transcript has been quiet for the quiet time.
+func TestASessionAwaitingItsOwnWorkStaysWorking(t *testing.T) {
+	r := &transcriptRunner{turns: map[string]turnSeen{
+		"/t/awaits": {ended: true, written: time.Now().Add(-5 * time.Minute)},
+		"/t/gone":   {ended: true, written: time.Now().Add(-3 * time.Hour)},
+	}}
+	c := enginetest.StartWith(t, engine.Config{Runners: []engine.Runner{r},
+		SessionCheckEvery: 20 * time.Millisecond, SessionQuietFor: time.Hour})
+	folder := repo(t, "shop")
+	for _, id := range []string{"awaits", "gone"} {
+		if _, err := c.RegisterSession(engine.RegisterSession{Harness: "claude-code", ID: id, Folder: folder,
+			PID: os.Getpid(), Transcript: "/t/" + id, State: engine.SessionWorking, AwaitsOwnWork: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	eventually(t, "gone to become idle", func() bool {
+		s, err := c.Session("claude-code", "gone")
+		return err == nil && s.State == engine.SessionIdle && !s.AwaitsOwnWork
+	})
+	time.Sleep(100 * time.Millisecond)
+	if s, _ := c.Session("claude-code", "awaits"); s.State != engine.SessionWorking || !s.AwaitsOwnWork {
+		t.Fatalf("awaits is %s (awaits own work: %v); want working", s.State, s.AwaitsOwnWork)
+	}
+	// The report of that work starts a turn like any other: it no longer waits.
+	if s, _ := c.RegisterSession(engine.RegisterSession{Harness: "claude-code", ID: "awaits", State: engine.SessionWorking}); s.AwaitsOwnWork {
+		t.Fatal("a hook with a state left the Session awaiting its own work")
+	}
+}
+
 // The prompt a Session began on is kept for its Thread: the first one given,
 // whoever gives it later.
 func TestASessionKeepsTheFirstPromptItWasGiven(t *testing.T) {

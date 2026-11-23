@@ -132,8 +132,9 @@ func TestNoPingAfterTheNudgeGetsAPlainPing(t *testing.T) {
 }
 
 // An agent whose work is not finished, because it waits on work it started,
-// answers the nudge with a Note saying so. Its turn ends idle with no plain
-// Ping, so the human is not asked about a message that asks nothing.
+// answers the nudge with a Note saying so. Its turn ends with no plain Ping,
+// so the human is not asked about a message that asks nothing, and the
+// Session stays working, as Claude Code shows it, until that work reports.
 func TestNoteAfterTheNudgeEndsTheTurnWithNoPlainPing(t *testing.T) {
 	c, dir := enginetest.Start(t)
 	run(t, dir, "prompt/woken.json") // the turn the nudge woke
@@ -146,8 +147,12 @@ func TestNoteAfterTheNudgeEndsTheTurnWithNoPlainPing(t *testing.T) {
 	if ps, _ := c.Pings(engine.StateWaiting); len(ps) != 1 || !ps[0].IsNote {
 		t.Fatalf("waiting = %+v; want only the agent's Note", ps)
 	}
-	if s := state(t, c, woken); s != engine.SessionIdle {
-		t.Fatalf("Session is %s, want idle", s)
+	if s, _ := c.Session("claude-code", woken); s.State != engine.SessionWorking || !s.AwaitsOwnWork {
+		t.Fatalf("Session is %s (awaits own work: %v); want working and awaiting", s.State, s.AwaitsOwnWork)
+	}
+	report(t, dir, woken) // the work it waited on reports
+	if s, _ := c.Session("claude-code", woken); s.State != engine.SessionWorking || s.AwaitsOwnWork {
+		t.Fatalf("after the report the Session is %s (awaits own work: %v); want working, no longer awaiting", s.State, s.AwaitsOwnWork)
 	}
 	typeIn(t, dir, woken) // ends the hook's listening
 	if out, wake := wait(); out != "" || wake != "" {

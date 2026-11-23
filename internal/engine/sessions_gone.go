@@ -82,6 +82,8 @@ func (s *projects) endGone(quiet time.Duration) error {
 // it (TurnReader): a turn the transcript shows ended, and one whose
 // transcript has not changed for the quiet time with nothing waiting on the
 // human, is over, and the Session idle. Its next hook makes it working again.
+// A Session awaiting its own work (Session.AwaitsOwnWork) is left working
+// until the quiet time, though its transcript shows the turn ended.
 
 // TurnReader is a Runner that can tell from a Session's transcript whether
 // its turn is over.
@@ -124,7 +126,10 @@ func (s *projects) idleLost(quiet time.Duration) error {
 		}
 		ended, written, ok := s.turnOver(x)
 		since := time.Since(written)
-		if !ok || !(ended && since > turnSettles || since > quiet && !asks[SessionRef{x.Harness, x.ID}]) {
+		// A turn that ended awaiting the Session's own work is over by design;
+		// only the quiet time ends the wait.
+		settled := ended && since > turnSettles && !x.AwaitsOwnWork
+		if !ok || !(settled || since > quiet && !asks[SessionRef{x.Harness, x.ID}]) {
 			continue
 		}
 		s.smu.Lock()
