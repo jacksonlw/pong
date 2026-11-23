@@ -3,6 +3,7 @@ package claudecode_test
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -312,5 +313,45 @@ func TestFailedInstallLeavesNoRecord(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(pong, p)); err == nil {
 			t.Fatalf("the failed Install left %s", p)
 		}
+	}
+}
+
+// A Pong whose plugin changed brings Claude Code's installed plugin up to
+// it: installing again updates the cached plugin, under a newer version.
+func TestInstallAgainUpdatesAChangedPlugin(t *testing.T) {
+	needClaude(t)
+	home := seededHome(t)
+	before := tree(t, home)
+	a := claudecode.Adapter{Engine: t.TempDir()}
+	if err := a.Install(home, "/old/pong"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Install(home, "/new/pong"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(home, ".claude/plugins/installed_plugins.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ip struct {
+		Plugins map[string][]struct {
+			InstallPath string `json:"installPath"`
+			Version     string `json:"version"`
+		} `json:"plugins"`
+	}
+	json.Unmarshal(b, &ip)
+	cur := ip.Plugins[claudecode.Plugin]
+	if len(cur) != 1 || cur[0].Version == "0.1.0" {
+		t.Fatalf("installed: %+v; want one install at a newer version", cur)
+	}
+	hooks, _ := os.ReadFile(filepath.Join(cur[0].InstallPath, "hooks/hooks.json"))
+	if !bytes.Contains(hooks, []byte(`"command": "/new/pong hook claude-code"`)) {
+		t.Fatalf("the installed plugin still runs the old pong:\n%s", hooks)
+	}
+	if err := a.Remove(home); err != nil {
+		t.Fatal(err)
+	}
+	if after := tree(t, home); after != before {
+		t.Fatalf("after remove:\n%s\nbefore install:\n%s", after, before)
 	}
 }

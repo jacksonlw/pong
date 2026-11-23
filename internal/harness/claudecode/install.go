@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -105,7 +107,11 @@ func load(home string) (record, bool) {
 // plugin's hooks and MCP server launching pong and the skill bundled. With
 // pong "pong" it is the marketplace as published, relying on pong being on
 // the PATH.
-func WriteMarketplace(dir, pong string) error {
+func WriteMarketplace(dir, pong string) error { return writeMarketplace(dir, pong, "") }
+
+// writeMarketplace is WriteMarketplace with the plugin's version set to
+// version, when it is not "".
+func writeMarketplace(dir, pong, version string) error {
 	quoted, _ := json.Marshal(pong)
 	shell, _ := json.Marshal(shellQuote(pong))
 	put := func(name string, b []byte) error {
@@ -125,6 +131,9 @@ func WriteMarketplace(dir, pong string) error {
 		}
 		b = bytes.ReplaceAll(b, []byte(`"command": "pong hook`), []byte(`"command": `+strings.TrimSuffix(string(shell), `"`)+` hook`))
 		b = bytes.ReplaceAll(b, []byte(`"command": "pong"`), []byte(`"command": `+string(quoted)))
+		if version != "" && strings.HasSuffix(p, "plugin/.claude-plugin/plugin.json") {
+			b = versionRE.ReplaceAll(b, []byte(`"version": "`+version+`"`))
+		}
 		return put(strings.TrimPrefix(p, "claude-code/"), b)
 	})
 	if err != nil {
@@ -205,7 +214,11 @@ func (a Adapter) CanInstall() error {
 	return nil
 }
 
-// Install adds the plugin at user scope. Installing again changes nothing.
+// Install adds the plugin at user scope. Installing again brings the
+// installed plugin up to this Pong's: when its hooks, MCP server or skill
+// differ, the marketplace is written again under a newer version and Claude
+// Code updates the plugin (Sessions take it when they restart). Otherwise it
+// changes nothing.
 // It changes nothing either when claude cannot be found, and an Install that
 // fails part way takes out what it put in, so no record of a half-made
 // install is left for the next Install or Remove to trust.
@@ -218,8 +231,12 @@ func (a Adapter) Install(home, pong string) error {
 	}
 	r, had := load(home)
 	if had {
-		if yes, err := a.installed(home); err != nil || yes {
+		yes, err := a.installed(home)
+		if err != nil {
 			return err
+		}
+		if yes {
+			return a.update(home, pong)
 		}
 		// The plugin went away outside Pong: install it again, keeping what
 		// the first Install found, since the files now hold Pong's changes.
@@ -260,6 +277,68 @@ func (a Adapter) Install(home, pong string) error {
 	}
 	return err
 }
+
+// update brings an installed plugin up to this Pong's, as Install says.
+func (a Adapter) update(home, pong string) error {
+	mkt := MarketplaceDir(home)
+	fresh, err := os.MkdirTemp("", "pong-plugin")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(fresh)
+	if err := WriteMarketplace(fresh, pong); err != nil {
+		return err
+	}
+	if same, _ := sameMarketplace(fresh, mkt); same {
+		return nil
+	}
+	if err := os.RemoveAll(mkt); err != nil {
+		return err
+	}
+	if err := writeMarketplace(mkt, pong, fmt.Sprintf("0.1.%d", now().Unix())); err != nil {
+		return err
+	}
+	if _, err := a.claude(home, "plugin", "marketplace", "update", "pong", "--json"); err != nil {
+		return err
+	}
+	_, err = a.claude(home, "plugin", "update", Plugin, "--json")
+	return err
+}
+
+// now is the clock update versions the plugin by. Tests replace it.
+var now = time.Now
+
+// sameMarketplace reports whether two marketplaces hold the same files,
+// whatever version the plugin says it is.
+func sameMarketplace(a, b string) (bool, error) {
+	read := func(root string) (map[string]string, error) {
+		m := map[string]string{}
+		err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			body, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
+			rel, _ := filepath.Rel(root, p)
+			m[rel] = versionRE.ReplaceAllString(string(body), `"version": ""`)
+			return nil
+		})
+		return m, err
+	}
+	x, err := read(a)
+	if err != nil {
+		return false, err
+	}
+	y, err := read(b)
+	if err != nil {
+		return false, err
+	}
+	return maps.Equal(x, y), nil
+}
+
+var versionRE = regexp.MustCompile(`"version": *"[^"]*"`)
 
 // found records the human's configuration as it is before Pong changes it.
 func found(home string) (record, error) {
